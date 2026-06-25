@@ -20,12 +20,12 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true },
     });
     const companyMap = new Map(
-      companies.map((c) => [c.name.toLowerCase().trim(), c.id])
+      companies.map((c: { id: string; name: string }) => [c.name.toLowerCase().trim(), c.id])
     );
 
     // Fetch existing numbers to detect duplicates
     const existingNumbers = new Set(
-      (await prisma.user.findMany({ select: { number: true } })).map((u) => u.number)
+      (await prisma.user.findMany({ select: { number: true } })).map((u: { number: string }) => u.number)
     );
 
     let created = 0;
