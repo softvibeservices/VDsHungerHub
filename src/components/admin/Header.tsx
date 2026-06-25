@@ -18,7 +18,7 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuToggle }: HeaderProps) {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   const title =
     Object.entries(pageTitles).find(([key]) => pathname.startsWith(key))?.[1] ??
