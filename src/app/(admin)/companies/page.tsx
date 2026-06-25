@@ -91,7 +91,7 @@ export default function CompaniesPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Companies</h2>
           <p className="text-sm text-gray-500 mt-0.5">Manage tiffin client companies</p>

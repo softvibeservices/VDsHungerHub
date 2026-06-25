@@ -113,7 +113,7 @@ export default function ProductsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Products</h2>
           <p className="text-sm text-gray-500 mt-0.5">Sabji items used to build thalis</p>
