@@ -10,8 +10,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "VD's Hunger Hub – Admin",
-  description: "Admin panel for VD's Hunger Hub tiffin service",
+  title: "VD's Hunger Hub – Fresh Tiffin, Delivered Daily",
+  description: "Order fresh, home-style thalis for lunch and dinner. Message us on WhatsApp to get started.",
 };
 
 export default function RootLayout({
@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} h-full scroll-smooth`}>
       <body className="min-h-full font-sans">
         {children}
         <Toaster
