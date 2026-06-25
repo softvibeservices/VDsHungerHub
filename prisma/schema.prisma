@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// ADMIN
+// ─────────────────────────────────────────
+model Admin {
+  id        String   @id @default(cuid())
+  name      String
+  number    String   @unique
+  password  String   // bcrypt hashed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// COMPANIES
+// ─────────────────────────────────────────
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  location  String?
+  isActive  Boolean  @default(true)
+  users     User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// USERS (Tiffin Customers)
+// ─────────────────────────────────────────
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  number    String   @unique // WhatsApp number — used as PK for ordering
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  companyId String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// PRODUCTS (Raw items — sabji, roti, dal, rice, etc.)
+// ─────────────────────────────────────────
+model Product {
+  id                String                 @id @default(cuid())
+  name              String                 @unique
+  quantity          String // e.g. "4 pieces", "1 bowl", "250ml"
+  price             Float // price per unit / per item
+  isActive          Boolean                @default(true)
+  dailySabjiOptions DailyMenuSabjiOption[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+}
+
+// ─────────────────────────────────────────
+// THALIS (Meal combinations)
+// ─────────────────────────────────────────
+model Thali {
+  id             String                 @id @default(cuid())
+  name           String                 @unique // e.g. "Small Gujarati Thali"
+  price          Float
+  description    String? // Short description for reference
+  maxSabjiCount  Int                    @default(1) // How many sabji user must choose
+  isActive       Boolean                @default(true)
+  items          ThaliItem[] // Fixed items (roti, dal, rice, salad, etc.)
+  dailyMenus     DailyMenuThali[]
+  dailySabjiOpts DailyMenuSabjiOption[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+// Fixed components of a thali (non-sabji items)
+model ThaliItem {
+  id        String   @id @default(cuid())
+  thali     Thali    @relation(fields: [thaliId], references: [id], onDelete: Cascade)
+  thaliId   String
+  itemName  String // e.g. "4 Roti", "Dal", "Rice", "Salad", "Buttermilk"
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([thaliId, itemName])
+}
+
+// ─────────────────────────────────────────
+// STAFF
+// ─────────────────────────────────────────
+model Staff {
+  id        String   @id @default(cuid())
+  name      String
+  number    String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// DAILY MENU
+// ─────────────────────────────────────────
+model DailyMenu {
+  id           String                 @id @default(cuid())
+  date         DateTime               @db.Date
+  mealType     MealType
+  cutoffTime   String? // e.g. "11:30" — stored as HH:MM string
+  isPublished  Boolean                @default(false)
+  thalis       DailyMenuThali[]
+  sabjiOptions DailyMenuSabjiOption[]
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  @@unique([date, mealType])
+}
+
+// Which thalis are available on a given daily menu
+model DailyMenuThali {
+  id      String    @id @default(cuid())
+  menu    DailyMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId  String
+  thali   Thali     @relation(fields: [thaliId], references: [id], onDelete: Restrict)
+  thaliId String
+
+  @@unique([menuId, thaliId])
+}
+
+// Which sabji options are available per thali per daily menu
+model DailyMenuSabjiOption {
+  id        String    @id @default(cuid())
+  menu      DailyMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId    String
+  thali     Thali     @relation(fields: [thaliId], references: [id], onDelete: Restrict)
+  thaliId   String
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId String
+
+  @@unique([menuId, thaliId, productId])
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+enum MealType {
+  LUNCH
+  DINNER
+}
