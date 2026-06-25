@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Sidebar from "@/components/admin/Sidebar";
-import Header from "@/components/admin/Header";
+import Header from "@/components/admin/Header"; // Admin top navigation header
 
 export default function AdminLayout({
   children,
