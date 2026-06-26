@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 2. Parse body
-  const { menuId, thaliId, selectedSabjiIds, selectedAddonIds } =
+  const { menuId, thaliId, selectedSabjiIds, selectedAddonIds, selectedAddons } =
     await req.json();
 
   if (!menuId || !thaliId) {
@@ -98,22 +98,51 @@ export async function POST(req: NextRequest) {
   }
 
   // 9. Validate and price add-ons
-  const addonIds: string[] = selectedAddonIds ?? [];
-  let addonsData: { productId: string; price: number }[] = [];
+  let addonsData: { productId: string; price: number; quantity: number }[] = [];
 
-  if (addonIds.length > 0) {
+  if (Array.isArray(selectedAddons) && selectedAddons.length > 0) {
     const addonProducts = await prisma.product.findMany({
       where: {
-        id: { in: addonIds },
+        id: { in: selectedAddons.map((a: any) => a.productId) },
         isActive: true,
         isAddOnAvailable: true,
       },
       select: { id: true, price: true },
     });
-    addonsData = addonProducts.map((p: { id: string; price: number }) => ({
-      productId: p.id,
-      price: p.price,
-    }));
+    const productPriceMap: Record<string, number> = {};
+    addonProducts.forEach((p: { id: string; price: number }) => {
+      productPriceMap[p.id] = p.price;
+    });
+    for (const a of selectedAddons) {
+      if (a && typeof a.productId === "string") {
+        const price = productPriceMap[a.productId];
+        if (price !== undefined) {
+          const qty = Math.min(10, Math.max(1, Number(a.quantity || 1)));
+          addonsData.push({
+            productId: a.productId,
+            price,
+            quantity: qty,
+          });
+        }
+      }
+    }
+  } else {
+    const addonIds: string[] = selectedAddonIds ?? [];
+    if (addonIds.length > 0) {
+      const addonProducts = await prisma.product.findMany({
+        where: {
+          id: { in: addonIds },
+          isActive: true,
+          isAddOnAvailable: true,
+        },
+        select: { id: true, price: true },
+      });
+      addonsData = addonProducts.map((p: { id: string; price: number }) => ({
+        productId: p.id,
+        price: p.price,
+        quantity: 1,
+      }));
+    }
   }
 
   // 10. Check for duplicate order (same user + same menu)
@@ -131,7 +160,7 @@ export async function POST(req: NextRequest) {
   }
 
   // 11. Calculate total
-  const addonsTotal = addonsData.reduce((sum, a) => sum + a.price, 0);
+  const addonsTotal = addonsData.reduce((sum, a) => sum + a.price * a.quantity, 0);
   const totalAmount = thaliDetail.price + addonsTotal;
 
   // 12. Create order
@@ -146,7 +175,11 @@ export async function POST(req: NextRequest) {
         create: sabjiToAdd.map((productId: string) => ({ productId })),
       },
       selectedAddons: {
-        create: addonsData.map(({ productId, price }) => ({ productId, price })),
+        create: addonsData.map(({ productId, price, quantity }) => ({
+          productId,
+          price,
+          quantity,
+        })),
       },
     },
     include: {

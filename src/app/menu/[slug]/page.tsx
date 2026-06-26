@@ -140,7 +140,7 @@ export default function PublicMenuPage({ params }: PageProps) {
   // Selections
   const [selectedThaliId, setSelectedThaliId] = useState<string>("");
   const [selectedSabjis, setSelectedSabjis] = useState<Record<string, string[]>>({}); // thaliId -> productIds
-  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([]);
+  const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({}); // productId -> quantity
 
   // OTP state
   const [otpSending, setOtpSending] = useState(false);
@@ -219,12 +219,18 @@ export default function PublicMenuPage({ params }: PageProps) {
     }
   };
 
-  const toggleAddon = (addonId: string) => {
-    setSelectedAddonIds((prev) =>
-      prev.includes(addonId)
-        ? prev.filter((id) => id !== addonId)
-        : [...prev, addonId]
-    );
+  const updateAddonQty = (addonId: string, delta: number) => {
+    setSelectedAddons((prev) => {
+      const currentQty = prev[addonId] ?? 0;
+      const nextQty = Math.min(10, Math.max(0, currentQty + delta));
+      const next = { ...prev };
+      if (nextQty === 0) {
+        delete next[addonId];
+      } else {
+        next[addonId] = nextQty;
+      }
+      return next;
+    });
   };
 
   const validateSabjiSelection = () => {
@@ -237,8 +243,8 @@ export default function PublicMenuPage({ params }: PageProps) {
 
   const computeTotal = () => {
     const thaliPrice = selectedMenuThali?.thali.price ?? 0;
-    const addonsTotal = selectedAddonIds
-      .map((id) => addOns.find((a) => a.id === id)?.price ?? 0)
+    const addonsTotal = Object.entries(selectedAddons)
+      .map(([id, qty]) => (addOns.find((a) => a.id === id)?.price ?? 0) * qty)
       .reduce((a, b) => a + b, 0);
     return thaliPrice + addonsTotal;
   };
@@ -367,7 +373,10 @@ export default function PublicMenuPage({ params }: PageProps) {
           menuId: menu.id,
           thaliId,
           selectedSabjiIds: selectedSabjis[thaliId] ?? [],
-          selectedAddonIds,
+          selectedAddons: Object.entries(selectedAddons).map(([productId, quantity]) => ({
+            productId,
+            quantity,
+          })),
         }),
       });
 
@@ -506,357 +515,381 @@ export default function PublicMenuPage({ params }: PageProps) {
       {/* Invisible reCAPTCHA container — required by Firebase */}
       <div ref={recaptchaContainerRef} id="recaptcha-container" />
 
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md">
-            <UtensilsCrossed className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">
-              VD&apos;s Hunger Hub
-            </h1>
-            <p className="text-xs text-gray-500 font-medium mt-0.5">
-              Fresh Tiffin, Delivered Daily
-            </p>
-          </div>
-        </div>
-
-        {/* Date / Meal info card */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-          <div>
-            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
-              Today&apos;s Menu:
-            </p>
-            <p className="text-base font-bold text-gray-800 mt-0.5">{dateStr}</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span
-              className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${
-                isLunch
-                  ? "bg-amber-50 text-amber-700 border border-amber-200"
-                  : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-              }`}
-            >
-              {isLunch ? "🌅 Lunch" : "🌙 Dinner"}
-            </span>
-            {menu.cutoffTime && (
-              <span
-                className={`text-xs flex items-center gap-1 font-semibold ${
-                  cutoffExpired ? "text-red-600" : "text-red-500"
-                }`}
-              >
-                <Clock size={13} />
-                Cutoff: {formatTimeIST(menu.cutoffTime)}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Logged-in user banner */}
-        {userInfo && (
-          <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2.5">
-            <CheckCircle className="text-green-500 flex-shrink-0" size={16} />
-            <div className="text-sm">
-              <span className="font-bold text-gray-800">{userInfo.name}</span>
-              <span className="text-gray-500 ml-1">({userInfo.companyName})</span>
-            </div>
-          </div>
-        )}
-
-        {/* Step 1 — Thali selector */}
-        <div className="space-y-2.5">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-            Step 1: Choose Your Thali
-          </p>
-          <div className="grid grid-cols-1 gap-2.5">
-            {menu.thalis.map((mt) => {
-              const thali = mt.thali;
-              const isSelected = thali.id === selectedThaliId;
-              return (
-                <button
-                  key={thali.id}
-                  onClick={() => {
-                    setSelectedThaliId(thali.id);
-                    setSelectedSabjis({});
-                  }}
-                  className={`p-3.5 sm:p-4 rounded-2xl border text-left flex justify-between items-start gap-2 transition-all cursor-pointer shadow-sm ${
-                    isSelected
-                      ? "border-orange-500 bg-orange-500/5 ring-1 ring-orange-500"
-                      : "border-gray-200 bg-white hover:border-gray-300"
-                  }`}
-                >
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <span className="font-bold text-sm block text-gray-900 truncate">
-                      {thali.name}
-                    </span>
-                    {thali.nameGu && (
-                      <span className="text-xs text-gray-500 font-medium block truncate">
-                        {thali.nameGu}
-                      </span>
-                    )}
-                    <span className="text-[11px] text-gray-500 block">
-                      {thali.sabjiCount > 0
-                        ? `Choice of ${thali.sabjiCount} Sabji`
-                        : "Fixed contents"}
-                    </span>
-                    {/* Fixed items chips */}
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {thali.items.map((item) => (
-                        <span
-                          key={item.id}
-                          className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-md"
-                        >
-                          {item.itemName}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <span
-                    className={`text-sm font-extrabold px-2.5 py-0.5 rounded-lg border flex-shrink-0 self-start ${
-                      isSelected
-                        ? "bg-orange-500 text-white border-orange-500"
-                        : "bg-gray-50 text-gray-800 border-gray-200"
-                    }`}
-                  >
-                    {formatCurrency(thali.price)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Step 2 — Sabji selector (only if selected thali has sabji) */}
-        {selectedMenuThali && selectedMenuThali.thali.sabjiCount > 0 && (
-          <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex justify-between items-start border-b border-gray-100 pb-2 gap-2">
-              <div className="min-w-0">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Step 2: Choose Sabji
-                </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">
-                  {selectedMenuThali.thali.sabjiCount === 1
-                    ? "Choose 1 sabji from the options below"
-                    : `Choose exactly ${selectedMenuThali.thali.sabjiCount} sabjis from the options below`}
+      <div className="max-w-5xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          
+          {/* Left Column: Selection controls */}
+          <div className="md:col-span-2 space-y-6">
+            
+            {/* Brand Header */}
+            <div className="flex flex-col items-center text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md">
+                <UtensilsCrossed className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">
+                  VD&apos;s Hunger Hub
+                </h1>
+                <p className="text-xs text-gray-500 font-medium mt-0.5">
+                  Fresh Tiffin, Delivered Daily
                 </p>
               </div>
-              <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-md border border-orange-100 whitespace-nowrap flex-shrink-0">
-                {(selectedSabjis[selectedMenuThali.thali.id] ?? []).length} /{" "}
-                {selectedMenuThali.thali.sabjiCount} selected
-              </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-2">
-              {menu.sabjiOptions
-                .filter(
-                  (opt) =>
-                    opt.categoryId === selectedMenuThali.thali.categoryId
-                )
-                .map((opt) => {
-                  const isChecked = (
-                    selectedSabjis[selectedMenuThali.thali.id] ?? []
-                  ).includes(opt.productId);
-                  const currentCount = (selectedSabjis[selectedMenuThali.thali.id] ?? []).length;
-                  const sabjiLimit = selectedMenuThali.thali.sabjiCount;
-                  // At cap = reached the max AND this item is not already selected
-                  const atMax = currentCount >= sabjiLimit && !isChecked;
-                  // For sabjiCount=1: clicking a different item REPLACES the selection (not disabled)
-                  // For sabjiCount>1: items are disabled at cap so user can't accidentally add more
-                  const isDisabled = atMax && sabjiLimit > 1;
+            {/* Date / Meal info card */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+              <div>
+                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
+                  Today&apos;s Menu:
+                </p>
+                <p className="text-base font-bold text-gray-800 mt-0.5">{dateStr}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${
+                    isLunch
+                      ? "bg-amber-50 text-amber-700 border border-amber-200"
+                      : "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                  }`}
+                >
+                  {isLunch ? "🌅 Lunch" : "🌙 Dinner"}
+                </span>
+                {menu.cutoffTime && (
+                  <span
+                    className={`text-xs flex items-center gap-1 font-semibold ${
+                      cutoffExpired ? "text-red-600" : "text-red-500"
+                    }`}
+                  >
+                    <Clock size={13} />
+                    Cutoff: {formatTimeIST(menu.cutoffTime)}
+                  </span>
+                )}
+              </div>
+            </div>
 
+            {/* Logged-in user banner */}
+            {userInfo && (
+              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2.5">
+                <CheckCircle className="text-green-500 flex-shrink-0" size={16} />
+                <div className="text-sm">
+                  <span className="font-bold text-gray-800">{userInfo.name}</span>
+                  <span className="text-gray-500 ml-1">({userInfo.companyName})</span>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1 — Thali selector */}
+            <div className="space-y-2.5">
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                Step 1: Choose Your Thali
+              </p>
+              <div className="grid grid-cols-1 gap-2.5">
+                {menu.thalis.map((mt) => {
+                  const thali = mt.thali;
+                  const isSelected = thali.id === selectedThaliId;
                   return (
                     <button
-                      key={opt.id}
-                      onClick={() =>
-                        toggleSabji(
-                          selectedMenuThali.thali.id,
-                          opt.productId,
-                          sabjiLimit
-                        )
-                      }
-                      disabled={isDisabled}
-                      className={`p-3 rounded-xl border text-left flex items-center gap-3 transition-all ${
-                        isChecked
-                          ? "border-orange-400 bg-orange-50"
-                          : isDisabled
-                          ? "border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed"
-                          : atMax && sabjiLimit === 1
-                          ? "border-gray-200 bg-white hover:border-orange-300 cursor-pointer opacity-70"
-                          : "border-gray-200 bg-white hover:border-orange-300 cursor-pointer"
+                      key={thali.id}
+                      onClick={() => {
+                        setSelectedThaliId(thali.id);
+                        setSelectedSabjis({});
+                      }}
+                      className={`p-3.5 sm:p-4 rounded-2xl border text-left flex justify-between items-start gap-2 transition-all cursor-pointer shadow-sm ${
+                        isSelected
+                          ? "border-orange-500 bg-orange-500/5 ring-1 ring-orange-500"
+                          : "border-gray-200 bg-white hover:border-gray-300"
                       }`}
                     >
-                      <div
-                        className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
-                          isChecked
-                            ? "bg-orange-500 border-orange-500"
-                            : "border-gray-300 bg-white"
-                        }`}
-                      >
-                        {isChecked && (
-                          <CheckCircle
-                            size={13}
-                            className="text-white fill-white"
-                          />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-xs font-bold text-gray-800 block truncate">
-                          {opt.product.name}
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <span className="font-bold text-sm block text-gray-900 truncate">
+                          {thali.name}
                         </span>
-                        {opt.product.nameGu && (
-                          <span className="text-[10px] text-gray-400 block truncate">
-                            {opt.product.nameGu}
+                        {thali.nameGu && (
+                          <span className="text-xs text-gray-500 font-medium block truncate">
+                            {thali.nameGu}
                           </span>
                         )}
-                      </div>
-                      {/* Show "Tap to change" hint for sabjiCount=1 when at max and not selected */}
-                      {atMax && sabjiLimit === 1 && !isChecked && (
-                        <span className="text-[9px] text-orange-400 font-semibold flex-shrink-0 whitespace-nowrap">
-                          Tap to change
+                        <span className="text-[11px] text-gray-500 block">
+                          {thali.sabjiCount > 0
+                            ? `Choice of ${thali.sabjiCount} Sabji`
+                            : "Fixed contents"}
                         </span>
-                      )}
+                        {/* Fixed items chips */}
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {thali.items.map((item) => (
+                            <span
+                              key={item.id}
+                              className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-md"
+                            >
+                              {item.itemName}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <span
+                        className={`text-sm font-extrabold px-2.5 py-0.5 rounded-lg border flex-shrink-0 self-start ${
+                          isSelected
+                            ? "bg-orange-500 text-white border-orange-500"
+                            : "bg-gray-50 text-gray-800 border-gray-200"
+                        }`}
+                      >
+                        {formatCurrency(thali.price)}
+                      </span>
                     </button>
                   );
                 })}
-
-              {menu.sabjiOptions.filter(
-                (opt) =>
-                  opt.categoryId === selectedMenuThali.thali.categoryId
-              ).length === 0 && (
-                <p className="col-span-2 text-xs text-gray-400 italic py-2 text-center">
-                  No sabjis available for this thali today.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3 — Add-ons (optional) */}
-        {addOns.length > 0 && (
-          <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-              <PackagePlus size={15} className="text-purple-500" />
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                Add-Ons{" "}
-                <span className="text-gray-300 font-normal normal-case ml-1">
-                  (Optional)
-                </span>
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {addOns.map((addon) => {
-                const isSelected = selectedAddonIds.includes(addon.id);
-                return (
-                  <button
-                    key={addon.id}
-                    onClick={() => toggleAddon(addon.id)}
-                    className={`p-3 rounded-xl border text-left flex items-center justify-between gap-3 transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-purple-400 bg-purple-50"
-                        : "border-gray-200 bg-white hover:border-purple-300"
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <span className="text-xs font-bold text-gray-800 block truncate">
-                        {addon.name}
-                      </span>
-                      {addon.nameGu && (
-                        <span className="text-[10px] text-gray-400 block truncate">
-                          {addon.nameGu}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <span
-                        className={`text-xs font-bold ${
-                          isSelected ? "text-purple-700" : "text-gray-700"
-                        }`}
-                      >
-                        +{formatCurrency(addon.price)}
-                      </span>
-                      <div
-                        className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                          isSelected
-                            ? "bg-purple-500 border-purple-500 text-white"
-                            : "border-gray-300 bg-white text-gray-400"
-                        }`}
-                      >
-                        {isSelected ? (
-                          <Minus size={12} />
-                        ) : (
-                          <Plus size={12} />
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Bill summary + Place Order */}
-        {selectedMenuThali && (
-          <>
-            {/* Bill breakdown card — stays in normal document flow */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
-              {/* Bill breakdown */}
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between gap-2 text-gray-700">
-                  <span className="min-w-0 flex-1 break-words">{selectedMenuThali.thali.name}</span>
-                  <span className="font-semibold flex-shrink-0">
-                    {formatCurrency(selectedMenuThali.thali.price)}
-                  </span>
-                </div>
-                {selectedAddonIds.map((id) => {
-                  const addon = addOns.find((a) => a.id === id);
-                  if (!addon) return null;
-                  return (
-                    <div key={id} className="flex justify-between items-center gap-2 text-sm text-gray-500">
-                      <span className="min-w-0 flex-1 truncate">+ {addon.name}</span>
-                      <span className="flex-shrink-0">+{formatCurrency(addon.price)}</span>
-                    </div>
-                  );
-                })}
-                <div className="border-t border-gray-100 pt-2 flex justify-between items-center gap-2 font-bold text-gray-900">
-                  <span>Total</span>
-                  <span className="text-orange-600 text-base flex-shrink-0">
-                    {formatCurrency(computeTotal())}
-                  </span>
-                </div>
               </div>
             </div>
 
-            {/* Place Order button — sticky on mobile, inline on desktop */}
-            <div className="
-              fixed bottom-0 left-0 right-0 z-30
-              px-4 pb-6 pt-3
-              bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-lg
-              sm:relative sm:bottom-auto sm:left-auto sm:right-auto sm:z-auto
-              sm:px-0 sm:pb-0 sm:pt-0 sm:bg-transparent sm:border-t-0 sm:shadow-none sm:backdrop-blur-none
-            ">
-              <button
-                onClick={handlePlaceOrder}
-                disabled={!canOrder || cutoffExpired}
-                className={`w-full py-4 rounded-xl font-bold text-sm transition-all duration-200 shadow-sm cursor-pointer ${
-                  canOrder && !cutoffExpired
-                    ? "bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-orange-500/20"
-                    : "bg-gray-100 text-gray-400 cursor-not-allowed"
-                }`}
-              >
-                {cutoffExpired
-                  ? "⏰ Ordering Closed"
-                  : !validateSabjiSelection() && selectedMenuThali.thali.sabjiCount > 0
-                  ? `Select ${selectedMenuThali.thali.sabjiCount} sabji(s) to continue`
-                  : userInfo
-                  ? "Place Order →"
-                  : "Place Order — Verify to Continue →"}
-              </button>
-            </div>
-          </>
-        )}
+            {/* Step 2 — Sabji selector */}
+            {selectedMenuThali && selectedMenuThali.thali.sabjiCount > 0 && (
+              <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <div className="flex justify-between items-start border-b border-gray-100 pb-2 gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Step 2: Choose Sabji
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      {selectedMenuThali.thali.sabjiCount === 1
+                        ? "Choose 1 sabji from the options below"
+                        : `Choose exactly ${selectedMenuThali.thali.sabjiCount} sabjis from the options below`}
+                    </p>
+                  </div>
+                  <span className="text-[10px] bg-orange-50 text-orange-600 font-bold px-2 py-0.5 rounded-md border border-orange-100 whitespace-nowrap flex-shrink-0">
+                    {(selectedSabjis[selectedMenuThali.thali.id] ?? []).length} /{" "}
+                    {selectedMenuThali.thali.sabjiCount} selected
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2">
+                  {menu.sabjiOptions
+                    .filter(
+                      (opt) =>
+                        opt.categoryId === selectedMenuThali.thali.categoryId
+                    )
+                    .map((opt) => {
+                      const isChecked = (
+                        selectedSabjis[selectedMenuThali.thali.id] ?? []
+                      ).includes(opt.productId);
+                      const currentCount = (selectedSabjis[selectedMenuThali.thali.id] ?? []).length;
+                      const sabjiLimit = selectedMenuThali.thali.sabjiCount;
+                      const atMax = currentCount >= sabjiLimit && !isChecked;
+                      const isDisabled = atMax && sabjiLimit > 1;
+
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() =>
+                            toggleSabji(
+                              selectedMenuThali.thali.id,
+                              opt.productId,
+                              sabjiLimit
+                            )
+                          }
+                          disabled={isDisabled}
+                          className={`p-3 rounded-xl border text-left flex items-center gap-3 transition-all ${
+                            isChecked
+                              ? "border-orange-400 bg-orange-50"
+                              : isDisabled
+                              ? "border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed"
+                              : atMax && sabjiLimit === 1
+                              ? "border-gray-200 bg-white hover:border-orange-300 cursor-pointer opacity-70"
+                              : "border-gray-200 bg-white hover:border-orange-300 cursor-pointer"
+                          }`}
+                        >
+                          <div
+                            className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
+                              isChecked
+                                ? "bg-orange-500 border-orange-500"
+                                : "border-gray-300 bg-white"
+                            }`}
+                          >
+                            {isChecked && (
+                              <CheckCircle
+                                size={13}
+                                className="text-white fill-white"
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-bold text-gray-800 block truncate">
+                              {opt.product.name}
+                            </span>
+                            {opt.product.nameGu && (
+                              <span className="text-[10px] text-gray-400 block truncate">
+                                {opt.product.nameGu}
+                              </span>
+                            )}
+                          </div>
+                          {atMax && sabjiLimit === 1 && !isChecked && (
+                            <span className="text-[9px] text-orange-400 font-semibold flex-shrink-0 whitespace-nowrap">
+                              Tap to change
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+
+                  {menu.sabjiOptions.filter(
+                    (opt) =>
+                      opt.categoryId === selectedMenuThali.thali.categoryId
+                  ).length === 0 && (
+                    <p className="col-span-2 text-xs text-gray-400 italic py-2 text-center">
+                      No sabjis available for this thali today.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Step 3 — Add-ons */}
+            {addOns.length > 0 && (
+              <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
+                  <PackagePlus size={15} className="text-purple-500" />
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Add-Ons{" "}
+                    <span className="text-gray-300 font-normal normal-case ml-1">
+                      (Optional)
+                    </span>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {addOns.map((addon) => {
+                    const qty = selectedAddons[addon.id] ?? 0;
+                    const isSelected = qty > 0;
+                    return (
+                      <div
+                        key={addon.id}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                          isSelected
+                            ? "border-purple-400 bg-purple-50"
+                            : "border-gray-200 bg-white hover:border-purple-300"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="text-xs font-bold text-gray-800 block truncate">
+                            {addon.name}
+                          </span>
+                          {addon.nameGu && (
+                            <span className="text-[10px] text-gray-400 block truncate">
+                              {addon.nameGu}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <span
+                            className={`text-xs font-bold ${
+                              isSelected ? "text-purple-700" : "text-gray-700"
+                            }`}
+                          >
+                            +{formatCurrency(addon.price)}
+                          </span>
+
+                          {!isSelected ? (
+                            <button
+                              onClick={() => updateAddonQty(addon.id, 1)}
+                              className="text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                              + Add
+                            </button>
+                          ) : (
+                            <div className="flex items-center bg-white border border-purple-200 rounded-lg overflow-hidden">
+                              <button
+                                onClick={() => updateAddonQty(addon.id, -1)}
+                                className="p-1.5 text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
+                              >
+                                <Minus size={11} className="stroke-[3]" />
+                              </button>
+                              <span className="px-2 text-xs font-extrabold text-purple-700 min-w-[1.25rem] text-center select-none">
+                                {qty}
+                              </span>
+                              <button
+                                onClick={() => updateAddonQty(addon.id, 1)}
+                                disabled={qty >= 10}
+                                className={`p-1.5 transition-colors cursor-pointer ${
+                                  qty >= 10
+                                    ? "text-gray-300 cursor-not-allowed"
+                                    : "text-purple-600 hover:bg-purple-50"
+                                }`}
+                              >
+                                <Plus size={11} className="stroke-[3]" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Sticky Summary & Checkout */}
+          <div className="md:col-span-1 space-y-4 md:sticky md:top-6">
+            {selectedMenuThali && (
+              <>
+                <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2">
+                    Order Summary
+                  </p>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between gap-2 text-gray-700 font-medium">
+                      <span className="min-w-0 flex-1 break-words">{selectedMenuThali.thali.name}</span>
+                      <span className="font-semibold flex-shrink-0">
+                        {formatCurrency(selectedMenuThali.thali.price)}
+                      </span>
+                    </div>
+                    {Object.entries(selectedAddons).map(([id, qty]) => {
+                      const addon = addOns.find((a) => a.id === id);
+                      if (!addon) return null;
+                      return (
+                        <div key={id} className="flex justify-between items-center gap-2 text-sm text-gray-500">
+                          <span className="min-w-0 flex-1 truncate">+ {addon.name} x{qty}</span>
+                          <span className="flex-shrink-0">+{formatCurrency(addon.price * qty)}</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t border-gray-100 pt-2 flex justify-between items-center gap-2 font-bold text-gray-900">
+                      <span>Total</span>
+                      <span className="text-orange-600 text-base flex-shrink-0">
+                        {formatCurrency(computeTotal())}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="
+                  fixed bottom-0 left-0 right-0 z-30
+                  px-4 pb-6 pt-3
+                  bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-lg
+                  md:relative md:bottom-auto md:left-auto md:right-auto md:z-auto
+                  md:px-0 md:pb-0 md:pt-0 md:bg-transparent md:border-t-0 md:shadow-none md:backdrop-blur-none
+                ">
+                  <button
+                    onClick={handlePlaceOrder}
+                    disabled={!canOrder || cutoffExpired}
+                    className={`w-full py-4 rounded-xl font-bold text-sm transition-all duration-200 shadow-sm cursor-pointer ${
+                      canOrder && !cutoffExpired
+                        ? "bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white shadow-orange-500/20"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    {cutoffExpired
+                      ? "⏰ Ordering Closed"
+                      : !validateSabjiSelection() && selectedMenuThali.thali.sabjiCount > 0
+                      ? `Select ${selectedMenuThali.thali.sabjiCount} sabji(s) to continue`
+                      : userInfo
+                      ? "Place Order →"
+                      : "Place Order — Verify to Continue →"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* OTP Flow Modal */}
@@ -885,9 +918,13 @@ export default function PublicMenuPage({ params }: PageProps) {
               })
               .filter(Boolean)
           }
-          selectedAddons={selectedAddonIds
-            .map((id) => addOns.find((a) => a.id === id))
-            .filter(Boolean) as { id: string; name: string; nameGu?: string | null; price: number }[]}
+          selectedAddons={Object.entries(selectedAddons)
+            .map(([id, qty]) => {
+              const addon = addOns.find((a) => a.id === id);
+              if (!addon) return null;
+              return { ...addon, quantity: qty };
+            })
+            .filter(Boolean) as { id: string; name: string; nameGu?: string | null; price: number; quantity: number }[]}
           totalAmount={computeTotal()}
           onConfirm={handleConfirmOrder}
           onBack={() => setPageState("menu")}

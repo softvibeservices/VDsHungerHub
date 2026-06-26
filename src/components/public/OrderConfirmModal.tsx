@@ -15,6 +15,7 @@ interface AddonProduct {
   name: string;
   nameGu?: string | null;
   price: number;
+  quantity: number;
 }
 
 interface OrderConfirmModalProps {
@@ -112,9 +113,14 @@ export default function OrderConfirmModal({
                 <p className="text-xs text-gray-400 mb-1.5">Add-ons:</p>
                 {selectedAddons.map((addon) => (
                   <div key={addon.id} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-700">{addon.name}</span>
+                    <span className="text-gray-700">
+                      {addon.name}{" "}
+                      <span className="text-xs text-gray-450 font-normal">
+                        x{addon.quantity}
+                      </span>
+                    </span>
                     <span className="font-semibold text-gray-800">
-                      +{formatCurrency(addon.price)}
+                      +{formatCurrency(addon.price * addon.quantity)}
                     </span>
                   </div>
                 ))}

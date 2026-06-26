@@ -40,7 +40,7 @@ interface AdminOrder {
     publicSlug: string | null;
   };
   selectedSabji: { product: { id: string; name: string } }[];
-  selectedAddons: { product: { id: string; name: string }; price: number }[];
+  selectedAddons: { product: { id: string; name: string }; price: number; quantity: number }[];
 }
 
 interface OrdersResponse {
@@ -609,12 +609,12 @@ export default function AdminOrdersPage() {
                                   {product.name}
                                 </span>
                               ))}
-                              {order.selectedAddons.map(({ product, price }) => (
+                              {order.selectedAddons.map(({ product, price, quantity }) => (
                                 <span
                                   key={product.id}
                                   className="text-[9px] bg-purple-50/70 text-purple-700 border border-purple-100/60 px-1.5 py-0.2 rounded font-bold"
                                 >
-                                  +{product.name} ({formatCurrency(price)})
+                                  +{product.name} {quantity > 1 ? `x${quantity}` : ""} ({formatCurrency(price * (quantity || 1))})
                                 </span>
                               ))}
                             </div>

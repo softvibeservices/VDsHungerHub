@@ -290,6 +290,7 @@ model OrderAddon {
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
   price     Float   // price snapshot at time of order
+  quantity  Int     @default(1)
 
   @@unique([orderId, productId])
 }
