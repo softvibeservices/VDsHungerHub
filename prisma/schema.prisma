@@ -77,11 +77,29 @@ model Product {
   quantity          String // e.g. "4 pieces", "1 bowl", "250ml"
   price             Float // price per unit / per item
   isActive          Boolean                @default(true)
+  isAddOnAvailable  Boolean                @default(false)
+  addOns            ProductAddon[]
   thaliSabjiPool    ThaliSabjiProduct[]
   dailySabjiOptions DailyMenuSabjiOption[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 }
+
+// ─────────────────────────────────────────
+// PRODUCT ADD-ON
+// ─────────────────────────────────────────
+model ProductAddon {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  name      String
+  price     Float    @default(0)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([productId, name])
+}
+
 
 // ─────────────────────────────────────────
 // THALIS (Meal combinations)

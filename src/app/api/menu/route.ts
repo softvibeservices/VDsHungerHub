@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (dateParam) {
-      // Parse the date as IST midnight to correctly match the DB Date column
-      const date = new Date(dateParam + "T00:00:00+05:30");
+      // Parse the date as UTC midnight to correctly match the DB Date column
+      const date = new Date(dateParam + "T00:00:00.000Z");
       where.date = date;
     }
     if (mealType) {
@@ -58,8 +58,8 @@ export async function POST(req: NextRequest) {
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
 
-    // Parse date as IST midnight to avoid UTC offset shifting the date
-    const menuDate = new Date(date + "T00:00:00+05:30");
+    // Parse date as UTC midnight so that the date stored in the PostgreSQL DATE column is exactly YYYY-MM-DD
+    const menuDate = new Date(date + "T00:00:00.000Z");
 
     const menu = await prisma.dailyMenu.create({
       data: {

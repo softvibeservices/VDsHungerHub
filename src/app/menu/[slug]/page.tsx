@@ -195,6 +195,7 @@ export default function PublicMenuPage({ params }: PageProps) {
 
   const isLunch = menu.mealType === "LUNCH";
   const dateStr = new Date(menu.date).toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
     weekday: "long",
     day: "numeric",
     month: "long",

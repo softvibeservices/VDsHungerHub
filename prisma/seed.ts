@@ -97,6 +97,33 @@ async function main() {
   ]);
   console.log("✅ Products seeded");
 
+  // ── Sample Add-Ons (for Palak Paneer) ──────────────────────────
+  const palakPaneer = seededProducts.find((p) => p.name === "Palak Paneer");
+  if (palakPaneer) {
+    // Mark it as add-on available
+    await prisma.product.update({
+      where: { id: palakPaneer.id },
+      data: { isAddOnAvailable: true },
+    });
+
+    // Create sample add-ons
+    const addOnDefs = [
+      { name: "Extra Roti", price: 5, sortOrder: 0 },
+      { name: "Buttermilk", price: 0, sortOrder: 1 },
+      { name: "Shreekhnd", price: 15, sortOrder: 2 },
+      { name: "Jaggery", price: 0, sortOrder: 3 },
+    ];
+
+    for (const ao of addOnDefs) {
+      await prisma.productAddon.upsert({
+        where: { productId_name: { productId: palakPaneer.id, name: ao.name } },
+        update: { price: ao.price },
+        create: { productId: palakPaneer.id, ...ao },
+      });
+    }
+    console.log("✅ Sample add-ons seeded");
+  }
+
   // ── Thalis ────────────────────────────────
   const thaliDefs = [
     {

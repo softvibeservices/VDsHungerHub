@@ -14,6 +14,11 @@ import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatCurrency } from "@/lib/utils";
 
+interface AddonItem {
+  name: string;
+  price: number;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -21,6 +26,10 @@ interface Product {
   quantity: string;
   price: number;
   isActive: boolean;
+  isAddOnAvailable: boolean;
+  addOns: AddonItem[];
+  createdAt: string;
+  updatedAt: string;
 }
 
 export default function ProductsTab() {
@@ -178,6 +187,27 @@ export default function ProductsTab() {
           )}
         </div>
       ),
+    },
+    {
+      key: "addOns",
+      header: "Add-Ons",
+      render: (row) => {
+        if (!row.isAddOnAvailable) {
+          return <span className="text-xs text-gray-300">—</span>;
+        }
+        return (
+          <div>
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-600 font-semibold">
+              ✦ Add-On
+            </span>
+            {row.addOns && row.addOns.length > 0 && (
+              <p className="text-[10px] text-gray-400 mt-0.5">
+                {row.addOns.map((a) => a.name).join(", ")}
+              </p>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "status",

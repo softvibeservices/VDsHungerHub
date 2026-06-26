@@ -77,29 +77,50 @@ export interface BulkUserValidated extends BulkUserRow {
 }
 
 // ─────────────────────────────────────────
+// PRODUCT ADD-ON
+// ─────────────────────────────────────────
+export interface ProductAddon {
+  id: string;
+  productId: string;
+  name: string;
+  price: number;
+  sortOrder: number;
+  createdAt: string;
+}
+
+// ─────────────────────────────────────────
 // PRODUCT
 // ─────────────────────────────────────────
 export interface Product {
   id: string;
   name: string;
+  nameGu?: string | null;
   quantity: string;
   price: number;
   isActive: boolean;
+  isAddOnAvailable: boolean;
+  addOns: ProductAddon[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateProductInput {
   name: string;
+  nameGu?: string | null;
   quantity: string;
   price: number;
+  isAddOnAvailable?: boolean;
+  addOns?: { name: string; price: number }[];
 }
 
 export interface UpdateProductInput {
   name?: string;
+  nameGu?: string | null;
   quantity?: string;
   price?: number;
   isActive?: boolean;
+  isAddOnAvailable?: boolean;
+  addOns?: { name: string; price: number }[];
 }
 
 // ─────────────────────────────────────────
