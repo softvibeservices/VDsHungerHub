@@ -340,12 +340,27 @@ export default function PublicMenuPage({ params }: PageProps) {
       });
 
       if (!verifyRes.ok) {
-        const err = await verifyRes.json();
-        toast.error(
-          err.details
-            ? `${err.error}: ${err.details}`
-            : (err.error ?? "Verification failed")
-        );
+        const contentType = verifyRes.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const err = await verifyRes.json();
+          toast.error(
+            err.details
+              ? `${err.error}: ${err.details}`
+              : (err.error ?? "Verification failed")
+          );
+        } else {
+          const rawText = await verifyRes.text();
+          console.error("Non-JSON error response from verify endpoint:", rawText);
+          toast.error(`Server error (${verifyRes.status}): Please check backend configuration/logs.`);
+        }
+        return;
+      }
+
+      const contentType = verifyRes.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const rawText = await verifyRes.text();
+        console.error("Unexpected non-JSON success response:", rawText);
+        toast.error("Invalid response format from server.");
         return;
       }
 
@@ -354,9 +369,9 @@ export default function PublicMenuPage({ params }: PageProps) {
       setUserInfo(user);
       toast.success(`Welcome, ${user.name}!`);
       setPageState("confirming");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Firebase confirm OTP failed:", err);
-      toast.error("Incorrect OTP. Please try again.");
+      toast.error(err instanceof Error ? `Error: ${err.message}` : "Incorrect OTP. Please try again.");
     }
   }
 
