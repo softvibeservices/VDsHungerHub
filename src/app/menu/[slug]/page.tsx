@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { UtensilsCrossed, MessageCircle, Clock, AlertCircle, CheckCircle } from "lucide-react";
 import Button from "@/components/ui/Button";
 import { formatCurrency } from "@/lib/utils";
+import { formatTimeIST } from "@/lib/time";
 import { toast } from "react-hot-toast";
 
 interface ThaliItem {
@@ -230,7 +231,7 @@ export default function PublicMenuPage({ params }: PageProps) {
             </span>
             {menu.cutoffTime && (
               <span className="text-xs text-red-500 flex items-center gap-1 font-semibold">
-                <Clock size={13} /> Cutoff: {menu.cutoffTime}
+                <Clock size={13} /> Cutoff: {formatTimeIST(menu.cutoffTime)}
               </span>
             )}
           </div>

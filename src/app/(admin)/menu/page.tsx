@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar, Trash2, Clock, Copy, ExternalLink, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Trash2, Clock, Copy, ExternalLink, RefreshCw, ClipboardList, Save, ChevronDown } from "lucide-react";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
@@ -83,6 +83,7 @@ export default function MenuPage() {
   const [deleteMenuId, setDeleteMenuId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
+  const [showTemplateMenu, setShowTemplateMenu] = useState<"LUNCH" | "DINNER" | null>(null);
 
   const fetchTemplates = async () => {
     try {
@@ -93,6 +94,20 @@ export default function MenuPage() {
       }
     } catch (e) {
       console.error("Failed to load templates", e);
+    }
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this template?")) return;
+    try {
+      const res = await fetch(`/api/menu-templates/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed to delete template");
+      toast.success("Template deleted successfully");
+      fetchTemplates();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to delete template");
     }
   };
 
@@ -610,24 +625,51 @@ export default function MenuPage() {
               </div>
 
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      handleLoadTemplate("LUNCH", e.target.value);
-                      e.target.value = "";
-                    }
-                  }}
-                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white hover:bg-gray-50 focus:ring-1 focus:ring-orange-500 outline-none text-gray-600 font-semibold cursor-pointer max-w-[100px]"
+                {/* Load Template */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowTemplateMenu(prev => prev === "LUNCH" ? null : "LUNCH")}
+                    className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white hover:bg-gray-50 focus:ring-1 focus:ring-orange-500 outline-none text-gray-600 font-semibold cursor-pointer flex items-center gap-1 transition-all"
+                  >
+                    <ClipboardList size={11} className="text-gray-400" />
+                    Load Template
+                    <ChevronDown size={10} className="text-gray-400" />
+                  </button>
+                  {showTemplateMenu === "LUNCH" && (
+                    <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-25 min-w-[200px] py-1">
+                      {templates.filter(t => t.mealType === "LUNCH").length === 0 ? (
+                        <p className="text-xs text-gray-400 px-3 py-2 text-center">No templates saved yet</p>
+                      ) : (
+                        templates
+                          .filter(t => t.mealType === "LUNCH")
+                          .map(template => (
+                            <div
+                              key={template.id}
+                              onClick={() => { handleLoadTemplate("LUNCH", template.id); setShowTemplateMenu(null); }}
+                              className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors"
+                            >
+                              <span className="truncate pr-2 font-medium">{template.name}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id); }}
+                                className="text-gray-300 hover:text-red-400 p-1 rounded transition-colors"
+                                title="Delete Template"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleSaveAsTemplate("LUNCH")}
+                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white hover:bg-orange-50 hover:border-orange-200 hover:text-orange-600 focus:ring-1 focus:ring-orange-500 outline-none text-gray-600 font-semibold cursor-pointer flex items-center gap-1 transition-all"
                 >
-                  <option value="">Templates</option>
-                  {templates
-                    .filter((t) => t.mealType === "LUNCH")
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                </select>
+                  <Save size={11} className="text-gray-400" />
+                  Save as Template
+                </button>
 
                 {!lunchMenu && (
                   <button
@@ -744,13 +786,6 @@ export default function MenuPage() {
                     Delete
                   </Button>
                 )}
-                <Button
-                  variant="secondary"
-                  onClick={() => handleSaveAsTemplate("LUNCH")}
-                  size="sm"
-                >
-                  Save Template
-                </Button>
               </div>
               <Button
                 variant="primary"
@@ -783,24 +818,51 @@ export default function MenuPage() {
               </div>
 
               <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      handleLoadTemplate("DINNER", e.target.value);
-                      e.target.value = "";
-                    }
-                  }}
-                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white hover:bg-gray-50 focus:ring-1 focus:ring-orange-500 outline-none text-gray-600 font-semibold cursor-pointer max-w-[100px]"
+                {/* Load Template */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowTemplateMenu(prev => prev === "DINNER" ? null : "DINNER")}
+                    className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white hover:bg-gray-50 focus:ring-1 focus:ring-orange-500 outline-none text-gray-600 font-semibold cursor-pointer flex items-center gap-1 transition-all"
+                  >
+                    <ClipboardList size={11} className="text-gray-400" />
+                    Load Template
+                    <ChevronDown size={10} className="text-gray-400" />
+                  </button>
+                  {showTemplateMenu === "DINNER" && (
+                    <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-25 min-w-[200px] py-1">
+                      {templates.filter(t => t.mealType === "DINNER").length === 0 ? (
+                        <p className="text-xs text-gray-400 px-3 py-2 text-center">No templates saved yet</p>
+                      ) : (
+                        templates
+                          .filter(t => t.mealType === "DINNER")
+                          .map(template => (
+                            <div
+                              key={template.id}
+                              onClick={() => { handleLoadTemplate("DINNER", template.id); setShowTemplateMenu(null); }}
+                              className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-gray-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer transition-colors"
+                            >
+                              <span className="truncate pr-2 font-medium">{template.name}</span>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(template.id); }}
+                                className="text-gray-300 hover:text-red-400 p-1 rounded transition-colors"
+                                title="Delete Template"
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                          ))
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => handleSaveAsTemplate("DINNER")}
+                  className="text-[11px] border border-gray-200 rounded-lg px-2 py-1 bg-white hover:bg-orange-50 hover:border-orange-200 hover:text-orange-600 focus:ring-1 focus:ring-orange-500 outline-none text-gray-600 font-semibold cursor-pointer flex items-center gap-1 transition-all"
                 >
-                  <option value="">Templates</option>
-                  {templates
-                    .filter((t) => t.mealType === "DINNER")
-                    .map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                </select>
+                  <Save size={11} className="text-gray-400" />
+                  Save as Template
+                </button>
 
                 {!dinnerMenu && (
                   <button
@@ -917,13 +979,6 @@ export default function MenuPage() {
                     Delete
                   </Button>
                 )}
-                <Button
-                  variant="secondary"
-                  onClick={() => handleSaveAsTemplate("DINNER")}
-                  size="sm"
-                >
-                  Save Template
-                </Button>
               </div>
               <Button
                 variant="primary"
