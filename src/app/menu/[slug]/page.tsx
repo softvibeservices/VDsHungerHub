@@ -18,12 +18,20 @@ interface Product {
   nameGu?: string | null;
 }
 
+interface ThaliCategory {
+  id: string;
+  name: string;
+  nameGu?: string | null;
+}
+
 interface Thali {
   id: string;
   name: string;
   nameGu?: string | null;
   price: number;
-  maxSabjiCount: number;
+  sabjiCount: number;
+  categoryId: string | null;
+  category?: ThaliCategory | null;
   items: ThaliItem[];
   sabjiPool: { product: Product }[];
 }
@@ -37,7 +45,7 @@ interface DailyMenuThali {
 
 interface DailyMenuSabjiOption {
   id: string;
-  thaliId: string;
+  categoryId: string;
   productId: string;
   product: Product;
 }
@@ -162,7 +170,7 @@ export default function PublicMenuPage({ params }: PageProps) {
     // Find product names for selected sabjis
     const sabjiNames = sabjisForThali
       .map((id) => {
-        const opt = menu.sabjiOptions.find((o) => o.productId === id);
+        const opt = menu.sabjiOptions.find((o) => o.productId === id && o.categoryId === thali.categoryId);
         if (!opt) return null;
         return opt.product.name + (opt.product.nameGu ? ` (${opt.product.nameGu})` : "");
       })
@@ -173,7 +181,7 @@ export default function PublicMenuPage({ params }: PageProps) {
     text += `🌅 Meal: ${isLunch ? "Lunch" : "Dinner"}\n`;
     text += `🍱 Thali: ${thaliName}\n`;
     
-    if (thali.maxSabjiCount > 0) {
+    if (thali.sabjiCount > 0) {
       text += `🥘 Sabji: ${sabjiNames.join(", ") || "None selected"}\n`;
     }
     
@@ -186,9 +194,9 @@ export default function PublicMenuPage({ params }: PageProps) {
   const validateOrder = () => {
     if (!selectedMenuThali) return false;
     const thali = selectedMenuThali.thali;
-    if (thali.maxSabjiCount > 0) {
+    if (thali.sabjiCount > 0) {
       const selectedCount = (selectedSabjis[thali.id] ?? []).length;
-      return selectedCount === thali.maxSabjiCount;
+      return selectedCount === thali.sabjiCount;
     }
     return true;
   };
@@ -259,7 +267,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                       {thali.nameGu && <span className="text-xs text-gray-500 font-medium block mt-0.5">{thali.nameGu}</span>}
                     </span>
                     <span className="text-[11px] text-gray-500 block">
-                      {thali.maxSabjiCount > 0 ? `Choice of ${thali.maxSabjiCount} Sabji` : "Fixed contents"}
+                      {thali.sabjiCount > 0 ? `Choice of ${thali.sabjiCount} Sabji` : "Fixed contents"}
                     </span>
                   </div>
                   <span className={`text-sm font-extrabold px-2.5 py-0.5 rounded-lg border ${
@@ -292,27 +300,27 @@ export default function PublicMenuPage({ params }: PageProps) {
             </div>
 
             {/* Sabji Selection Option */}
-            {selectedMenuThali.thali.maxSabjiCount > 0 && (
+            {selectedMenuThali.thali.sabjiCount > 0 && (
               <div className="space-y-3">
                 <div className="flex justify-between items-baseline border-b border-gray-100 pb-2">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                     Step 2: Choose Sabji
                   </p>
                   <p className="text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">
-                    Pick {selectedSabjis[selectedMenuThali.thali.id]?.length ?? 0} of {selectedMenuThali.thali.maxSabjiCount}
+                    Pick {selectedSabjis[selectedMenuThali.thali.id]?.length ?? 0} of {selectedMenuThali.thali.sabjiCount}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {menu.sabjiOptions
-                    .filter((opt) => opt.thaliId === selectedMenuThali.thali.id)
+                    .filter((opt) => opt.categoryId === selectedMenuThali.thali.categoryId)
                     .map((opt) => {
                       const isChecked = (selectedSabjis[selectedMenuThali.thali.id] ?? []).includes(opt.productId);
 
                       return (
                         <button
                           key={opt.id}
-                          onClick={() => toggleSabji(selectedMenuThali.thali.id, opt.productId, selectedMenuThali.thali.maxSabjiCount)}
+                          onClick={() => toggleSabji(selectedMenuThali.thali.id, opt.productId, selectedMenuThali.thali.sabjiCount)}
                           className={`p-3 rounded-xl border text-left flex items-center gap-3 transition-all cursor-pointer ${
                             isChecked
                               ? "border-orange-400 bg-orange-50 text-orange-950"
@@ -334,7 +342,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                       );
                     })}
 
-                  {menu.sabjiOptions.filter((opt) => opt.thaliId === selectedMenuThali.thali.id).length === 0 && (
+                  {menu.sabjiOptions.filter((opt) => opt.categoryId === selectedMenuThali.thali.categoryId).length === 0 && (
                     <p className="text-xs text-gray-400 italic py-2 col-span-2 text-center">No sabjis available for this thali today.</p>
                   )}
                 </div>
@@ -357,7 +365,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                 >
                   {validateOrder()
                     ? "Order via WhatsApp"
-                    : `Please select ${selectedMenuThali.thali.maxSabjiCount} sabji(s)`}
+                    : `Please select ${selectedMenuThali.thali.sabjiCount} sabji(s)`}
                 </Button>
               </a>
             </div>

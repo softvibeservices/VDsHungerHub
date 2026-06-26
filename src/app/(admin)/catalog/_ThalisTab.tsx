@@ -17,7 +17,9 @@ interface Thali {
   nameGu?: string | null;
   price: number;
   description?: string | null;
-  maxSabjiCount: number;
+  sabjiCount: number;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
   isActive: boolean;
   items: ThaliItem[];
   sabjiPool?: { productId: string; product: { name: string } }[];
@@ -140,6 +142,17 @@ export default function ThalisTab() {
       ),
     },
     {
+      key: "category",
+      header: "Category",
+      render: (row) => row.category ? (
+        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-150">
+          {row.category.name}
+        </span>
+      ) : (
+        <span className="text-xs text-gray-400 italic">Uncategorized</span>
+      ),
+    },
+    {
       key: "price",
       header: "Price",
       render: (row) => (
@@ -173,21 +186,21 @@ export default function ThalisTab() {
     },
     {
       key: "sabji",
-      header: "Sabji",
+      header: "Sabji Count",
       render: (row) => {
         const allowedCount = row.sabjiPool?.length ?? 0;
         return (
           <div>
             <span
               className={`text-xs px-2 py-0.5 rounded-full ${
-                row.maxSabjiCount > 0
+                row.sabjiCount > 0
                   ? "bg-orange-50 text-orange-600 border border-orange-200"
                   : "bg-gray-100 text-gray-500"
               }`}
             >
-              {sabjiLabel(row.maxSabjiCount)}
+              {sabjiLabel(row.sabjiCount)}
             </span>
-            {row.maxSabjiCount > 0 && (
+            {row.sabjiCount > 0 && (
               <p className="text-[10px] text-gray-400 mt-1 font-medium">{allowedCount} pool options</p>
             )}
           </div>

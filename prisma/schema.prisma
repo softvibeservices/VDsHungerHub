@@ -102,6 +102,20 @@ model ProductAddon {
 
 
 // ─────────────────────────────────────────
+// THALI CATEGORIES
+// ─────────────────────────────────────────
+model ThaliCategory {
+  id             String                 @id @default(cuid())
+  name           String                 @unique // e.g. "Gujarati Thali"
+  nameGu         String?                // e.g. "ગુજરાતી થાળી"
+  isActive       Boolean                @default(true)
+  thalis         Thali[]
+  dailySabjiOpts DailyMenuSabjiOption[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+}
+
+// ─────────────────────────────────────────
 // THALIS (Meal combinations)
 // ─────────────────────────────────────────
 model Thali {
@@ -110,12 +124,13 @@ model Thali {
   nameGu         String?
   price          Float
   description    String? // Short description for reference
-  maxSabjiCount  Int                    @default(1) // How many sabji user must choose
+  sabjiCount     Int                    @default(1) // How many sabji user must choose
   isActive       Boolean                @default(true)
+  category       ThaliCategory?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  categoryId     String?
   items          ThaliItem[] // Fixed items (roti, dal, rice, salad, etc.)
   sabjiPool      ThaliSabjiProduct[]
   dailyMenus     DailyMenuThali[]
-  dailySabjiOpts DailyMenuSabjiOption[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 }
@@ -189,17 +204,17 @@ model DailyMenuThali {
   @@unique([menuId, thaliId])
 }
 
-// Which sabji options are available per thali per daily menu
+// Which sabji options are available per category per daily menu
 model DailyMenuSabjiOption {
-  id        String    @id @default(cuid())
-  menu      DailyMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  menuId    String
-  thali     Thali     @relation(fields: [thaliId], references: [id], onDelete: Restrict)
-  thaliId   String
-  product   Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
-  productId String
+  id         String        @id @default(cuid())
+  menu       DailyMenu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId     String
+  category   ThaliCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  categoryId String
+  product    Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId  String
 
-  @@unique([menuId, thaliId, productId])
+  @@unique([menuId, categoryId, productId])
 }
 
 // ─────────────────────────────────────────

@@ -3,13 +3,15 @@
 import { useState } from "react";
 import ProductsTab from "./_ProductsTab";
 import ThalisTab from "./_ThalisTab";
+import CategoriesTab from "./_CategoriesTab";
 import StaffTab from "./_StaffTab";
 
-type Tab = "products" | "thalis" | "staff";
+type Tab = "products" | "thalis" | "categories" | "staff";
 
 const tabs: { key: Tab; label: string; emoji: string }[] = [
   { key: "products", label: "Products", emoji: "🥘" },
   { key: "thalis", label: "Thalis", emoji: "🍱" },
+  { key: "categories", label: "Categories", emoji: "🗂️" },
   { key: "staff", label: "Staff", emoji: "👤" },
 ];
 
@@ -49,6 +51,7 @@ export default function CatalogPage() {
       <div className="mt-4">
         {activeTab === "products" && <ProductsTab />}
         {activeTab === "thalis" && <ThalisTab />}
+        {activeTab === "categories" && <CategoriesTab />}
         {activeTab === "staff" && <StaffTab />}
       </div>
     </div>

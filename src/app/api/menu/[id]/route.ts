@@ -24,7 +24,7 @@ export async function PUT(
     const thalisFromDb = await prisma.thali.findMany({
       where: { id: { in: thaliIds } },
     });
-    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.maxSabjiCount]));
+    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.sabjiCount]));
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     let cutoffTimeUTC: Date | null = null;
@@ -50,15 +50,15 @@ export async function PUT(
           })),
         },
         sabjiOptions: {
-          create: (sabjiOptions as { thaliId: string; productIds: string[] }[]).flatMap(
-            ({ thaliId, productIds }) =>
-              productIds.map((productId) => ({ thaliId, productId }))
+          create: (sabjiOptions as { categoryId: string; productIds: string[] }[]).flatMap(
+            ({ categoryId, productIds }) =>
+              productIds.map((productId) => ({ categoryId, productId }))
           ),
         },
       },
       include: {
         thalis: { include: { thali: true } },
-        sabjiOptions: { include: { product: true, thali: true } },
+        sabjiOptions: { include: { product: true, category: true } },
       },
     });
 
@@ -99,7 +99,7 @@ export async function GET(
       where: { id },
       include: {
         thalis: { include: { thali: { include: { items: true } } } },
-        sabjiOptions: { include: { product: true, thali: true } },
+        sabjiOptions: { include: { product: true, category: true } },
       },
     });
     if (!menu) return NextResponse.json({ error: "Menu not found" }, { status: 404 });

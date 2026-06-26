@@ -7,14 +7,14 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { name, nameGu, price, description, maxSabjiCount, items, isActive } = await req.json();
+    const { name, nameGu, price, description, sabjiCount, categoryId, items, isActive } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!price || Number(price) <= 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
 
-    const maxCount = Number(maxSabjiCount ?? 1);
-    if (maxCount < 0 || maxCount > 3) {
-      return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
+    const count = Number(sabjiCount ?? 1);
+    if (count < 0 || count > 3) {
+      return NextResponse.json({ error: "Sabji count must be between 0 and 3" }, { status: 400 });
     }
 
     // Delete existing items only (sabjiPool no longer managed here)
@@ -27,7 +27,8 @@ export async function PUT(
         nameGu: nameGu?.trim() || null,
         price: Number(price),
         description: description?.trim() || null,
-        maxSabjiCount: maxCount,
+        sabjiCount: count,
+        categoryId: categoryId || null,
         ...(isActive !== undefined && { isActive }),
         items: {
           create: (items as string[]).map((itemName, idx) => ({
@@ -42,7 +43,7 @@ export async function PUT(
       where: { id },
       include: {
         items: { orderBy: { sortOrder: "asc" } },
-        // sabjiPool intentionally excluded — admin picks sabji at menu creation
+        category: true,
       },
     });
 

@@ -15,7 +15,8 @@ interface Thali {
   nameGu?: string | null;
   price: number;
   description?: string | null;
-  maxSabjiCount: number;
+  sabjiCount: number;
+  categoryId?: string | null;
   items: ThaliItem[];
 }
 
@@ -26,11 +27,11 @@ interface ThaliModalProps {
   thali?: Thali | null;
 }
 
-const sabjiOptions = [
-  { value: "0", label: "0 — No sabji choice (fixed items only)" },
-  { value: "1", label: "1 — Pick 1 sabji" },
-  { value: "2", label: "2 — Pick 2 sabji" },
-  { value: "3", label: "3 — Pick 3 sabji" },
+const sabjiCountOptions = [
+  { value: "0", label: "0 — No sabji" },
+  { value: "1", label: "1 — One sabji" },
+  { value: "2", label: "2 — Two sabjis" },
+  { value: "3", label: "3 — Three sabjis" },
 ];
 
 export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliModalProps) {
@@ -41,7 +42,9 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
   const [nameGu, setNameGu] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
-  const [maxSabjiCount, setMaxSabjiCount] = useState("1");
+  const [sabjiCount, setSabjiCount] = useState("1");
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [items, setItems] = useState<string[]>([""]);
   const [newItem, setNewItem] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -53,10 +56,16 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
       setNameGu(thali?.nameGu ?? "");
       setPrice(thali?.price?.toString() ?? "");
       setDescription(thali?.description ?? "");
-      setMaxSabjiCount((thali?.maxSabjiCount ?? 1).toString());
+      setSabjiCount((thali?.sabjiCount ?? 1).toString());
+      setCategoryId(thali?.categoryId ?? "");
       setItems(thali?.items?.map((i) => i.itemName) ?? [""]);
       setNewItem("");
       setErrors({});
+
+      // Fetch active categories
+      fetch("/api/thali-categories?isActive=true")
+        .then((r) => r.json())
+        .then((j) => setCategories((j.categories ?? []).map((c: any) => ({ id: c.id, name: c.name }))));
     }
   }, [isOpen, thali]);
 
@@ -93,9 +102,9 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
           nameGu: nameGu.trim() || null,
           price: Number(price),
           description: description.trim() || null,
-          maxSabjiCount: Number(maxSabjiCount),
+          sabjiCount: Number(sabjiCount),
+          categoryId: categoryId || null,
           items: items.filter(Boolean),
-          // sabjiProductIds intentionally removed — sabji is chosen at menu creation
         }),
       });
       const json = await res.json();
@@ -128,15 +137,28 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
       <div className="space-y-4">
         <Input label="Thali Name" placeholder="e.g. Small Gujarati Thali" required value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
         <Input label="નામ (Gujarati Name)" placeholder="દા.ત. નાની ગુજરાતી થાળી" value={nameGu} onChange={(e) => setNameGu(e.target.value)} />
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Input label="Price (₹)" type="number" min="0" placeholder="e.g. 80" required value={price} onChange={(e) => setPrice(e.target.value)} error={errors.price} />
+          
           <div className="space-y-1">
-            <Select label="Max Sabji Choice" required options={sabjiOptions} value={maxSabjiCount} onChange={(e) => setMaxSabjiCount(e.target.value)} />
-            <p className="text-xs text-gray-400">
-              How many sabji items the customer picks from today&apos;s menu options.
-            </p>
+            <Select
+              label="Category"
+              options={[{ value: "", label: "— Uncategorized —" }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Select label="Sabji Count" required options={sabjiCountOptions} value={sabjiCount} onChange={(e) => setSabjiCount(e.target.value)} />
           </div>
         </div>
+        <div className="text-[11px] text-gray-400 flex justify-between gap-3 -mt-2.5 px-0.5">
+          <span className="w-1/3"></span>
+          <span className="w-1/3">Thalis in same category share one sabji picker.</span>
+          <span className="w-1/3">Exact count of sabjis included with this thali.</span>
+        </div>
+        
         <Input label="Description" placeholder="e.g. 4 Roti, 1 Subji, Salad (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
 
         {/* Fixed items */}

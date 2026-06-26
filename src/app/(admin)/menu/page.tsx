@@ -24,12 +24,15 @@ import { formatDateForAPI, getTodayIST } from "@/lib/utils";
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ThaliItem { id: string; itemName: string }
 interface Product { id: string; name: string; nameGu?: string | null }
+interface ThaliCategory { id: string; name: string; nameGu?: string | null }
 interface Thali {
   id: string;
   name: string;
   nameGu?: string | null;
   price: number;
-  maxSabjiCount: number;
+  sabjiCount: number;
+  categoryId: string | null;
+  category?: ThaliCategory | null;
   items: ThaliItem[];
   sabjiPool?: { productId: string; product: Product }[];
 }
@@ -40,7 +43,7 @@ interface DailyMenu {
   cutoffTime?: string | null;
   isPublished: boolean;
   thalis: { thaliId: string; thali: Thali; minSabjiRequired: number }[];
-  sabjiOptions: { thaliId: string; productId: string }[];
+  sabjiOptions: { categoryId: string; productId: string }[];
 }
 interface MenuTemplate {
   id: string;
@@ -48,7 +51,7 @@ interface MenuTemplate {
   mealType: "LUNCH" | "DINNER";
   cutoffTime?: string | null;
   thaliIds: string[];
-  sabjiConfig: { thaliId: string; productIds: string[] }[];
+  sabjiConfig: { categoryId: string; productIds: string[] }[];
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -86,6 +89,28 @@ function saveLastCutoff(mealType: "LUNCH" | "DINNER", value: string) {
   } catch { /* ignore */ }
 }
 
+// Groups the currently-checked thalis by category.
+// Uncategorized thalis each form their own single-thali group, keyed by '__uncategorized_...'
+function groupThalisByCategory(selectedThaliIds: string[], allThalis: Thali[]) {
+  const groups: { key: string; label: string; thalis: Thali[]; sabjiCount: number }[] = [];
+  const byCategory = new Map<string, Thali[]>();
+
+  for (const id of selectedThaliIds) {
+    const thali = allThalis.find((t) => t.id === id);
+    if (!thali) continue;
+    const groupKey = thali.categoryId ?? `__uncategorized_${thali.id}`;
+    if (!byCategory.has(groupKey)) byCategory.set(groupKey, []);
+    byCategory.get(groupKey)!.push(thali);
+  }
+
+  for (const [key, thalis] of byCategory) {
+    const label = thalis[0].category?.name ?? thalis[0].name;
+    const sabjiCount = Math.max(...thalis.map((t) => t.sabjiCount));
+    groups.push({ key, label, thalis, sabjiCount });
+  }
+  return groups;
+}
+
 // ─── MealDraft shape ───────────────────────────────────────────────────────────
 interface MealDraft {
   existingId: string | null;
@@ -93,7 +118,7 @@ interface MealDraft {
   isPublished: boolean;
   cutoffTime: string;
   selectedThaliIds: string[];
-  // sabjiMap: thaliId → selected product IDs
+  // sabjiMap: categoryId → selected product IDs
   sabjiMap: Record<string, string[]>;
   // minSabjiMap: thaliId → min required
   minSabjiMap: Record<string, number>;
@@ -161,9 +186,9 @@ export default function MenuPage() {
         if (!menu) return emptyDraft(mealType);
 
         const sabjiMap: Record<string, string[]> = {};
-        menu.sabjiOptions.forEach(({ thaliId, productId }) => {
-          if (!sabjiMap[thaliId]) sabjiMap[thaliId] = [];
-          sabjiMap[thaliId].push(productId);
+        menu.sabjiOptions.forEach(({ categoryId, productId }) => {
+          if (!sabjiMap[categoryId]) sabjiMap[categoryId] = [];
+          sabjiMap[categoryId].push(productId);
         });
 
         const minSabjiMap: Record<string, number> = {};
@@ -222,13 +247,13 @@ export default function MenuPage() {
     const sabjiMap: Record<string, string[]> = {};
     const minSabjiMap: Record<string, number> = {};
     (template.sabjiConfig ?? []).forEach(
-      ({ thaliId, productIds }: { thaliId: string; productIds: string[] }) => {
-        sabjiMap[thaliId] = productIds;
+      ({ categoryId, productIds }: { categoryId: string; productIds: string[] }) => {
+        sabjiMap[categoryId] = productIds;
       }
     );
     template.thaliIds.forEach((tid) => {
       const thali = thalis.find((t) => t.id === tid);
-      minSabjiMap[tid] = thali?.maxSabjiCount ?? 1;
+      minSabjiMap[tid] = thali?.sabjiCount ?? 1;
     });
 
     updateDraft(mealType, {
@@ -248,13 +273,43 @@ export default function MenuPage() {
       return;
     }
 
+    const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
+
+    // Validation 1: Mismatched sabji counts in the same category
+    for (const group of groups) {
+      const counts = new Set(group.thalis.map((t) => t.sabjiCount));
+      if (counts.size > 1) {
+        toast.error(
+          `"${group.label}" category has thalis with different sabji counts (${[...counts].join(
+            ", "
+          )}). All thalis in a category must use the same sabji count.`
+        );
+        return;
+      }
+    }
+
+    // Validation 2: Block uncategorized thalis that require sabjis
+    const uncategorizedWithSabji = draft.selectedThaliIds
+      .map((id) => thalis.find((t) => t.id === id))
+      .filter((t) => t && !t.categoryId && t.sabjiCount > 0);
+    if (uncategorizedWithSabji.length > 0) {
+      toast.error(
+        `Assign a category to: ${uncategorizedWithSabji
+          .map((t) => t!.name)
+          .join(", ")} before adding them to a daily menu.`
+      );
+      return;
+    }
+
     updateDraft(mealType, { isSaving: true });
     saveLastCutoff(mealType, draft.cutoffTime);
 
-    const sabjiOptions = draft.selectedThaliIds.map((thaliId) => ({
-      thaliId,
-      productIds: draft.sabjiMap[thaliId] ?? [],
-    }));
+    const sabjiOptions = groups
+      .filter((g) => g.sabjiCount > 0 && g.thalis[0].categoryId)
+      .map((g) => ({
+        categoryId: g.thalis[0].categoryId!,
+        productIds: draft.sabjiMap[g.key] ?? [],
+      }));
 
     try {
       const url = draft.existingId ? `/api/menu/${draft.existingId}` : "/api/menu";
@@ -315,6 +370,15 @@ export default function MenuPage() {
   const togglePublish = async (mealType: "LUNCH" | "DINNER") => {
     const draft = getDraft(mealType);
     if (!draft.existingId) return;
+
+    const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
+    const sabjiOptions = groups
+      .filter((g) => g.sabjiCount > 0 && g.thalis[0].categoryId)
+      .map((g) => ({
+        categoryId: g.thalis[0].categoryId!,
+        productIds: draft.sabjiMap[g.key] ?? [],
+      }));
+
     try {
       const res = await fetch(`/api/menu/${draft.existingId}`, {
         method: "PUT",
@@ -324,10 +388,7 @@ export default function MenuPage() {
           mealType,
           cutoffTime: draft.cutoffTime || null,
           thaliIds: draft.selectedThaliIds,
-          sabjiOptions: draft.selectedThaliIds.map((thaliId) => ({
-            thaliId,
-            productIds: draft.sabjiMap[thaliId] ?? [],
-          })),
+          sabjiOptions,
           isPublished: !draft.isPublished,
         }),
       });
@@ -347,6 +408,14 @@ export default function MenuPage() {
     if (!name.trim()) { toast.error("Enter a template name"); return; }
     if (draft.selectedThaliIds.length === 0) { toast.error("No thalis selected"); return; }
 
+    const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
+    const sabjiConfig = groups
+      .filter((g) => g.sabjiCount > 0 && g.thalis[0].categoryId)
+      .map((g) => ({
+        categoryId: g.thalis[0].categoryId!,
+        productIds: draft.sabjiMap[g.key] ?? [],
+      }));
+
     try {
       const res = await fetch("/api/menu-templates", {
         method: "POST",
@@ -356,10 +425,7 @@ export default function MenuPage() {
           mealType,
           cutoffTime: draft.cutoffTime || null,
           thaliIds: draft.selectedThaliIds,
-          sabjiConfig: draft.selectedThaliIds.map((thaliId) => ({
-            thaliId,
-            productIds: draft.sabjiMap[thaliId] ?? [],
-          })),
+          sabjiConfig,
         }),
       });
       const json = await res.json();
@@ -379,7 +445,7 @@ export default function MenuPage() {
   // ── Delete template ──────────────────────────────────────────────────────────
   const deleteTemplate = async (id: string) => {
     try {
-      const res = await fetch(`/api/menu-templates/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/menu-templates?id=${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed");
       setTemplates((prev) => prev.filter((t) => t.id !== id));
       toast.success("Template deleted");
@@ -407,9 +473,9 @@ export default function MenuPage() {
         if (!menu) continue;
 
         const sabjiMap: Record<string, string[]> = {};
-        menu.sabjiOptions.forEach(({ thaliId, productId }) => {
-          if (!sabjiMap[thaliId]) sabjiMap[thaliId] = [];
-          sabjiMap[thaliId].push(productId);
+        menu.sabjiOptions.forEach(({ categoryId, productId }) => {
+          if (!sabjiMap[categoryId]) sabjiMap[categoryId] = [];
+          sabjiMap[categoryId].push(productId);
         });
         const minSabjiMap: Record<string, number> = {};
         menu.thalis.forEach(({ thaliId, minSabjiRequired }) => {
@@ -616,10 +682,20 @@ function MealColumn({
       ? draft.selectedThaliIds.filter((id) => id !== thaliId)
       : [...draft.selectedThaliIds, thaliId];
 
-    // If deselecting, clean up sabji for that thali
     if (!next.includes(thaliId)) {
+      const thali = thalis.find((t) => t.id === thaliId);
+      const categoryKey = thali?.categoryId ?? `__uncategorized_${thaliId}`;
+
+      const stillHasOtherInGroup = next.some((nid) => {
+        const nt = thalis.find((t) => t.id === nid);
+        return (nt?.categoryId === thali?.categoryId && thali?.categoryId !== null);
+      });
+
       const newSabjiMap = { ...draft.sabjiMap };
-      delete newSabjiMap[thaliId];
+      if (!stillHasOtherInGroup) {
+        delete newSabjiMap[categoryKey];
+      }
+
       const newMinMap = { ...draft.minSabjiMap };
       delete newMinMap[thaliId];
       onUpdateDraft({ selectedThaliIds: next, sabjiMap: newSabjiMap, minSabjiMap: newMinMap });
@@ -629,7 +705,7 @@ function MealColumn({
         selectedThaliIds: next,
         minSabjiMap: {
           ...draft.minSabjiMap,
-          [thaliId]: thali?.maxSabjiCount ?? 1,
+          [thaliId]: thali?.sabjiCount ?? 1,
         },
       });
     }
@@ -746,16 +822,25 @@ function MealColumn({
                   key={thali.id}
                   type="button"
                   onClick={() => toggleThali(thali.id)}
-                  className={`text-xs px-3 py-1.5 rounded-xl border font-medium transition-all cursor-pointer ${
+                  className={`text-xs px-3 py-1.5 rounded-xl border font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
                     isSelected
                       ? `${accentClasses.tag} text-white border-transparent`
                       : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
                   }`}
                 >
-                  {thali.name}
-                  {thali.maxSabjiCount > 0 && (
-                    <span className={`ml-1 text-[10px] ${isSelected ? "text-white/70" : "text-gray-400"}`}>
-                      {thali.maxSabjiCount}S
+                  <span>{thali.name}</span>
+                  {thali.sabjiCount > 0 && (
+                    <span className={`text-[10px] px-1 py-0.25 rounded-md ${isSelected ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                      {thali.sabjiCount}S
+                    </span>
+                  )}
+                  {thali.category ? (
+                    <span className={`text-[9px] px-1 py-0.25 rounded ${isSelected ? "bg-white/10 text-white/80" : "bg-orange-50 text-orange-600 border border-orange-100"}`}>
+                      {thali.category.name}
+                    </span>
+                  ) : (
+                    <span className={`text-[9px] px-1 py-0.25 rounded ${isSelected ? "bg-white/10 text-white/80" : "bg-amber-50 text-amber-600 border border-amber-100"}`}>
+                      Uncategorized
                     </span>
                   )}
                 </button>
@@ -764,41 +849,40 @@ function MealColumn({
           </div>
         </div>
 
-        {/* Per-thali sabji pickers */}
+        {/* Category-grouped sabji pickers */}
         {draft.selectedThaliIds.length > 0 && (
-          <div className="space-y-3">
-            {draft.selectedThaliIds.map((thaliId) => {
-              const thali = thalis.find((t) => t.id === thaliId);
-              if (!thali || thali.maxSabjiCount === 0) return null;
+          <div className="space-y-3 pt-2">
+            {groupThalisByCategory(draft.selectedThaliIds, thalis)
+              .filter((g) => g.sabjiCount > 0)
+              .map((group) => {
+                const groupThalisWithPool = group.thalis.filter((t) => t.sabjiPool && t.sabjiPool.length > 0);
+                const pool: Product[] =
+                  groupThalisWithPool.length > 0
+                    ? Array.from(
+                        new Map(
+                          groupThalisWithPool
+                            .flatMap((t) => t.sabjiPool ?? [])
+                            .map((sp) => [sp.product.id, sp.product])
+                        ).values()
+                      )
+                    : products;
 
-              // The sabji pool for this thali (from ThaliSabjiProduct join)
-              // If the thali has a pre-defined sabji pool, use it; otherwise fall back to all active products
-              const pool: Product[] =
-                thali.sabjiPool && thali.sabjiPool.length > 0
-                  ? thali.sabjiPool.map((sp) => sp.product)
-                  : products;
-
-              return (
-                <SabjiPicker
-                  key={thaliId}
-                  label={`Sabji for ${thali.name}`}
-                  products={pool}
-                  selected={draft.sabjiMap[thaliId] ?? []}
-                  maxCount={thali.maxSabjiCount}
-                  minRequired={draft.minSabjiMap[thaliId] ?? thali.maxSabjiCount}
-                  onChange={(ids) =>
-                    onUpdateDraft({
-                      sabjiMap: { ...draft.sabjiMap, [thaliId]: ids },
-                    })
-                  }
-                  onMinChange={(n) =>
-                    onUpdateDraft({
-                      minSabjiMap: { ...draft.minSabjiMap, [thaliId]: n },
-                    })
-                  }
-                />
-              );
-            })}
+                return (
+                  <SabjiPicker
+                    key={group.key}
+                    label={`Sabji for category: ${group.label}`}
+                    products={pool}
+                    selected={draft.sabjiMap[group.key] ?? []}
+                    maxCount={group.sabjiCount}
+                    minRequired={group.sabjiCount}
+                    onChange={(ids) =>
+                      onUpdateDraft({
+                        sabjiMap: { ...draft.sabjiMap, [group.key]: ids },
+                      })
+                    }
+                  />
+                );
+              })}
           </div>
         )}
 

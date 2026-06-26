@@ -124,6 +124,19 @@ export interface UpdateProductInput {
 }
 
 // ─────────────────────────────────────────
+// THALI CATEGORY
+// ─────────────────────────────────────────
+export interface ThaliCategory {
+  id: string;
+  name: string;
+  nameGu?: string | null;
+  isActive: boolean;
+  thalis?: Thali[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─────────────────────────────────────────
 // THALI
 // ─────────────────────────────────────────
 export interface ThaliItem {
@@ -135,9 +148,12 @@ export interface ThaliItem {
 export interface Thali {
   id: string;
   name: string;
+  nameGu?: string | null;
   price: number;
   description?: string | null;
-  maxSabjiCount: number;
+  sabjiCount: number;
+  categoryId?: string | null;
+  category?: ThaliCategory | null;
   isActive: boolean;
   items: ThaliItem[];
   createdAt: string;
@@ -148,7 +164,8 @@ export interface CreateThaliInput {
   name: string;
   price: number;
   description?: string;
-  maxSabjiCount: number;
+  sabjiCount: number;
+  categoryId?: string | null;
   items: string[]; // array of item names
 }
 
@@ -183,7 +200,7 @@ export interface UpdateStaffInput {
 // DAILY MENU
 // ─────────────────────────────────────────
 export interface SabjiOption {
-  thaliId: string;
+  categoryId: string;
   productIds: string[];
 }
 
@@ -197,9 +214,9 @@ export interface DailyMenuThali {
 export interface DailyMenuSabjiOption {
   id: string;
   menuId: string;
-  thaliId: string;
+  categoryId: string;
   productId: string;
-  thali: Thali;
+  category?: ThaliCategory | null;
   product: Product;
 }
 

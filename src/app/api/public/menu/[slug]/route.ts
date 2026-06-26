@@ -21,6 +21,7 @@ export async function GET(
                     product: true,
                   },
                 },
+                category: true,
               },
             },
           },
@@ -28,6 +29,7 @@ export async function GET(
         sabjiOptions: {
           include: {
             product: true,
+            category: true,
           },
         },
       },

@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "asc" },
       include: {
         items: { orderBy: { sortOrder: "asc" } },
-        // sabjiPool intentionally excluded — admin picks sabji at menu creation time
+        category: true,
       },
     });
 
@@ -29,16 +29,16 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, nameGu, price, description, maxSabjiCount, items } = await req.json();
+    const { name, nameGu, price, description, sabjiCount, categoryId, items } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!price || Number(price) <= 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
     if (!Array.isArray(items) || items.length === 0)
       return NextResponse.json({ error: "At least one fixed item is required" }, { status: 400 });
 
-    const maxCount = Number(maxSabjiCount ?? 1);
-    if (maxCount < 0 || maxCount > 3) {
-      return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
+    const count = Number(sabjiCount ?? 1);
+    if (count < 0 || count > 3) {
+      return NextResponse.json({ error: "Sabji count must be between 0 and 3" }, { status: 400 });
     }
 
     const thali = await prisma.thali.create({
@@ -47,7 +47,8 @@ export async function POST(req: NextRequest) {
         nameGu: nameGu?.trim() || null,
         price: Number(price),
         description: description?.trim() || null,
-        maxSabjiCount: maxCount,
+        sabjiCount: count,
+        categoryId: categoryId || null,
         items: {
           create: (items as string[]).map((itemName, idx) => ({
             itemName: itemName.trim(),
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest) {
       },
       include: {
         items: { orderBy: { sortOrder: "asc" } },
+        category: true,
       },
     });
 

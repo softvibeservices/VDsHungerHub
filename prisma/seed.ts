@@ -124,13 +124,34 @@ async function main() {
     console.log("✅ Sample add-ons seeded");
   }
 
+  // ── Thali Categories ──────────────────────
+  const categoryDefs = [
+    { name: "Gujarati Thali", nameGu: "ગુજરાતી થાળી" },
+    { name: "Full Gujarati Thali", nameGu: "આખી ગુજરાતી થાળી" },
+    { name: "Punjabi Thali", nameGu: "પંજાબી થાળી" },
+    { name: "Full Punjabi Thali", nameGu: "આખી પંજાબી થાળી" },
+    { name: "Specials", nameGu: "સ્પેશિયલ" },
+  ];
+
+  const categoriesMap = new Map<string, string>(); // name -> id
+  for (const cat of categoryDefs) {
+    const c = await prisma.thaliCategory.upsert({
+      where: { name: cat.name },
+      update: { nameGu: cat.nameGu },
+      create: { name: cat.name, nameGu: cat.nameGu },
+    });
+    categoriesMap.set(c.name, c.id);
+  }
+  console.log("✅ Thali Categories seeded");
+
   // ── Thalis ────────────────────────────────
   const thaliDefs = [
     {
       name: "Small Gujarati Thali",
       nameGu: "નાની ગુજરાતી થાળી",
       price: 80,
-      maxSabjiCount: 1,
+      sabjiCount: 1,
+      categoryName: "Gujarati Thali",
       description: "4 Roti, 1 Subji, Salad, Buttermilk",
       items: ["4 Roti", "Salad", "Buttermilk"],
     },
@@ -138,7 +159,8 @@ async function main() {
       name: "Medium Gujarati Thali",
       nameGu: "મીડિયમ ગુજરાતી થાળી",
       price: 100,
-      maxSabjiCount: 1,
+      sabjiCount: 1,
+      categoryName: "Gujarati Thali",
       description: "4 Roti, 1 Subji, Dal, Rice, Salad, Buttermilk",
       items: ["4 Roti", "Dal", "Rice", "Salad", "Buttermilk"],
     },
@@ -146,7 +168,8 @@ async function main() {
       name: "Full Gujarati Thali",
       nameGu: "આખી ગુજરાતી થાળી",
       price: 120,
-      maxSabjiCount: 2,
+      sabjiCount: 2,
+      categoryName: "Full Gujarati Thali",
       description: "5 Roti, 2 Subji, Dal, Rice, Salad, Buttermilk, Papad",
       items: ["5 Roti", "Dal", "Rice", "Salad", "Buttermilk", "Papad"],
     },
@@ -154,7 +177,8 @@ async function main() {
       name: "Small Punjabi Thali",
       nameGu: "નાની પંજાબી થાળી",
       price: 100,
-      maxSabjiCount: 1,
+      sabjiCount: 1,
+      categoryName: "Punjabi Thali",
       description: "4 Roti, 1 Subji, Salad, Buttermilk",
       items: ["4 Roti", "Salad", "Buttermilk"],
     },
@@ -162,7 +186,8 @@ async function main() {
       name: "Medium Punjabi Thali",
       nameGu: "મીડિયમ પંજાબી થાળી",
       price: 120,
-      maxSabjiCount: 1,
+      sabjiCount: 1,
+      categoryName: "Punjabi Thali",
       description: "4 Roti, 1 Subji, Dal Fry, Jeera Rice, Salad, Buttermilk",
       items: ["4 Roti", "Dal Fry", "Jeera Rice", "Salad", "Buttermilk"],
     },
@@ -170,7 +195,8 @@ async function main() {
       name: "Full Punjabi Thali",
       nameGu: "આખી પંજાબી થાળી",
       price: 140,
-      maxSabjiCount: 2,
+      sabjiCount: 2,
+      categoryName: "Full Punjabi Thali",
       description:
         "5 Roti, 2 Subji, Dal Fry, Jeera Rice, Salad, Buttermilk, Papad",
       items: ["5 Roti", "Dal Fry", "Jeera Rice", "Salad", "Buttermilk", "Papad"],
@@ -179,7 +205,8 @@ async function main() {
       name: "Dal Fry Special",
       nameGu: "દાળ ફ્રાય સ્પેશિયલ",
       price: 80,
-      maxSabjiCount: 0,
+      sabjiCount: 0,
+      categoryName: "Specials",
       description: "Dal Fry + Jeera Rice + Curd",
       items: ["Dal Fry", "Jeera Rice", "Curd"],
     },
@@ -187,7 +214,8 @@ async function main() {
       name: "Rajma Special",
       nameGu: "રાજમા સ્પેશિયલ",
       price: 100,
-      maxSabjiCount: 0,
+      sabjiCount: 0,
+      categoryName: "Specials",
       description: "Rajma + Jeera Rice + Curd",
       items: ["Rajma", "Jeera Rice", "Curd"],
     },
@@ -195,13 +223,15 @@ async function main() {
 
   for (const t of thaliDefs) {
     const existing = await prisma.thali.findUnique({ where: { name: t.name } });
+    const categoryId = t.categoryName ? categoriesMap.get(t.categoryName) : null;
     if (!existing) {
       await prisma.thali.create({
         data: {
           name: t.name,
           nameGu: t.nameGu,
           price: t.price,
-          maxSabjiCount: t.maxSabjiCount,
+          sabjiCount: t.sabjiCount,
+          categoryId: categoryId || null,
           description: t.description,
           items: {
             create: t.items.map((itemName, idx) => ({
@@ -209,6 +239,14 @@ async function main() {
               sortOrder: idx,
             })),
           },
+        },
+      });
+    } else {
+      await prisma.thali.update({
+        where: { id: existing.id },
+        data: {
+          sabjiCount: t.sabjiCount,
+          categoryId: categoryId || null,
         },
       });
     }

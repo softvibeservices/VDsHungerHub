@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       orderBy: { date: "desc" },
       include: {
         thalis: { include: { thali: { include: { items: { orderBy: { sortOrder: "asc" } } } } } },
-        sabjiOptions: { include: { product: true, thali: true } },
+        sabjiOptions: { include: { product: true, category: true } },
       },
     });
 
@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(thaliIds) || thaliIds.length === 0)
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
 
-    // Fetch the thalis to get their maxSabjiCount
+    // Fetch the thalis to get their sabjiCount
     const thalisFromDb = await prisma.thali.findMany({
       where: { id: { in: thaliIds } },
     });
-    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.maxSabjiCount]));
+    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.sabjiCount]));
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
@@ -73,15 +73,15 @@ export async function POST(req: NextRequest) {
           })),
         },
         sabjiOptions: {
-          create: (sabjiOptions as { thaliId: string; productIds: string[] }[]).flatMap(
-            ({ thaliId, productIds }) =>
-              productIds.map((productId) => ({ thaliId, productId }))
+          create: (sabjiOptions as { categoryId: string; productIds: string[] }[]).flatMap(
+            ({ categoryId, productIds }) =>
+              productIds.map((productId) => ({ categoryId, productId }))
           ),
         },
       },
       include: {
         thalis: { include: { thali: { include: { items: { orderBy: { sortOrder: "asc" } } } } } },
-        sabjiOptions: { include: { product: true, thali: true } },
+        sabjiOptions: { include: { product: true, category: true } },
       },
     });
 
