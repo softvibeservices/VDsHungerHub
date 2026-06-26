@@ -354,7 +354,8 @@ export default function PublicMenuPage({ params }: PageProps) {
       setUserInfo(user);
       toast.success(`Welcome, ${user.name}!`);
       setPageState("confirming");
-    } catch {
+    } catch (err) {
+      console.error("Firebase confirm OTP failed:", err);
       toast.error("Incorrect OTP. Please try again.");
     }
   }
