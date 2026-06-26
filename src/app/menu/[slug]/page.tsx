@@ -511,79 +511,85 @@ export default function PublicMenuPage({ params }: PageProps) {
   const canOrder = !cutoffExpired && validateSabjiSelection() && !!selectedMenuThali;
 
   return (
-    <div className="min-h-screen bg-gray-50/50 pt-8 pb-28 px-4 sm:py-10 sm:px-4 md:px-6">
+    <div className="min-h-screen bg-gray-50/50 pt-6 pb-24 px-4 sm:py-8 sm:px-4 md:px-6">
       {/* Invisible reCAPTCHA container — required by Firebase */}
       <div ref={recaptchaContainerRef} id="recaptcha-container" />
 
-      <div className="max-w-5xl mx-auto">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+      <div className="max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
           
           {/* Left Column: Selection controls */}
-          <div className="md:col-span-2 space-y-6">
+          <div className="md:col-span-2 space-y-4">
             
-            {/* Brand Header */}
-            <div className="flex flex-col items-center text-center space-y-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md">
-                <UtensilsCrossed className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  VD&apos;s Hunger Hub
-                </h1>
-                <p className="text-xs text-gray-500 font-medium mt-0.5">
-                  Fresh Tiffin, Delivered Daily
-                </p>
-              </div>
-            </div>
+            {/* Combined Header Card */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-3">
+                {/* Brand & Logo */}
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-md flex-shrink-0">
+                    <UtensilsCrossed className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-base font-extrabold text-gray-900 leading-tight">
+                      VD&apos;s Hunger Hub
+                    </h1>
+                    <p className="text-[10px] text-gray-500 font-semibold">
+                      Fresh Tiffin, Delivered Daily
+                    </p>
+                  </div>
+                </div>
 
-            {/* Date / Meal info card */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
-              <div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">
-                  Today&apos;s Menu:
-                </p>
-                <p className="text-base font-bold text-gray-800 mt-0.5">{dateStr}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span
-                  className={`text-xs px-3 py-1 rounded-full font-bold uppercase ${
-                    isLunch
-                      ? "bg-amber-50 text-amber-700 border border-amber-200"
-                      : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                  }`}
-                >
-                  {isLunch ? "🌅 Lunch" : "🌙 Dinner"}
-                </span>
-                {menu.cutoffTime && (
+                {/* Date & Meal Info */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="font-bold text-gray-800">{dateStr}</span>
                   <span
-                    className={`text-xs flex items-center gap-1 font-semibold ${
-                      cutoffExpired ? "text-red-600" : "text-red-500"
+                    className={`px-2 py-0.5 rounded-full font-bold uppercase text-[10px] ${
+                      isLunch
+                        ? "bg-amber-50 text-amber-700 border border-amber-200"
+                        : "bg-indigo-50 text-indigo-700 border border-indigo-200"
                     }`}
                   >
-                    <Clock size={13} />
-                    Cutoff: {formatTimeIST(menu.cutoffTime)}
+                    {isLunch ? "🌅 Lunch" : "🌙 Dinner"}
                   </span>
-                )}
-              </div>
-            </div>
-
-            {/* Logged-in user banner */}
-            {userInfo && (
-              <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2.5">
-                <CheckCircle className="text-green-500 flex-shrink-0" size={16} />
-                <div className="text-sm">
-                  <span className="font-bold text-gray-800">{userInfo.name}</span>
-                  <span className="text-gray-500 ml-1">({userInfo.companyName})</span>
+                  {menu.cutoffTime && (
+                    <span
+                      className={`flex items-center gap-1 font-bold text-[10px] ${
+                        cutoffExpired ? "text-red-600" : "text-red-500"
+                      }`}
+                    >
+                      <Clock size={11} />
+                      Cutoff: {formatTimeIST(menu.cutoffTime)}
+                    </span>
+                  )}
                 </div>
               </div>
-            )}
+
+              {/* User info if logged in */}
+              {userInfo ? (
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>
+                      Welcome, <strong className="text-gray-800">{userInfo.name}</strong> ({userInfo.companyName})
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded border border-emerald-200">
+                    Registered Active
+                  </span>
+                </div>
+              ) : (
+                <div className="text-[10px] text-gray-405 italic">
+                  * Please select your meal options below to place your order.
+                </div>
+              )}
+            </div>
 
             {/* Step 1 — Thali selector */}
-            <div className="space-y-2.5">
+            <div className="space-y-2">
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                 Step 1: Choose Your Thali
               </p>
-              <div className="grid grid-cols-1 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {menu.thalis.map((mt) => {
                   const thali = mt.thali;
                   const isSelected = thali.id === selectedThaliId;
@@ -594,22 +600,33 @@ export default function PublicMenuPage({ params }: PageProps) {
                         setSelectedThaliId(thali.id);
                         setSelectedSabjis({});
                       }}
-                      className={`p-3.5 sm:p-4 rounded-2xl border text-left flex justify-between items-start gap-2 transition-all cursor-pointer shadow-sm ${
+                      className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between h-full transition-all cursor-pointer shadow-sm relative ${
                         isSelected
                           ? "border-orange-500 bg-orange-500/5 ring-1 ring-orange-500"
                           : "border-gray-200 bg-white hover:border-gray-300"
                       }`}
                     >
-                      <div className="space-y-1 min-w-0 flex-1">
-                        <span className="font-bold text-sm block text-gray-900 truncate">
-                          {thali.name}
-                        </span>
+                      <div className="space-y-1.5 w-full">
+                        <div className="flex justify-between items-start gap-2">
+                          <span className="font-bold text-sm block text-gray-900 leading-snug truncate">
+                            {thali.name}
+                          </span>
+                          <span
+                            className={`text-xs font-extrabold px-2 py-0.5 rounded-lg border flex-shrink-0 ${
+                              isSelected
+                                ? "bg-orange-500 text-white border-orange-500"
+                                : "bg-gray-50 text-gray-800 border-gray-200"
+                            }`}
+                          >
+                            {formatCurrency(thali.price)}
+                          </span>
+                        </div>
                         {thali.nameGu && (
-                          <span className="text-xs text-gray-500 font-medium block truncate">
+                          <span className="text-[10px] text-gray-500 font-medium block truncate -mt-1">
                             {thali.nameGu}
                           </span>
                         )}
-                        <span className="text-[11px] text-gray-500 block">
+                        <span className="text-[10px] text-gray-400 block font-semibold">
                           {thali.sabjiCount > 0
                             ? `Choice of ${thali.sabjiCount} Sabji`
                             : "Fixed contents"}
@@ -619,22 +636,13 @@ export default function PublicMenuPage({ params }: PageProps) {
                           {thali.items.map((item) => (
                             <span
                               key={item.id}
-                              className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-md"
+                              className="text-[9px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded-md"
                             >
                               {item.itemName}
                             </span>
                           ))}
                         </div>
                       </div>
-                      <span
-                        className={`text-sm font-extrabold px-2.5 py-0.5 rounded-lg border flex-shrink-0 self-start ${
-                          isSelected
-                            ? "bg-orange-500 text-white border-orange-500"
-                            : "bg-gray-50 text-gray-800 border-gray-200"
-                        }`}
-                      >
-                        {formatCurrency(thali.price)}
-                      </span>
                     </button>
                   );
                 })}
@@ -643,7 +651,7 @@ export default function PublicMenuPage({ params }: PageProps) {
 
             {/* Step 2 — Sabji selector */}
             {selectedMenuThali && selectedMenuThali.thali.sabjiCount > 0 && (
-              <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                 <div className="flex justify-between items-start border-b border-gray-100 pb-2 gap-2">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
@@ -661,7 +669,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {menu.sabjiOptions
                     .filter(
                       (opt) =>
@@ -687,7 +695,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                             )
                           }
                           disabled={isDisabled}
-                          className={`p-3 rounded-xl border text-left flex items-center gap-3 transition-all ${
+                          className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition-all ${
                             isChecked
                               ? "border-orange-400 bg-orange-50"
                               : isDisabled
@@ -698,7 +706,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                           }`}
                         >
                           <div
-                            className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${
+                            className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
                               isChecked
                                 ? "bg-orange-500 border-orange-500"
                                 : "border-gray-300 bg-white"
@@ -706,7 +714,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                           >
                             {isChecked && (
                               <CheckCircle
-                                size={13}
+                                size={11}
                                 className="text-white fill-white"
                               />
                             )}
@@ -716,14 +724,14 @@ export default function PublicMenuPage({ params }: PageProps) {
                               {opt.product.name}
                             </span>
                             {opt.product.nameGu && (
-                              <span className="text-[10px] text-gray-400 block truncate">
+                              <span className="text-[9px] text-gray-400 block truncate">
                                 {opt.product.nameGu}
                               </span>
                             )}
                           </div>
                           {atMax && sabjiLimit === 1 && !isChecked && (
-                            <span className="text-[9px] text-orange-400 font-semibold flex-shrink-0 whitespace-nowrap">
-                              Tap to change
+                            <span className="text-[8px] text-orange-400 font-bold flex-shrink-0 whitespace-nowrap">
+                              Change
                             </span>
                           )}
                         </button>
@@ -734,7 +742,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                     (opt) =>
                       opt.categoryId === selectedMenuThali.thali.categoryId
                   ).length === 0 && (
-                    <p className="col-span-2 text-xs text-gray-400 italic py-2 text-center">
+                    <p className="col-span-full text-xs text-gray-400 italic py-2 text-center">
                       No sabjis available for this thali today.
                     </p>
                   )}
@@ -744,25 +752,25 @@ export default function PublicMenuPage({ params }: PageProps) {
 
             {/* Step 3 — Add-ons */}
             {addOns.length > 0 && (
-              <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+              <div className="space-y-3 bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                 <div className="flex items-center gap-2 border-b border-gray-100 pb-2">
-                  <PackagePlus size={15} className="text-purple-500" />
+                  <PackagePlus size={14} className="text-purple-500" />
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
                     Add-Ons{" "}
-                    <span className="text-gray-300 font-normal normal-case ml-1">
+                    <span className="text-gray-350 font-normal normal-case ml-1">
                       (Optional)
                     </span>
                   </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {addOns.map((addon) => {
                     const qty = selectedAddons[addon.id] ?? 0;
                     const isSelected = qty > 0;
                     return (
                       <div
                         key={addon.id}
-                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                        className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all ${
                           isSelected
                             ? "border-purple-400 bg-purple-50"
                             : "border-gray-200 bg-white hover:border-purple-300"
@@ -773,12 +781,12 @@ export default function PublicMenuPage({ params }: PageProps) {
                             {addon.name}
                           </span>
                           {addon.nameGu && (
-                            <span className="text-[10px] text-gray-400 block truncate">
+                            <span className="text-[9px] text-gray-400 block truncate">
                               {addon.nameGu}
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 flex-shrink-0">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <span
                             className={`text-xs font-bold ${
                               isSelected ? "text-purple-700" : "text-gray-700"
@@ -790,7 +798,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                           {!isSelected ? (
                             <button
                               onClick={() => updateAddonQty(addon.id, 1)}
-                              className="text-xs font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-3 py-1 rounded-lg transition-colors cursor-pointer"
+                              className="text-[10px] font-bold text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer"
                             >
                               + Add
                             </button>
@@ -798,23 +806,23 @@ export default function PublicMenuPage({ params }: PageProps) {
                             <div className="flex items-center bg-white border border-purple-200 rounded-lg overflow-hidden">
                               <button
                                 onClick={() => updateAddonQty(addon.id, -1)}
-                                className="p-1.5 text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
+                                className="p-1 text-purple-600 hover:bg-purple-50 transition-colors cursor-pointer"
                               >
-                                <Minus size={11} className="stroke-[3]" />
+                                <Minus size={10} className="stroke-[3]" />
                               </button>
-                              <span className="px-2 text-xs font-extrabold text-purple-700 min-w-[1.25rem] text-center select-none">
+                              <span className="px-1.5 text-xs font-extrabold text-purple-700 min-w-[1rem] text-center select-none">
                                 {qty}
                               </span>
                               <button
                                 onClick={() => updateAddonQty(addon.id, 1)}
                                 disabled={qty >= 10}
-                                className={`p-1.5 transition-colors cursor-pointer ${
+                                className={`p-1 transition-colors cursor-pointer ${
                                   qty >= 10
                                     ? "text-gray-300 cursor-not-allowed"
                                     : "text-purple-600 hover:bg-purple-50"
                                 }`}
                               >
-                                <Plus size={11} className="stroke-[3]" />
+                                <Plus size={10} className="stroke-[3]" />
                               </button>
                             </div>
                           )}
