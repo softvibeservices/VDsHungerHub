@@ -33,23 +33,26 @@ async function main() {
   console.log("✅ Admin AppUser seeded");
 
   // ── Sample Companies ───────────────────────
-  const companies = await Promise.all([
-    prisma.company.upsert({
-      where: { name: "TechCorp Pvt Ltd" },
-      update: {},
-      create: { name: "TechCorp Pvt Ltd", location: "Satellite, Ahmedabad" },
-    }),
-    prisma.company.upsert({
-      where: { name: "Infosys BPO" },
-      update: {},
-      create: { name: "Infosys BPO", location: "SG Highway, Ahmedabad" },
-    }),
-    prisma.company.upsert({
-      where: { name: "HDFC Bank Branch" },
-      update: {},
-      create: { name: "HDFC Bank Branch", location: "CG Road, Ahmedabad" },
-    }),
-  ]);
+  const companyDefs = [
+    { name: "TechCorp Pvt Ltd", location: "Satellite, Ahmedabad" },
+    { name: "Infosys BPO", location: "SG Highway, Ahmedabad" },
+    { name: "HDFC Bank Branch", location: "CG Road, Ahmedabad" },
+    { name: "Valence Datalabs", location: "Ahmedabad" },
+    { name: "Communication Crafts", location: "Ahmedabad" },
+    { name: "eSparkBiz", location: "Ahmedabad" },
+    { name: "HDFC Bank", location: "Ahmedabad" },
+    { name: "Veloxcore Private Limited", location: "Ahmedabad" }
+  ];
+
+  const companiesMap = new Map<string, string>();
+  for (const c of companyDefs) {
+    const record = await prisma.company.upsert({
+      where: { name: c.name },
+      update: { location: c.location },
+      create: { name: c.name, location: c.location },
+    });
+    companiesMap.set(record.name, record.id);
+  }
   console.log("✅ Companies seeded");
 
   // ── Sample Products (Sabji items) ─────────
@@ -254,24 +257,30 @@ async function main() {
   console.log("✅ Thalis seeded");
 
   // ── Sample Users ──────────────────────────
-  await prisma.user.upsert({
-    where: { number: "9876543210" },
-    update: {},
-    create: {
-      name: "Rahul Patel",
-      number: "9876543210",
-      companyId: companies[0].id,
-    },
-  });
-  await prisma.user.upsert({
-    where: { number: "9988776655" },
-    update: {},
-    create: {
-      name: "Priya Shah",
-      number: "9988776655",
-      companyId: companies[0].id,
-    },
-  });
+  const userDefs = [
+    { name: "Rahul Patel", number: "9876543210", companyName: "TechCorp Pvt Ltd" },
+    { name: "Priya Shah", number: "9988776655", companyName: "TechCorp Pvt Ltd" },
+    { name: "Mihir Patel", number: "7984373620", companyName: "Valence Datalabs" },
+    { name: "Param", number: "9898440886", companyName: "Communication Crafts" },
+    { name: "Drumil Gusai", number: "6359334422", companyName: "eSparkBiz" },
+    { name: "Vansh Jadav", number: "8980402689", companyName: "HDFC Bank" },
+    { name: "Wasim", number: "8128756698", companyName: "Veloxcore Private Limited" },
+    { name: "Sakshi Soni", number: "9023576088", companyName: "Veloxcore Private Limited" },
+    { name: "Amar Tiwari", number: "9925832329", companyName: "Communication Crafts" }
+  ];
+
+  for (const u of userDefs) {
+    const companyId = companiesMap.get(u.companyName);
+    if (!companyId) {
+      console.warn(`⚠️ Company not found for user: ${u.name}`);
+      continue;
+    }
+    await prisma.user.upsert({
+      where: { number: u.number },
+      update: { name: u.name, companyId },
+      create: { name: u.name, number: u.number, companyId },
+    });
+  }
   console.log("✅ Sample users seeded");
 
   // ── Sample Staff ──────────────────────────

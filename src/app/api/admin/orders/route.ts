@@ -84,3 +84,49 @@ export async function GET(req: NextRequest) {
   });
 }
 
+/**
+ * PATCH /api/admin/orders — Bulk update order statuses
+ */
+export async function PATCH(req: NextRequest) {
+  // Admin/Staff auth
+  const token =
+    req.cookies.get("vdh_token")?.value ??
+    req.cookies.get("vd_admin_token")?.value;
+  if (!token) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const payload = verifyToken(token);
+  if (!payload) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const { orderIds, status } = await req.json();
+
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return NextResponse.json(
+        { error: "orderIds must be a non-empty array" },
+        { status: 400 }
+      );
+    }
+
+    const validStatuses = ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"];
+    if (!validStatuses.includes(status)) {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
+    const result = await prisma.order.updateMany({
+      where: {
+        id: { in: orderIds },
+      },
+      data: {
+        status: status as any,
+      },
+    });
+
+    return NextResponse.json({ updatedCount: result.count });
+  } catch (error) {
+    console.error("[BULK PATCH ORDERS ERROR]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

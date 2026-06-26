@@ -33,6 +33,10 @@ export function useKeyboard() {
           e.preventDefault();
           router.push("/dashboard");
           break;
+        case "o":
+          e.preventDefault();
+          router.push("/orders");
+          break;
         case "c":
           e.preventDefault();
           router.push("/companies");
