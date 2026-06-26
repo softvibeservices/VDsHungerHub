@@ -21,9 +21,6 @@ export async function GET(req: NextRequest) {
     const products = await prisma.product.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: {
-        addOns: { orderBy: { sortOrder: "asc" } },
-      },
     });
 
     return NextResponse.json({ products });
@@ -35,26 +32,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, nameGu, quantity, price, isAddOnAvailable, addOns } = await req.json();
+    const { name, nameGu, quantity, price, isAddOnAvailable } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!quantity?.trim()) return NextResponse.json({ error: "Quantity is required" }, { status: 400 });
     if (price === undefined || isNaN(Number(price)) || Number(price) < 0)
       return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
 
-    // Validate add-ons if provided
-    const addonList: { name: string; price: number; sortOrder: number }[] = [];
-    if (isAddOnAvailable && Array.isArray(addOns)) {
-      for (let i = 0; i < addOns.length; i++) {
-        const addon = addOns[i];
-        if (!addon.name?.trim()) continue; // skip blank entries
-        addonList.push({
-          name: addon.name.trim(),
-          price: Number(addon.price ?? 0),
-          sortOrder: i,
-        });
-      }
-    }
+
 
     const product = await prisma.product.create({
       data: {
@@ -63,14 +48,6 @@ export async function POST(req: NextRequest) {
         quantity: quantity.trim(),
         price: Number(price),
         isAddOnAvailable: Boolean(isAddOnAvailable),
-        ...(addonList.length > 0 && {
-          addOns: {
-            create: addonList,
-          },
-        }),
-      },
-      include: {
-        addOns: { orderBy: { sortOrder: "asc" } },
       },
     });
 

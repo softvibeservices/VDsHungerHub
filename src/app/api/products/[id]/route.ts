@@ -7,27 +7,10 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { name, nameGu, quantity, price, isActive, isAddOnAvailable, addOns } = await req.json();
+    const { name, nameGu, quantity, price, isActive, isAddOnAvailable } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!quantity?.trim()) return NextResponse.json({ error: "Quantity is required" }, { status: 400 });
-
-    // Build add-on list
-    const addonList: { name: string; price: number; sortOrder: number }[] = [];
-    if (isAddOnAvailable && Array.isArray(addOns)) {
-      for (let i = 0; i < addOns.length; i++) {
-        const addon = addOns[i];
-        if (!addon.name?.trim()) continue;
-        addonList.push({
-          name: addon.name.trim(),
-          price: Number(addon.price ?? 0),
-          sortOrder: i,
-        });
-      }
-    }
-
-    // Delete existing add-ons and recreate (simplest strategy for this scale)
-    await prisma.productAddon.deleteMany({ where: { productId: id } });
 
     const product = await prisma.product.update({
       where: { id },
@@ -38,14 +21,6 @@ export async function PUT(
         price: Number(price),
         ...(isActive !== undefined && { isActive }),
         isAddOnAvailable: Boolean(isAddOnAvailable),
-        ...(addonList.length > 0 && {
-          addOns: {
-            create: addonList,
-          },
-        }),
-      },
-      include: {
-        addOns: { orderBy: { sortOrder: "asc" } },
       },
     });
 

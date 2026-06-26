@@ -80,7 +80,7 @@ model Product {
   price             Float // price per unit / per item
   isActive          Boolean                @default(true)
   isAddOnAvailable  Boolean                @default(false)
-  addOns            ProductAddon[]
+
   thaliSabjiPool    ThaliSabjiProduct[]
   dailySabjiOptions DailyMenuSabjiOption[]
   orderSabji        OrderSabji[]
@@ -89,20 +89,7 @@ model Product {
   updatedAt         DateTime               @updatedAt
 }
 
-// ─────────────────────────────────────────
-// PRODUCT ADD-ON
-// ─────────────────────────────────────────
-model ProductAddon {
-  id        String   @id @default(cuid())
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  productId String
-  name      String
-  price     Float    @default(0)
-  sortOrder Int      @default(0)
-  createdAt DateTime @default(now())
 
-  @@unique([productId, name])
-}
 
 
 // ─────────────────────────────────────────
