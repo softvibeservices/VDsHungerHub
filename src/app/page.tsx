@@ -11,8 +11,15 @@ import Button from "@/components/ui/Button";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import { WHATSAPP_LINK } from "@/lib/constants";
+import { getCurrentUser } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
-export default function RootPage() {
+export default async function RootPage() {
+  const user = await getCurrentUser();
+  if (user && (user.role === "ADMIN" || user.role === "STAFF")) {
+    redirect("/dashboard");
+  }
+
   const stepCards = [
     {
       step: "STEP 1",

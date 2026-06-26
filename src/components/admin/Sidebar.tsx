@@ -35,6 +35,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const currentUser = useCurrentUser();
 
   const handleLogout = async () => {
+    if (!confirm("Are you sure you want to sign out?")) {
+      return;
+    }
     try {
       await fetch("/api/auth/logout", { method: "POST" });
       toast.success("Logged out successfully");

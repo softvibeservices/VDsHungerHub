@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, UtensilsCrossed, Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -8,6 +8,23 @@ import toast from "react-hot-toast";
 export default function LoginPage() {
   const router = useRouter();
   const [number, setNumber] = useState("");
+
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/me");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            router.push("/dashboard");
+          }
+        }
+      } catch {
+        // ignore error, show login form
+      }
+    }
+    checkSession();
+  }, [router]);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
