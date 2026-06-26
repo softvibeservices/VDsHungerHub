@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getFirebaseAdmin } from "@/lib/firebase-admin";
-import { signUserToken } from "@/lib/user-auth";
+import { signUserToken, verifyFirebaseIdToken } from "@/lib/user-auth";
 
 /**
  * POST /api/user-auth/verify
  *
  * Receives a Firebase ID token (from client OTP verification) and:
- * 1. Verifies it with Firebase Admin SDK
+ * 1. Verifies it with Firebase Admin SDK (manual signature validation)
  * 2. Looks up the user in our DB by phone number
  * 3. Stores the device fingerprint in UserDevice
  * 4. Mints and returns a 180-day JWT for localStorage storage
@@ -20,11 +19,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "idToken required" }, { status: 400 });
     }
 
-    // 1. Verify Firebase ID token
+    // 1. Verify Firebase ID token using manual Google JWKS validation
     let phoneNumber: string;
     try {
-      const adminAuth = getFirebaseAdmin();
-      const decoded = await adminAuth.verifyIdToken(idToken);
+      const projectId = process.env.FIREBASE_PROJECT_ID || "vdshungerhub";
+      const decoded = await verifyFirebaseIdToken(idToken, projectId);
       phoneNumber = decoded.phone_number ?? "";
     } catch (err: any) {
       console.error("Firebase ID Token verification failed:", err);

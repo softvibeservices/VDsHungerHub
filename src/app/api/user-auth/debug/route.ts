@@ -9,22 +9,23 @@ export async function GET(req: NextRequest) {
       USER_JWT_SECRET: process.env.USER_JWT_SECRET ? "PRESENT" : "MISSING",
       DATABASE_URL: process.env.DATABASE_URL ? "PRESENT" : "MISSING",
     },
-    firebaseAdminImport: "UNKNOWN",
-    firebaseAdminInit: "UNKNOWN",
+    googleJwksStatus: "UNKNOWN",
   };
 
   try {
-    // Dynamically import getFirebaseAdmin so it doesn't crash at module load time
-    const { getFirebaseAdmin } = await import("@/lib/firebase-admin");
-    info.firebaseAdminImport = "SUCCESS";
-    
-    const auth = getFirebaseAdmin();
-    info.firebaseAdminInit = "SUCCESS";
-    info.firebaseAdminAppName = auth ? "SUCCESS" : "NULL";
+    const res = await fetch(
+      "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+    );
+    if (res.ok) {
+      const keys = await res.json();
+      info.googleJwksStatus = "SUCCESS";
+      info.googleKeyIds = Object.keys(keys);
+    } else {
+      info.googleJwksStatus = `FAILED (${res.status})`;
+    }
   } catch (err: any) {
-    info.firebaseAdminInit = "FAILED";
+    info.googleJwksStatus = "ERROR";
     info.error = err instanceof Error ? err.message : String(err);
-    info.stack = err instanceof Error ? err.stack : undefined;
   }
 
   return NextResponse.json(info);

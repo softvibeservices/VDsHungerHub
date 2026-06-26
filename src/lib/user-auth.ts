@@ -60,3 +60,87 @@ export async function getDeviceHash(): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
+interface DecodedHeader {
+  alg: string;
+  kid: string;
+  typ: string;
+}
+
+export interface FirebaseTokenPayload {
+  iss: string;
+  aud: string;
+  sub: string;
+  exp: number;
+  iat: number;
+  auth_time: number;
+  phone_number?: string;
+  [key: string]: any;
+}
+
+let googlePublicKeysCache: Record<string, string> | null = null;
+let googlePublicKeysCacheExpiry = 0;
+
+async function fetchGooglePublicKeys(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (googlePublicKeysCache && now < googlePublicKeysCacheExpiry) {
+    return googlePublicKeysCache;
+  }
+
+  const res = await fetch(
+    "https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com"
+  );
+  if (!res.ok) {
+    throw new Error("Failed to fetch Firebase public keys from Google");
+  }
+
+  const cacheControl = res.headers.get("cache-control") ?? "";
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
+  const maxAge = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 3600;
+
+  const keys = await res.json();
+  googlePublicKeysCache = keys;
+  googlePublicKeysCacheExpiry = now + maxAge * 1000;
+
+  return keys;
+}
+
+export async function verifyFirebaseIdToken(
+  idToken: string,
+  projectId: string
+): Promise<FirebaseTokenPayload> {
+  const decoded = jwt.decode(idToken, { complete: true });
+  if (!decoded || typeof decoded === "string" || !decoded.header) {
+    throw new Error("Malformed JWT token");
+  }
+
+  const header = decoded.header as DecodedHeader;
+  if (!header.kid) {
+    throw new Error("Firebase ID token missing 'kid' header claim");
+  }
+
+  const publicKeys = await fetchGooglePublicKeys();
+  const publicKey = publicKeys[header.kid];
+  if (!publicKey) {
+    throw new Error("Firebase ID token signed with unknown kid");
+  }
+
+  const payload = jwt.verify(idToken, publicKey, {
+    algorithms: ["RS256"],
+  }) as FirebaseTokenPayload;
+
+  const expectedIssuer = `https://securetoken.google.com/${projectId}`;
+  if (payload.iss !== expectedIssuer) {
+    throw new Error(`Invalid token issuer: expected ${expectedIssuer}, got ${payload.iss}`);
+  }
+
+  if (payload.aud !== projectId) {
+    throw new Error(`Invalid token audience: expected ${projectId}, got ${payload.aud}`);
+  }
+
+  if (!payload.sub) {
+    throw new Error("Firebase ID token subject claim is empty");
+  }
+
+  return payload;
+}
