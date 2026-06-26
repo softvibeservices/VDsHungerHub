@@ -17,7 +17,7 @@ export async function PUT(
       return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       // Delete all existing items and thali-sabji pool relations
       await tx.thaliItem.deleteMany({ where: { thaliId: id } });
       await tx.thaliSabjiProduct.deleteMany({ where: { thaliId: id } });

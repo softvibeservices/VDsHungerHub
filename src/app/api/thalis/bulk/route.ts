@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
         : [];
 
       if (existing) {
-        await prisma.$transaction(async (tx) => {
+        await prisma.$transaction(async (tx: any) => {
           if (parsedItems.length > 0) {
             await tx.thaliItem.deleteMany({ where: { thaliId: existing.id } });
           }

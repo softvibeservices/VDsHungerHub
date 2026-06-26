@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
     }
 
-    const thali = await prisma.$transaction(async (tx) => {
+    const thali = await prisma.$transaction(async (tx: any) => {
       const created = await tx.thali.create({
         data: {
           name: name.trim(),
