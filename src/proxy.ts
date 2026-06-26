@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import type { TokenPayload } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/", "/login", "/api/auth/login", "/api/auth/logout", "/menu", "/api/public"];
+const PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/menu",          // public menu pages (/menu/[slug], /menu/orders)
+  "/api/public",    // public menu data API
+  "/api/user-auth", // user OTP auth — uses Bearer JWT, not admin cookie
+  "/api/orders",    // user order placement/history — uses Bearer JWT
+];
 
 // Pages only ADMIN can access
 const ADMIN_ONLY_PREFIXES = ["/companies", "/users", "/api/companies", "/api/users"];
@@ -14,6 +23,7 @@ const PROTECTED_PREFIXES = [
   "/users",
   "/catalog",
   "/menu",
+  "/orders",
 ];
 
 export function proxy(request: NextRequest) {

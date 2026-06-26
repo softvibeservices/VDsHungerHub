@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // firebase-admin uses Node.js native modules — must not be bundled by webpack
+  serverExternalPackages: ["firebase-admin"],
+
   async redirects() {
     return [
       { source: "/products", destination: "/catalog", permanent: true },
@@ -11,3 +14,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

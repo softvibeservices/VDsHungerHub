@@ -39,7 +39,20 @@ export async function GET(
       return NextResponse.json({ error: "Menu not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ menu });
+    // Fetch all active add-on products (available for all menus)
+    const addOns = await prisma.product.findMany({
+      where: { isActive: true, isAddOnAvailable: true },
+      select: {
+        id: true,
+        name: true,
+        nameGu: true,
+        price: true,
+        quantity: true,
+      },
+      orderBy: { name: "asc" },
+    });
+
+    return NextResponse.json({ menu, addOns });
   } catch (error) {
     console.error("[PUBLIC MENU GET]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

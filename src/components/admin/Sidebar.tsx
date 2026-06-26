@@ -8,6 +8,7 @@ import {
   Users,
   ShoppingBasket,
   CalendarDays,
+  ShoppingBag,
   LogOut,
   X,
 } from "lucide-react";
@@ -16,6 +17,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 
 const allNavItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["ADMIN", "STAFF"] },
+  { href: "/orders", icon: ShoppingBag, label: "Orders", roles: ["ADMIN", "STAFF"] },
   { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN"] },
   { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
   { href: "/catalog", icon: ShoppingBasket, label: "Catalog", roles: ["ADMIN", "STAFF"] },

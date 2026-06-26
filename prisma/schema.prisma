@@ -57,14 +57,16 @@ model Company {
 // USERS (Tiffin Customers)
 // ─────────────────────────────────────────
 model User {
-  id        String   @id @default(cuid())
+  id        String       @id @default(cuid())
   name      String
-  number    String   @unique // WhatsApp number — used as PK for ordering
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  number    String       @unique // WhatsApp number — used as PK for ordering
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
   companyId String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive  Boolean      @default(true)
+  devices   UserDevice[]
+  orders    Order[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
 // ─────────────────────────────────────────
@@ -81,6 +83,8 @@ model Product {
   addOns            ProductAddon[]
   thaliSabjiPool    ThaliSabjiProduct[]
   dailySabjiOptions DailyMenuSabjiOption[]
+  orderSabji        OrderSabji[]
+  orderAddons       OrderAddon[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
 }
@@ -131,6 +135,7 @@ model Thali {
   items          ThaliItem[] // Fixed items (roti, dal, rice, salad, etc.)
   sabjiPool      ThaliSabjiProduct[]
   dailyMenus     DailyMenuThali[]
+  orders         Order[]
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
 }
@@ -186,6 +191,7 @@ model DailyMenu {
   isPublished  Boolean                @default(false)
   thalis       DailyMenuThali[]
   sabjiOptions DailyMenuSabjiOption[]
+  orders       Order[]
   createdAt    DateTime               @default(now())
   updatedAt    DateTime               @updatedAt
 
@@ -228,6 +234,78 @@ model MenuTemplate {
   thaliIds    String[]
   sabjiConfig Json     @default("[]")
   createdAt   DateTime @default(now())
+}
+
+// ─────────────────────────────────────────
+// USER DEVICE (persistent login per device)
+// ─────────────────────────────────────────
+model UserDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceHash  String   // SHA-256(userAgent + screenWidth + timezone)
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, deviceHash])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────
+// ORDER STATUS ENUM
+// ─────────────────────────────────────────
+enum OrderStatus {
+  PENDING    // just placed
+  CONFIRMED  // admin acknowledged
+  DELIVERED  // marked delivered
+  CANCELLED  // admin cancelled (no user cancellation)
+}
+
+// ─────────────────────────────────────────
+// ORDER
+// ─────────────────────────────────────────
+model Order {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  menuId       String
+  menu         DailyMenu    @relation(fields: [menuId], references: [id], onDelete: Restrict)
+  thaliId      String
+  thali        Thali        @relation(fields: [thaliId], references: [id], onDelete: Restrict)
+  selectedSabji OrderSabji[]
+  selectedAddons OrderAddon[]
+  totalAmount  Float
+  status       OrderStatus  @default(PENDING)
+  note         String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([userId])
+  @@index([menuId])
+  @@index([createdAt])
+}
+
+// Selected sabji items per order
+model OrderSabji {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, productId])
+}
+
+// Selected add-on items per order (price snapshot)
+model OrderAddon {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  price     Float   // price snapshot at time of order
+
+  @@unique([orderId, productId])
 }
 
 // ─────────────────────────────────────────
