@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin } from "@/lib/firebase-admin";
 
 export async function GET(req: NextRequest) {
   const info: any = {
@@ -15,7 +14,10 @@ export async function GET(req: NextRequest) {
   };
 
   try {
+    // Dynamically import getFirebaseAdmin so it doesn't crash at module load time
+    const { getFirebaseAdmin } = await import("@/lib/firebase-admin");
     info.firebaseAdminImport = "SUCCESS";
+    
     const auth = getFirebaseAdmin();
     info.firebaseAdminInit = "SUCCESS";
     info.firebaseAdminAppName = auth ? "SUCCESS" : "NULL";
