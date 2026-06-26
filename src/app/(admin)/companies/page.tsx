@@ -44,7 +44,10 @@ export default function CompaniesPage() {
     }
   };
 
-  useEffect(() => { fetchCompanies(); }, [debouncedSearch]);
+  useEffect(() => {
+    fetchCompanies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const handleDelete = async () => {
     if (!deleteId) return;

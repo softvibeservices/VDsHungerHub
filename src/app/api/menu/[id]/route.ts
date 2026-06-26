@@ -7,7 +7,18 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { cutoffTime, thaliIds, sabjiOptions, isPublished } = await req.json();
+    const { cutoffTime, thaliIds, sabjiOptions, minSabjiMap, isPublished } = await req.json();
+
+    const existingMenu = await prisma.dailyMenu.findUnique({ where: { id } });
+    if (!existingMenu) return NextResponse.json({ error: "Menu not found" }, { status: 404 });
+
+    const menuDateStr = existingMenu.date.toISOString().split("T")[0];
+    const now = new Date();
+    const ist = new Date(now.getTime() + 330 * 60 * 1000);
+    const todayStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
+    if (menuDateStr < todayStr) {
+      return NextResponse.json({ error: "Cannot edit a menu for a past date" }, { status: 400 });
+    }
 
     // Delete existing relations
     await prisma.dailyMenuThali.deleteMany({ where: { menuId: id } });
@@ -19,7 +30,10 @@ export async function PUT(
         cutoffTime: cutoffTime || null,
         ...(isPublished !== undefined && { isPublished }),
         thalis: {
-          create: (thaliIds as string[]).map((thaliId) => ({ thaliId })),
+          create: (thaliIds as string[]).map((thaliId) => ({
+            thaliId,
+            minSabjiRequired: minSabjiMap?.[thaliId] ?? 1,
+          })),
         },
         sabjiOptions: {
           create: (sabjiOptions as { thaliId: string; productIds: string[] }[]).flatMap(
@@ -57,6 +71,27 @@ export async function DELETE(
       return NextResponse.json({ error: "Menu not found" }, { status: 404 });
     }
     console.error("[MENU DELETE]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const menu = await prisma.dailyMenu.findUnique({
+      where: { id },
+      include: {
+        thalis: { include: { thali: { include: { sabjiPool: { include: { product: true } } } } } },
+        sabjiOptions: { include: { product: true, thali: true } },
+      },
+    });
+    if (!menu) return NextResponse.json({ error: "Menu not found" }, { status: 404 });
+    return NextResponse.json({ menu });
+  } catch (error) {
+    console.error("[MENU ID GET]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

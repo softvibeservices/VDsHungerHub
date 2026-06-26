@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
       where.isActive = isActiveParam === "true";
     }
     if (search) {
-      where.name = { contains: search, mode: "insensitive" };
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" } },
+        { nameGu: { contains: search, mode: "insensitive" } },
+      ];
     }
 
     const products = await prisma.product.findMany({
@@ -29,7 +32,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, quantity, price } = await req.json();
+    const { name, nameGu, quantity, price } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!quantity?.trim()) return NextResponse.json({ error: "Quantity is required" }, { status: 400 });
@@ -37,7 +40,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
 
     const product = await prisma.product.create({
-      data: { name: name.trim(), quantity: quantity.trim(), price: Number(price) },
+      data: {
+        name: name.trim(),
+        nameGu: nameGu?.trim() || null,
+        quantity: quantity.trim(),
+        price: Number(price),
+      },
     });
 
     return NextResponse.json({ product }, { status: 201 });

@@ -14,7 +14,7 @@ import { formatMobileNumber } from "@/lib/utils";
 
 interface Staff { id: string; name: string; number: string; isActive: boolean; }
 
-export default function StaffPage() {
+export default function StaffTab() {
   const toast = useToast();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,8 +24,6 @@ export default function StaffPage() {
   const [editStaff, setEditStaff] = useState<Staff | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-
   const fetchStaff = async () => {
     setIsLoading(true);
     try {
@@ -40,24 +38,31 @@ export default function StaffPage() {
     }
   };
 
-  useEffect(() => { fetchStaff(); }, [debouncedSearch]);
+  useEffect(() => {
+    fetchStaff();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const handleToggle = async (member: Staff) => {
-    setTogglingId(member.id);
+    // Optimistic UI update
+    setStaff((prev) =>
+      prev.map((s) => (s.id === member.id ? { ...s, isActive: !member.isActive } : s))
+    );
     try {
       const res = await fetch(`/api/staff/${member.id}`, {
-        method: "PUT",
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...member, isActive: !member.isActive }),
+        body: JSON.stringify({ isActive: !member.isActive }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Failed");
-      toast.success(member.isActive ? "Staff deactivated" : "Staff activated");
-      fetchStaff();
+      toast.success(member.isActive ? "Deactivated" : "Activated");
     } catch (err: unknown) {
+      // Revert state on failure
+      setStaff((prev) =>
+        prev.map((s) => (s.id === member.id ? { ...s, isActive: member.isActive } : s))
+      );
       toast.error(err instanceof Error ? err.message : "Toggle failed");
-    } finally {
-      setTogglingId(null);
     }
   };
 
@@ -84,16 +89,16 @@ export default function StaffPage() {
     { key: "status", header: "Status", render: (row) => <ActiveBadge isActive={row.isActive} /> },
     { key: "actions", header: "Actions", width: "w-28", render: (row) => (
       <div className="flex gap-1">
-        <button onClick={() => handleToggle(row)} disabled={togglingId === row.id}
-          className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors">
+        <button onClick={() => handleToggle(row)}
+          className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer">
           {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
         </button>
         <button onClick={() => { setEditStaff(row); setModalOpen(true); }}
-          className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors">
+          className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer">
           <Pencil size={15} />
         </button>
         <button onClick={() => setDeleteId(row.id)}
-          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer">
           <Trash2 size={15} />
         </button>
       </div>
@@ -101,11 +106,11 @@ export default function StaffPage() {
   ];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Staff</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Kitchen and delivery personnel</p>
+          <h3 className="text-lg font-bold text-gray-900">Staff</h3>
+          <p className="text-xs text-gray-500 mt-0.5">Kitchen and delivery personnel</p>
         </div>
         <Button variant="primary" leftIcon={<Plus size={16} />}
           onClick={() => { setEditStaff(null); setModalOpen(true); }}>
@@ -118,10 +123,15 @@ export default function StaffPage() {
       <Table columns={columns} data={staff} isLoading={isLoading}
         emptyMessage="No staff members found" />
 
-      <StaffModal isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditStaff(null); }}
-        onSuccess={fetchStaff} staff={editStaff} />
-      <ConfirmDialog isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete}
-        isLoading={isDeleting} message="Remove this staff member? This cannot be undone." />
+      {modalOpen && (
+        <StaffModal isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditStaff(null); }}
+          onSuccess={fetchStaff} staff={editStaff} />
+      )}
+      
+      {deleteId && (
+        <ConfirmDialog isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete}
+          isLoading={isDeleting} message="Remove this staff member? This cannot be undone." />
+      )}
     </div>
   );
 }

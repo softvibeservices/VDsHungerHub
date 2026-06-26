@@ -40,54 +40,56 @@ async function main() {
   console.log("✅ Companies seeded");
 
   // ── Sample Products (Sabji items) ─────────
-  await Promise.all([
+  const seededProducts = await Promise.all([
     prisma.product.upsert({
       where: { name: "Corn Capsicum" },
       update: {},
-      create: { name: "Corn Capsicum", quantity: "1 bowl", price: 30 },
+      create: { name: "Corn Capsicum", nameGu: "કોર્ન કેપ્સિકમ", quantity: "1 bowl", price: 30 },
     }),
     prisma.product.upsert({
       where: { name: "Rajma (Kathol)" },
       update: {},
-      create: { name: "Rajma (Kathol)", quantity: "1 bowl", price: 30 },
+      create: { name: "Rajma (Kathol)", nameGu: "રાજમા (કઠોળ)", quantity: "1 bowl", price: 30 },
     }),
     prisma.product.upsert({
       where: { name: "Sev Tameta" },
       update: {},
-      create: { name: "Sev Tameta", quantity: "1 bowl", price: 25 },
+      create: { name: "Sev Tameta", nameGu: "સેવ ટામેટા", quantity: "1 bowl", price: 25 },
     }),
     prisma.product.upsert({
       where: { name: "Palak Paneer" },
       update: {},
-      create: { name: "Palak Paneer", quantity: "1 bowl", price: 50 },
+      create: { name: "Palak Paneer", nameGu: "પાલક પનીર", quantity: "1 bowl", price: 50 },
     }),
     prisma.product.upsert({
       where: { name: "Mix Veg" },
       update: {},
-      create: { name: "Mix Veg", quantity: "1 bowl", price: 30 },
+      create: { name: "Mix Veg", nameGu: "મિક્સ વેજ", quantity: "1 bowl", price: 30 },
     }),
     prisma.product.upsert({
       where: { name: "Aloo Gobi" },
       update: {},
-      create: { name: "Aloo Gobi", quantity: "1 bowl", price: 25 },
+      create: { name: "Aloo Gobi", nameGu: "આલુ ગોબી", quantity: "1 bowl", price: 25 },
     }),
     prisma.product.upsert({
       where: { name: "Paneer Butter Masala" },
       update: {},
-      create: { name: "Paneer Butter Masala", quantity: "1 bowl", price: 60 },
+      create: { name: "Paneer Butter Masala", nameGu: "પનીર બટર મસાલા", quantity: "1 bowl", price: 60 },
     }),
     prisma.product.upsert({
       where: { name: "Dal Fry" },
       update: {},
-      create: { name: "Dal Fry", quantity: "1 bowl", price: 20 },
+      create: { name: "Dal Fry", nameGu: "દાળ ફ્રાય", quantity: "1 bowl", price: 20 },
     }),
   ]);
   console.log("✅ Products seeded");
 
   // ── Thalis ────────────────────────────────
+  // ── Thalis ────────────────────────────────
   const thaliDefs = [
     {
       name: "Small Gujarati Thali",
+      nameGu: "નાની ગુજરાતી થાળી",
       price: 80,
       maxSabjiCount: 1,
       description: "4 Roti, 1 Subji, Salad, Buttermilk",
@@ -95,6 +97,7 @@ async function main() {
     },
     {
       name: "Medium Gujarati Thali",
+      nameGu: "મીડિયમ ગુજરાતી થાળી",
       price: 100,
       maxSabjiCount: 1,
       description: "4 Roti, 1 Subji, Dal, Rice, Salad, Buttermilk",
@@ -102,6 +105,7 @@ async function main() {
     },
     {
       name: "Full Gujarati Thali",
+      nameGu: "આખી ગુજરાતી થાળી",
       price: 120,
       maxSabjiCount: 2,
       description: "5 Roti, 2 Subji, Dal, Rice, Salad, Buttermilk, Papad",
@@ -109,6 +113,7 @@ async function main() {
     },
     {
       name: "Small Punjabi Thali",
+      nameGu: "નાની પંજાબી થાળી",
       price: 100,
       maxSabjiCount: 1,
       description: "4 Roti, 1 Subji, Salad, Buttermilk",
@@ -116,6 +121,7 @@ async function main() {
     },
     {
       name: "Medium Punjabi Thali",
+      nameGu: "મીડિયમ પંજાબી થાળી",
       price: 120,
       maxSabjiCount: 1,
       description: "4 Roti, 1 Subji, Dal Fry, Jeera Rice, Salad, Buttermilk",
@@ -123,6 +129,7 @@ async function main() {
     },
     {
       name: "Full Punjabi Thali",
+      nameGu: "આખી પંજાબી થાળી",
       price: 140,
       maxSabjiCount: 2,
       description:
@@ -131,6 +138,7 @@ async function main() {
     },
     {
       name: "Dal Fry Special",
+      nameGu: "દાળ ફ્રાય સ્પેશિયલ",
       price: 80,
       maxSabjiCount: 0,
       description: "Dal Fry + Jeera Rice + Curd",
@@ -138,6 +146,7 @@ async function main() {
     },
     {
       name: "Rajma Special",
+      nameGu: "રાજમા સ્પેશિયલ",
       price: 100,
       maxSabjiCount: 0,
       description: "Rajma + Jeera Rice + Curd",
@@ -148,9 +157,10 @@ async function main() {
   for (const t of thaliDefs) {
     const existing = await prisma.thali.findUnique({ where: { name: t.name } });
     if (!existing) {
-      await prisma.thali.create({
+      const createdThali = await prisma.thali.create({
         data: {
           name: t.name,
+          nameGu: t.nameGu,
           price: t.price,
           maxSabjiCount: t.maxSabjiCount,
           description: t.description,
@@ -162,6 +172,17 @@ async function main() {
           },
         },
       });
+
+      // If it is a thali that can have sabji options, pre-associate some products
+      if (t.maxSabjiCount > 0) {
+        const allowedSabjis = seededProducts.filter(p => p.name !== "Dal Fry");
+        await prisma.thaliSabjiProduct.createMany({
+          data: allowedSabjis.map(p => ({
+            thaliId: createdThali.id,
+            productId: p.id,
+          })),
+        });
+      }
     }
   }
   console.log("✅ Thalis seeded");

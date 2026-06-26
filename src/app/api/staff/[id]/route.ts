@@ -52,3 +52,31 @@ export async function DELETE(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { isActive } = await req.json();
+
+    if (typeof isActive !== "boolean") {
+      return NextResponse.json({ error: "isActive must be a boolean" }, { status: 400 });
+    }
+
+    const staff = await prisma.staff.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    return NextResponse.json({ staff });
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code === "P2025") {
+      return NextResponse.json({ error: "Staff member not found" }, { status: 404 });
+    }
+    console.error("[STAFF PATCH]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+

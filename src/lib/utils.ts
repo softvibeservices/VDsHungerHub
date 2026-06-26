@@ -58,6 +58,16 @@ export function getTodayString(): string {
 }
 
 /**
+ * Get today's date in IST (UTC+5:30) as YYYY-MM-DD
+ */
+export function getTodayIST(): string {
+  const now = new Date();
+  const ist = new Date(now.getTime() + 330 * 60 * 1000);
+  return `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
+}
+
+
+/**
  * Meal type to display label
  */
 export function getMealTypeLabel(type: string): string {

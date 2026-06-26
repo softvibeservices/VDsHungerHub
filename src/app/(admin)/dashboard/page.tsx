@@ -1,22 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Building2, Users, ShoppingBasket, UtensilsCrossed, UserCheck, CalendarDays, Plus, ArrowRight } from "lucide-react";
+import { Building2, Users, ShoppingBasket, UtensilsCrossed, UserCheck, CalendarDays, Plus, ArrowRight, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { formatCurrency } from "@/lib/utils";
 
 interface Stats {
-  companies: number; users: number; products: number; thalis: number; staff: number;
+  companies: number;
+  users: number;
+  products: number;
+  thalis: number;
+  staff: number;
 }
 
 interface DailyMenu {
-  id: string; mealType: "LUNCH" | "DINNER"; cutoffTime?: string;
+  id: string;
+  mealType: "LUNCH" | "DINNER";
+  cutoffTime?: string;
   thalis: { thali: { name: string; price: number } }[];
   sabjiOptions: { product: { name: string }; thali: { name: string } }[];
 }
 
+interface RecentMenu {
+  id: string;
+  date: string;
+  mealType: "LUNCH" | "DINNER";
+  thalis: { thali: { name: string } }[];
+}
+
 interface StatCardProps {
-  label: string; value: number; icon: React.ElementType; color: string; href: string;
+  label: string;
+  value: number;
+  icon: React.ElementType;
+  color: string;
+  href: string;
 }
 
 function StatCard({ label, value, icon: Icon, color, href }: StatCardProps) {
@@ -37,7 +54,9 @@ function StatCard({ label, value, icon: Icon, color, href }: StatCardProps) {
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [todayMenus, setTodayMenus] = useState<DailyMenu[]>([]);
+  const [recentMenus, setRecentMenus] = useState<RecentMenu[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [alerts, setAlerts] = useState<{ showLunchAlert: boolean; showDinnerAlert: boolean } | null>(null);
 
   const fetchData = async () => {
     try {
@@ -45,6 +64,7 @@ export default function DashboardPage() {
       const json = await res.json();
       setStats(json.stats);
       setTodayMenus(json.todayMenus ?? []);
+      setRecentMenus(json.recentMenus ?? []);
     } catch {
       // silent fail
     } finally {
@@ -52,14 +72,36 @@ export default function DashboardPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const now = new Date();
+    const istTime = new Date(now.getTime() + (330 * 60 * 1000));
+    const hours = istTime.getUTCHours();
+    const mins = istTime.getUTCMinutes();
+    const currentMinutes = hours * 60 + mins;
+
+    const lunchCutoffMins = 10 * 60; // 10:00 AM
+    const dinnerCutoffMins = 16 * 60; // 4:00 PM
+
+    const lunchNotSet = !todayMenus.some((m) => m.mealType === "LUNCH");
+    const dinnerNotSet = !todayMenus.some((m) => m.mealType === "DINNER");
+
+    setAlerts({
+      showLunchAlert: lunchNotSet && currentMinutes < lunchCutoffMins,
+      showDinnerAlert: dinnerNotSet && currentMinutes < dinnerCutoffMins,
+    });
+  }, [isLoading, todayMenus]);
 
   const statCards = [
     { label: "Active Companies", value: stats?.companies ?? 0, icon: Building2, color: "bg-blue-500", href: "/companies" },
     { label: "Active Users", value: stats?.users ?? 0, icon: Users, color: "bg-violet-500", href: "/users" },
-    { label: "Active Products", value: stats?.products ?? 0, icon: ShoppingBasket, color: "bg-emerald-500", href: "/products" },
-    { label: "Active Thalis", value: stats?.thalis ?? 0, icon: UtensilsCrossed, color: "bg-orange-500", href: "/thalis" },
-    { label: "Active Staff", value: stats?.staff ?? 0, icon: UserCheck, color: "bg-rose-500", href: "/staff" },
+    { label: "Active Products", value: stats?.products ?? 0, icon: ShoppingBasket, color: "bg-emerald-500", href: "/catalog" },
+    { label: "Active Thalis", value: stats?.thalis ?? 0, icon: UtensilsCrossed, color: "bg-orange-500", href: "/catalog" },
+    { label: "Active Staff", value: stats?.staff ?? 0, icon: UserCheck, color: "bg-rose-500", href: "/catalog" },
     { label: "Today's Menus", value: todayMenus.length, icon: CalendarDays, color: "bg-amber-500", href: "/menu" },
   ];
 
@@ -68,25 +110,31 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Stats grid */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Overview</h2>
+      {/* Alert banner if today's menu needs action */}
+      {alerts && (alerts.showLunchAlert || alerts.showDinnerAlert) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center text-amber-600 flex-shrink-0">
+              <AlertTriangle size={20} />
+            </div>
+            <div>
+              <p className="font-bold text-amber-900 text-sm">{"Action Required: Today's menu is not set!"}</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {alerts.showLunchAlert && "Lunch menu needs to be configured before 10:00 AM. "}
+                {alerts.showDinnerAlert && "Dinner menu needs to be configured before 4:00 PM."}
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/menu"
+            className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer flex-shrink-0"
+          >
+            Configure Menu
+          </Link>
         </div>
-        {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 animate-pulse h-32" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-            {statCards.map((card) => <StatCard key={card.label} {...card} />)}
-          </div>
-        )}
-      </div>
+      )}
 
-      {/* Today's Menu */}
+      {/* Today's Menu First */}
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Today&apos;s Menu</h2>
@@ -105,7 +153,7 @@ export default function DashboardPage() {
                   {emoji} {type === "LUNCH" ? "Lunch" : "Dinner"}
                 </h3>
                 {menu ? (
-                  <span className={`text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 font-medium`}>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-250 font-medium">
                     Set ✓
                   </span>
                 ) : (
@@ -139,6 +187,61 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Stats grid */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Overview</h2>
+        </div>
+        {isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-5 animate-pulse h-32" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+            {statCards.map((card) => <StatCard key={card.label} {...card} />)}
+          </div>
+        )}
+      </div>
+
+      {/* Recent Menus */}
+      <div>
+        <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Recent Menus</h2>
+        {isLoading ? (
+          <div className="bg-white rounded-2xl border border-gray-200 p-5 animate-pulse h-48" />
+        ) : (
+          <div className="bg-white rounded-2xl border border-gray-200 divide-y divide-gray-150 overflow-hidden">
+            {recentMenus.length === 0 ? (
+              <p className="text-sm text-gray-400 p-5">No menus configured yet.</p>
+            ) : (
+              recentMenus.map((rm) => (
+                <div key={rm.id} className="p-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">
+                      {rm.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"} — {new Date(rm.date).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Thalis: {rm.thalis.map((t) => t.thali.name).join(", ")}
+                    </p>
+                  </div>
+                  <Link
+                    href="/menu"
+                    className="text-xs text-orange-500 hover:text-orange-600 font-semibold"
+                  >
+                    View Menu →
+                  </Link>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Quick actions */}
       <div>
         <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">Quick Actions</h2>
@@ -146,9 +249,7 @@ export default function DashboardPage() {
           {[
             { href: "/companies", label: "+ Add Company", icon: Building2 },
             { href: "/users", label: "+ Add User", icon: Users },
-            { href: "/products", label: "+ Add Product", icon: ShoppingBasket },
-            { href: "/thalis", label: "+ Add Thali", icon: UtensilsCrossed },
-            { href: "/staff", label: "+ Add Staff", icon: UserCheck },
+            { href: "/catalog", label: "📦 Go to Catalog", icon: ShoppingBasket },
             { href: "/menu", label: "📅 Set Menu", icon: CalendarDays },
           ].map(({ href, label, icon: Icon }) => (
             <Link

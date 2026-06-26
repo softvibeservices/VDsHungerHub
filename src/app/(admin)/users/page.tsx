@@ -58,8 +58,13 @@ export default function UsersPage() {
     }
   };
 
-  useEffect(() => { fetchCompanies(); }, []);
-  useEffect(() => { fetchUsers(); }, [debouncedSearch, companyFilter]);
+  useEffect(() => {
+    fetchCompanies();
+  }, []);
+  useEffect(() => {
+    fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch, companyFilter]);
 
   const handleDelete = async () => {
     if (!deleteId) return;

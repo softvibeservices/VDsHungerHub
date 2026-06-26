@@ -7,8 +7,6 @@ import {
   Building2,
   Users,
   ShoppingBasket,
-  UtensilsCrossed,
-  UserCheck,
   CalendarDays,
   LogOut,
   X,
@@ -19,9 +17,7 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/companies", icon: Building2, label: "Companies" },
   { href: "/users", icon: Users, label: "Users" },
-  { href: "/products", icon: ShoppingBasket, label: "Products" },
-  { href: "/thalis", icon: UtensilsCrossed, label: "Thalis" },
-  { href: "/staff", icon: UserCheck, label: "Staff" },
+  { href: "/catalog", icon: ShoppingBasket, label: "Catalog" },
   { href: "/menu", icon: CalendarDays, label: "Daily Menu" },
 ];
 

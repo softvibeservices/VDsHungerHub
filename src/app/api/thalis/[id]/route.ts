@@ -7,33 +7,58 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { name, price, description, maxSabjiCount, items, isActive } = await req.json();
+    const { name, nameGu, price, description, maxSabjiCount, items, sabjiProductIds, isActive } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!price || Number(price) <= 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
 
-    // Delete all existing items and recreate them
-    await prisma.thaliItem.deleteMany({ where: { thaliId: id } });
+    const maxCount = Number(maxSabjiCount ?? 1);
+    if (maxCount < 0 || maxCount > 3) {
+      return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
+    }
 
-    const thali = await prisma.thali.update({
-      where: { id },
-      data: {
-        name: name.trim(),
-        price: Number(price),
-        description: description?.trim() || null,
-        maxSabjiCount: Number(maxSabjiCount ?? 1),
-        ...(isActive !== undefined && { isActive }),
-        items: {
-          create: (items as string[]).map((itemName, idx) => ({
-            itemName: itemName.trim(),
-            sortOrder: idx,
-          })),
+    await prisma.$transaction(async (tx) => {
+      // Delete all existing items and thali-sabji pool relations
+      await tx.thaliItem.deleteMany({ where: { thaliId: id } });
+      await tx.thaliSabjiProduct.deleteMany({ where: { thaliId: id } });
+
+      await tx.thali.update({
+        where: { id },
+        data: {
+          name: name.trim(),
+          nameGu: nameGu?.trim() || null,
+          price: Number(price),
+          description: description?.trim() || null,
+          maxSabjiCount: maxCount,
+          ...(isActive !== undefined && { isActive }),
+          items: {
+            create: (items as string[]).map((itemName, idx) => ({
+              itemName: itemName.trim(),
+              sortOrder: idx,
+            })),
+          },
         },
-      },
-      include: { items: { orderBy: { sortOrder: "asc" } } },
+      });
+
+      if (maxCount > 0 && Array.isArray(sabjiProductIds) && sabjiProductIds.length > 0) {
+        await tx.thaliSabjiProduct.createMany({
+          data: sabjiProductIds.map((productId: string) => ({
+            thaliId: id,
+            productId,
+          })),
+        });
+      }
     });
 
-    return NextResponse.json({ thali });
+    const finalThali = await prisma.thali.findUnique({
+      where: { id },
+      include: {
+        items: { orderBy: { sortOrder: "asc" } },
+        sabjiPool: { include: { product: true } },
+      },
+    });
+
+    return NextResponse.json({ thali: finalThali });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2002") {
       return NextResponse.json({ error: "A thali with this name already exists" }, { status: 409 });
@@ -72,3 +97,47 @@ export async function DELETE(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const data: Record<string, any> = {};
+
+    if (body.isActive !== undefined) {
+      if (typeof body.isActive !== "boolean") {
+        return NextResponse.json({ error: "isActive must be a boolean" }, { status: 400 });
+      }
+      data.isActive = body.isActive;
+    }
+
+    if (body.price !== undefined) {
+      const priceVal = Number(body.price);
+      if (isNaN(priceVal) || priceVal < 0) {
+        return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 });
+      }
+      data.price = priceVal;
+    }
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
+
+    const thali = await prisma.thali.update({
+      where: { id },
+      data,
+    });
+
+    return NextResponse.json({ thali });
+  } catch (error: unknown) {
+    if ((error as { code?: string }).code === "P2025") {
+      return NextResponse.json({ error: "Thali not found" }, { status: 404 });
+    }
+    console.error("[THALIS PATCH]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+

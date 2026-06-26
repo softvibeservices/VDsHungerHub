@@ -1,23 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/", "/login", "/api/auth/login"];
+const PUBLIC_PATHS = ["/login", "/api/auth/login", "/menu", "/api/public"];
 
 const PROTECTED_PAGE_PREFIXES = [
   "/dashboard",
   "/companies",
   "/users",
-  "/products",
-  "/thalis",
-  "/staff",
+  "/catalog",
   "/menu",
 ];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  // Allow public paths (exact match for root "/", and prefix matching for others)
+  if (pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 

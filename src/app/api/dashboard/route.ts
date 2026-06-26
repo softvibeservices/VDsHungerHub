@@ -8,7 +8,7 @@ export async function GET() {
     const istTime = new Date(now.getTime() + (330 * 60 * 1000));
     const today = new Date(Date.UTC(istTime.getUTCFullYear(), istTime.getUTCMonth(), istTime.getUTCDate()));
 
-    const [companies, users, products, thalis, staff, todayMenus] = await Promise.all([
+    const [companies, users, products, thalis, staff, todayMenus, recentMenus] = await Promise.all([
       prisma.company.count({ where: { isActive: true } }),
       prisma.user.count({ where: { isActive: true } }),
       prisma.product.count({ where: { isActive: true } }),
@@ -21,11 +21,19 @@ export async function GET() {
           sabjiOptions: { include: { product: { select: { name: true } }, thali: { select: { name: true } } } },
         },
       }),
+      prisma.dailyMenu.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        include: {
+          thalis: { include: { thali: { select: { name: true } } } },
+        },
+      }),
     ]);
 
     return NextResponse.json({
       stats: { companies, users, products, thalis, staff },
       todayMenus,
+      recentMenus,
     });
   } catch (error) {
     console.error("[DASHBOARD GET]", error);

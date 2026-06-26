@@ -34,10 +34,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { date, mealType, cutoffTime, thaliIds, sabjiOptions } = await req.json();
+    const { date, mealType, cutoffTime, thaliIds, sabjiOptions, minSabjiMap } = await req.json();
 
     if (!date) return NextResponse.json({ error: "Date is required" }, { status: 400 });
     if (!mealType) return NextResponse.json({ error: "Meal type is required" }, { status: 400 });
+
+    const now = new Date();
+    const ist = new Date(now.getTime() + 330 * 60 * 1000);
+    const todayStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
+    if (date < todayStr) {
+      return NextResponse.json({ error: "Cannot create a menu for a past date" }, { status: 400 });
+    }
+
     if (!Array.isArray(thaliIds) || thaliIds.length === 0)
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
 
@@ -47,7 +55,10 @@ export async function POST(req: NextRequest) {
         mealType,
         cutoffTime: cutoffTime || null,
         thalis: {
-          create: thaliIds.map((thaliId: string) => ({ thaliId })),
+          create: thaliIds.map((thaliId: string) => ({
+            thaliId,
+            minSabjiRequired: minSabjiMap?.[thaliId] ?? 1,
+          })),
         },
         sabjiOptions: {
           create: (sabjiOptions as { thaliId: string; productIds: string[] }[]).flatMap(

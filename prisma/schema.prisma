@@ -53,9 +53,11 @@ model User {
 model Product {
   id                String                 @id @default(cuid())
   name              String                 @unique
+  nameGu            String?
   quantity          String // e.g. "4 pieces", "1 bowl", "250ml"
   price             Float // price per unit / per item
   isActive          Boolean                @default(true)
+  thaliSabjiPool    ThaliSabjiProduct[]
   dailySabjiOptions DailyMenuSabjiOption[]
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
@@ -67,11 +69,13 @@ model Product {
 model Thali {
   id             String                 @id @default(cuid())
   name           String                 @unique // e.g. "Small Gujarati Thali"
+  nameGu         String?
   price          Float
   description    String? // Short description for reference
   maxSabjiCount  Int                    @default(1) // How many sabji user must choose
   isActive       Boolean                @default(true)
   items          ThaliItem[] // Fixed items (roti, dal, rice, salad, etc.)
+  sabjiPool      ThaliSabjiProduct[]
   dailyMenus     DailyMenuThali[]
   dailySabjiOpts DailyMenuSabjiOption[]
   createdAt      DateTime               @default(now())
@@ -91,6 +95,21 @@ model ThaliItem {
 }
 
 // ─────────────────────────────────────────
+// THALI SABJI POOL
+// ─────────────────────────────────────────
+model ThaliSabjiProduct {
+  id        String   @id @default(cuid())
+  thali     Thali    @relation(fields: [thaliId], references: [id], onDelete: Cascade)
+  thaliId   String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  createdAt DateTime @default(now())
+
+  @@unique([thaliId, productId])
+}
+
+
+// ─────────────────────────────────────────
 // STAFF
 // ─────────────────────────────────────────
 model Staff {
@@ -107,6 +126,7 @@ model Staff {
 // ─────────────────────────────────────────
 model DailyMenu {
   id           String                 @id @default(cuid())
+  publicSlug   String?                @unique @default(cuid())
   date         DateTime               @db.Date
   mealType     MealType
   cutoffTime   String? // e.g. "11:30" — stored as HH:MM string
@@ -121,11 +141,12 @@ model DailyMenu {
 
 // Which thalis are available on a given daily menu
 model DailyMenuThali {
-  id      String    @id @default(cuid())
-  menu    DailyMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  menuId  String
-  thali   Thali     @relation(fields: [thaliId], references: [id], onDelete: Restrict)
-  thaliId String
+  id               String    @id @default(cuid())
+  menu             DailyMenu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId           String
+  thali            Thali     @relation(fields: [thaliId], references: [id], onDelete: Restrict)
+  thaliId          String
+  minSabjiRequired Int       @default(1)
 
   @@unique([menuId, thaliId])
 }
@@ -141,6 +162,19 @@ model DailyMenuSabjiOption {
   productId String
 
   @@unique([menuId, thaliId, productId])
+}
+
+// ─────────────────────────────────────────
+// MENU TEMPLATE
+// ─────────────────────────────────────────
+model MenuTemplate {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  mealType    MealType
+  cutoffTime  String?
+  thaliIds    String[]
+  sabjiConfig Json     @default("[]")
+  createdAt   DateTime @default(now())
 }
 
 // ─────────────────────────────────────────

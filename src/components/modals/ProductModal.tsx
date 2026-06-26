@@ -11,12 +11,13 @@ import { useToast } from "@/hooks/useToast";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
+  nameGu: z.string().optional().nullable().transform(val => val || null),
   quantity: z.string().min(1, "Quantity is required"),
   price: z.coerce.number().min(0, "Price must be 0 or more"),
 });
 type FormData = z.infer<typeof schema>;
 
-interface Product { id: string; name: string; quantity: string; price: number }
+interface Product { id: string; name: string; nameGu?: string | null; quantity: string; price: number }
 
 interface ProductModalProps {
   isOpen: boolean;
@@ -39,7 +40,12 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product }: Pr
 
   useEffect(() => {
     if (isOpen) {
-      reset({ name: product?.name ?? "", quantity: product?.quantity ?? "", price: product?.price ?? 0 });
+      reset({
+        name: product?.name ?? "",
+        nameGu: product?.nameGu ?? "",
+        quantity: product?.quantity ?? "",
+        price: product?.price ?? 0
+      });
     }
   }, [isOpen, product, reset]);
 
@@ -84,6 +90,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product }: Pr
       </p>
       <div className="space-y-4">
         <Input label="Item Name" placeholder="e.g. Palak Paneer" required error={errors.name?.message} {...register("name")} />
+        <Input label="નામ (Gujarati Name)" placeholder="દા.ત. પાલક પનીર" error={errors.nameGu?.message} {...register("nameGu")} />
         <Input label="Quantity" placeholder="e.g. 1 bowl, 250ml, 4 pieces" required error={errors.quantity?.message} {...register("quantity")} />
         <Input label="Price (₹)" type="number" min="0" step="0.5" required error={errors.price?.message} {...register("price")} />
       </div>

@@ -64,6 +64,20 @@ export default function BulkUserModal({ isOpen, onClose, onSuccess }: BulkUserMo
       skipEmptyLines: true,
     });
 
+    const headers = result.meta.fields ?? [];
+    const requiredHeaders = ["name", "number", "company_name"];
+    const missing = requiredHeaders.filter((h) => !headers.includes(h));
+    
+    if (missing.length > 0) {
+      toast.error(`CSV missing required columns: ${missing.join(", ")}`);
+      return;
+    }
+
+    if (result.data.length > 500) {
+      toast.error("Maximum 500 users per import. Please split into smaller files.");
+      return;
+    }
+
     const validated: BulkRow[] = result.data.map((row) => {
       const cleanNumber = row.number?.toString().replace(/\s+/g, "").replace(/^\+91/, "").replace(/^0/, "");
       if (!row.name?.trim()) return { ...row, valid: false, error: "Name is empty" };
