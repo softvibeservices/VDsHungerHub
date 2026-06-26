@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "asc" },
       include: {
         items: { orderBy: { sortOrder: "asc" } },
-        sabjiPool: { include: { product: true } },
+        // sabjiPool intentionally excluded — admin picks sabji at menu creation time
       },
     });
 
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, nameGu, price, description, maxSabjiCount, items, sabjiProductIds } = await req.json();
+    const { name, nameGu, price, description, maxSabjiCount, items } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!price || Number(price) <= 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
@@ -41,44 +41,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
     }
 
-    const thali = await prisma.$transaction(async (tx: any) => {
-      const created = await tx.thali.create({
-        data: {
-          name: name.trim(),
-          nameGu: nameGu?.trim() || null,
-          price: Number(price),
-          description: description?.trim() || null,
-          maxSabjiCount: maxCount,
-          items: {
-            create: (items as string[]).map((itemName, idx) => ({
-              itemName: itemName.trim(),
-              sortOrder: idx,
-            })),
-          },
-        },
-      });
-
-      if (maxCount > 0 && Array.isArray(sabjiProductIds) && sabjiProductIds.length > 0) {
-        await tx.thaliSabjiProduct.createMany({
-          data: sabjiProductIds.map((productId: string) => ({
-            thaliId: created.id,
-            productId,
+    const thali = await prisma.thali.create({
+      data: {
+        name: name.trim(),
+        nameGu: nameGu?.trim() || null,
+        price: Number(price),
+        description: description?.trim() || null,
+        maxSabjiCount: maxCount,
+        items: {
+          create: (items as string[]).map((itemName, idx) => ({
+            itemName: itemName.trim(),
+            sortOrder: idx,
           })),
-        });
-      }
-
-      return created;
-    });
-
-    const finalThali = await prisma.thali.findUnique({
-      where: { id: thali.id },
+        },
+      },
       include: {
         items: { orderBy: { sortOrder: "asc" } },
-        sabjiPool: { include: { product: true } },
       },
     });
 
-    return NextResponse.json({ thali: finalThali }, { status: 201 });
+    return NextResponse.json({ thali }, { status: 201 });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2002") {
       return NextResponse.json({ error: "A thali with this name already exists" }, { status: 409 });

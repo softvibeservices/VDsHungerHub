@@ -35,7 +35,7 @@ export default function LoginPage() {
       if (!res.ok) {
         setError(data.error || "Login failed. Please try again.");
       } else {
-        toast.success(`Welcome back, ${data.admin.name}!`);
+        toast.success(`Welcome back, ${data.user?.name ?? data.admin?.name ?? "User"}!`);
         router.push("/dashboard");
         router.refresh();
       }
@@ -57,7 +57,7 @@ export default function LoginPage() {
               <UtensilsCrossed className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-white">VD&#39;s Hunger Hub</h1>
-            <p className="text-orange-100 text-sm mt-1">Admin Panel</p>
+            <p className="text-orange-100 text-sm mt-1">Staff &amp; Admin Portal</p>
           </div>
 
           {/* Form */}
@@ -158,7 +158,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-gray-400 mt-6">
-          © {new Date().getFullYear()} VD&#39;s Hunger Hub · Admin Panel
+          © {new Date().getFullYear()} VD&#39;s Hunger Hub
         </p>
       </div>
     </div>

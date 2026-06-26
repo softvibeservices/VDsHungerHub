@@ -12,13 +12,14 @@ import {
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/companies", icon: Building2, label: "Companies" },
-  { href: "/users", icon: Users, label: "Users" },
-  { href: "/catalog", icon: ShoppingBasket, label: "Catalog" },
-  { href: "/menu", icon: CalendarDays, label: "Daily Menu" },
+const allNavItems = [
+  { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["ADMIN", "STAFF"] },
+  { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN"] },
+  { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
+  { href: "/catalog", icon: ShoppingBasket, label: "Catalog", roles: ["ADMIN", "STAFF"] },
+  { href: "/menu", icon: CalendarDays, label: "Daily Menu", roles: ["ADMIN", "STAFF"] },
 ];
 
 interface SidebarProps {
@@ -29,6 +30,7 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const currentUser = useCurrentUser();
 
   const handleLogout = async () => {
     try {
@@ -39,6 +41,27 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       toast.error("Logout failed");
     }
   };
+
+  // Filter nav items based on role (show all while loading so there's no flash)
+  const navItems = currentUser
+    ? allNavItems.filter((item) => item.roles.includes(currentUser.role))
+    : allNavItems;
+
+  const initials = currentUser?.name
+    ? currentUser.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "VD";
+
+  const panelLabel =
+    currentUser?.role === "ADMIN"
+      ? "Admin Panel"
+      : currentUser?.role === "STAFF"
+      ? "Staff Panel"
+      : "Panel";
 
   return (
     <aside
@@ -59,7 +82,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <p className="text-white font-bold text-sm leading-tight">
               VD&apos;s Hunger Hub
             </p>
-            <p className="text-gray-400 text-xs">Admin Panel</p>
+            <p className="text-gray-400 text-xs">{panelLabel}</p>
           </div>
         </div>
         <button
@@ -103,17 +126,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </div>
       </nav>
 
-      {/* Footer — Admin info + logout */}
+      {/* Footer — User info + logout */}
       <div className="px-4 py-4 border-t border-gray-800">
         <div className="flex items-center gap-3 mb-3 px-1">
           <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">
-            VD
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-gray-200 text-xs font-semibold truncate">
-              VD Admin
+              {currentUser?.name ?? "Loading..."}
             </p>
-            <p className="text-gray-500 text-xs truncate">+91 63563 50086</p>
+            <p className="text-gray-500 text-xs truncate">
+              {currentUser?.role === "ADMIN" ? "🔑 Admin" : currentUser?.role === "STAFF" ? "👤 Staff" : ""}
+            </p>
           </div>
         </div>
         <button

@@ -3,23 +3,32 @@ import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
-const COOKIE_NAME = "vd_admin_token";
+const COOKIE_NAME = "vdh_token";
 
-export interface AdminTokenPayload {
+// 100 days in seconds
+const TOKEN_MAX_AGE_SECONDS = 100 * 24 * 60 * 60;
+
+export type AppRole = "ADMIN" | "STAFF" | "CUSTOMER";
+
+export interface TokenPayload {
   id: string;
   number: string;
   name: string;
+  role: AppRole;
 }
 
-export function signToken(payload: AdminTokenPayload): string {
+// Legacy alias for any code still importing AdminTokenPayload
+export type AdminTokenPayload = TokenPayload;
+
+export function signToken(payload: TokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: (process.env.JWT_EXPIRES_IN || "8h") as jwt.SignOptions["expiresIn"],
+    expiresIn: TOKEN_MAX_AGE_SECONDS,
   });
 }
 
-export function verifyToken(token: string): AdminTokenPayload | null {
+export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as AdminTokenPayload;
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch {
     return null;
   }
@@ -42,7 +51,7 @@ export async function setAuthCookie(token: string) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 8 * 60 * 60, // 8 hours in seconds
+    maxAge: TOKEN_MAX_AGE_SECONDS, // 100 days
     path: "/",
   });
 }
@@ -50,15 +59,24 @@ export async function setAuthCookie(token: string) {
 export async function clearAuthCookie() {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
+  // Also clear legacy cookie if present
+  cookieStore.delete("vd_admin_token");
 }
 
 export async function getAuthToken(): Promise<string | undefined> {
   const cookieStore = await cookies();
-  return cookieStore.get(COOKIE_NAME)?.value;
+  // Support new cookie name first, then fall back to legacy
+  return (
+    cookieStore.get(COOKIE_NAME)?.value ??
+    cookieStore.get("vd_admin_token")?.value
+  );
 }
 
-export async function getCurrentAdmin(): Promise<AdminTokenPayload | null> {
+export async function getCurrentUser(): Promise<TokenPayload | null> {
   const token = await getAuthToken();
   if (!token) return null;
   return verifyToken(token);
 }
+
+// Keep old name as alias so existing code doesn't break during migration
+export const getCurrentAdmin = getCurrentUser;

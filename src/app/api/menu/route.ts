@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getTodayIST, istTimeToUTC } from "@/lib/time";
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,7 +10,8 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (dateParam) {
-      const date = new Date(dateParam);
+      // Parse the date as IST midnight to correctly match the DB Date column
+      const date = new Date(dateParam + "T00:00:00+05:30");
       where.date = date;
     }
     if (mealType) {
@@ -20,7 +22,7 @@ export async function GET(req: NextRequest) {
       where,
       orderBy: { date: "desc" },
       include: {
-        thalis: { include: { thali: true } },
+        thalis: { include: { thali: { include: { items: { orderBy: { sortOrder: "asc" } } } } } },
         sabjiOptions: { include: { product: true, thali: true } },
       },
     });
@@ -39,9 +41,7 @@ export async function POST(req: NextRequest) {
     if (!date) return NextResponse.json({ error: "Date is required" }, { status: 400 });
     if (!mealType) return NextResponse.json({ error: "Meal type is required" }, { status: 400 });
 
-    const now = new Date();
-    const ist = new Date(now.getTime() + 330 * 60 * 1000);
-    const todayStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
+    const todayStr = getTodayIST();
     if (date < todayStr) {
       return NextResponse.json({ error: "Cannot create a menu for a past date" }, { status: 400 });
     }
@@ -49,11 +49,17 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(thaliIds) || thaliIds.length === 0)
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
 
+    // Convert cutoffTime from IST "HH:MM" to UTC DateTime
+    const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
+
+    // Parse date as IST midnight to avoid UTC offset shifting the date
+    const menuDate = new Date(date + "T00:00:00+05:30");
+
     const menu = await prisma.dailyMenu.create({
       data: {
-        date: new Date(date),
+        date: menuDate,
         mealType,
-        cutoffTime: cutoffTime || null,
+        cutoffTime: cutoffTimeUTC,
         thalis: {
           create: thaliIds.map((thaliId: string) => ({
             thaliId,
@@ -68,7 +74,7 @@ export async function POST(req: NextRequest) {
         },
       },
       include: {
-        thalis: { include: { thali: true } },
+        thalis: { include: { thali: { include: { items: { orderBy: { sortOrder: "asc" } } } } } },
         sabjiOptions: { include: { product: true, thali: true } },
       },
     });

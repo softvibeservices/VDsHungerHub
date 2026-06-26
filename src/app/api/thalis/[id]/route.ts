@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { name, nameGu, price, description, maxSabjiCount, items, sabjiProductIds, isActive } = await req.json();
+    const { name, nameGu, price, description, maxSabjiCount, items, isActive } = await req.json();
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
     if (!price || Number(price) <= 0) return NextResponse.json({ error: "Valid price is required" }, { status: 400 });
@@ -17,44 +17,32 @@ export async function PUT(
       return NextResponse.json({ error: "Max sabji count must be between 0 and 3" }, { status: 400 });
     }
 
-    await prisma.$transaction(async (tx: any) => {
-      // Delete all existing items and thali-sabji pool relations
-      await tx.thaliItem.deleteMany({ where: { thaliId: id } });
-      await tx.thaliSabjiProduct.deleteMany({ where: { thaliId: id } });
+    // Delete existing items only (sabjiPool no longer managed here)
+    await prisma.thaliItem.deleteMany({ where: { thaliId: id } });
 
-      await tx.thali.update({
-        where: { id },
-        data: {
-          name: name.trim(),
-          nameGu: nameGu?.trim() || null,
-          price: Number(price),
-          description: description?.trim() || null,
-          maxSabjiCount: maxCount,
-          ...(isActive !== undefined && { isActive }),
-          items: {
-            create: (items as string[]).map((itemName, idx) => ({
-              itemName: itemName.trim(),
-              sortOrder: idx,
-            })),
-          },
-        },
-      });
-
-      if (maxCount > 0 && Array.isArray(sabjiProductIds) && sabjiProductIds.length > 0) {
-        await tx.thaliSabjiProduct.createMany({
-          data: sabjiProductIds.map((productId: string) => ({
-            thaliId: id,
-            productId,
+    await prisma.thali.update({
+      where: { id },
+      data: {
+        name: name.trim(),
+        nameGu: nameGu?.trim() || null,
+        price: Number(price),
+        description: description?.trim() || null,
+        maxSabjiCount: maxCount,
+        ...(isActive !== undefined && { isActive }),
+        items: {
+          create: (items as string[]).map((itemName, idx) => ({
+            itemName: itemName.trim(),
+            sortOrder: idx,
           })),
-        });
-      }
+        },
+      },
     });
 
     const finalThali = await prisma.thali.findUnique({
       where: { id },
       include: {
         items: { orderBy: { sortOrder: "asc" } },
-        sabjiPool: { include: { product: true } },
+        // sabjiPool intentionally excluded — admin picks sabji at menu creation
       },
     });
 
@@ -105,7 +93,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const data: Record<string, any> = {};
+    const data: Record<string, unknown> = {};
 
     if (body.isActive !== undefined) {
       if (typeof body.isActive !== "boolean") {
@@ -140,4 +128,3 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

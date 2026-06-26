@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar, Trash2, Clock, Copy, ExternalLink, RefreshCw, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, Trash2, Clock, Copy, ExternalLink, RefreshCw } from "lucide-react";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
 import { formatCurrency, getTodayIST } from "@/lib/utils";
+import { utcToISTTimeString } from "@/lib/time";
 import SabjiPicker from "@/components/admin/SabjiPicker";
 
 interface ThaliItem {
@@ -27,7 +28,7 @@ interface Thali {
   description?: string | null;
   maxSabjiCount: number;
   items: ThaliItem[];
-  sabjiPool: { product: Product }[];
+  // sabjiPool removed — admin picks sabji from ALL active products at menu creation time
 }
 
 interface DailyMenuThali {
@@ -61,6 +62,7 @@ export default function MenuPage() {
   const [selectedDate, setSelectedDate] = useState(() => getTodayIST());
   const [menus, setMenus] = useState<DailyMenu[]>([]);
   const [allThalis, setAllThalis] = useState<Thali[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Lunch states
@@ -106,7 +108,8 @@ export default function MenuPage() {
       // Populate LUNCH draft
       const lunch = fetchedMenus.find((m) => m.mealType === "LUNCH");
       if (lunch) {
-        setLunchCutoff(lunch.cutoffTime ?? "11:30");
+        // cutoffTime is now a UTC DateTime from DB — convert to HH:MM IST string for display
+        setLunchCutoff(lunch.cutoffTime ? utcToISTTimeString(new Date(lunch.cutoffTime)) : "11:30");
         setLunchThalis(lunch.thalis.map((mt) => mt.thali.id));
         
         const sabjis: Record<string, string[]> = {};
@@ -130,7 +133,7 @@ export default function MenuPage() {
       // Populate DINNER draft
       const dinner = fetchedMenus.find((m) => m.mealType === "DINNER");
       if (dinner) {
-        setDinnerCutoff(dinner.cutoffTime ?? "18:30");
+        setDinnerCutoff(dinner.cutoffTime ? utcToISTTimeString(new Date(dinner.cutoffTime)) : "18:30");
         setDinnerThalis(dinner.thalis.map((mt) => mt.thali.id));
         
         const sabjis: Record<string, string[]> = {};
@@ -155,6 +158,11 @@ export default function MenuPage() {
       const thalisRes = await fetch("/api/thalis?isActive=true");
       const thalisJson = await thalisRes.json();
       setAllThalis(thalisJson.thalis ?? []);
+
+      // Load all active products for SabjiPicker
+      const productsRes = await fetch("/api/products?isActive=true&limit=200");
+      const productsJson = await productsRes.json();
+      setAllProducts(productsJson.products ?? []);
 
       // Load sessionStorage draft if available and no database menu exists
       const savedDraft = sessionStorage.getItem(`vdh_menu_draft_${selectedDate}`);
@@ -260,7 +268,7 @@ export default function MenuPage() {
       }
 
       if (mealType === "LUNCH") {
-        setLunchCutoff(menu.cutoffTime ?? "11:30");
+        setLunchCutoff(menu.cutoffTime ? utcToISTTimeString(new Date(menu.cutoffTime)) : "11:30");
         setLunchThalis(menu.thalis.map((t) => t.thaliId));
         
         const sabjis: Record<string, string[]> = {};
@@ -275,7 +283,7 @@ export default function MenuPage() {
         setLunchSabjiMap(sabjis);
         setLunchMinSabjiMap(mins);
       } else {
-        setDinnerCutoff(menu.cutoffTime ?? "18:30");
+        setDinnerCutoff(menu.cutoffTime ? utcToISTTimeString(new Date(menu.cutoffTime)) : "18:30");
         setDinnerThalis(menu.thalis.map((t) => t.thaliId));
         
         const sabjis: Record<string, string[]> = {};
@@ -647,7 +655,6 @@ export default function MenuPage() {
               <div className="space-y-1.5">
                 {allThalis.map((thali) => {
                   const isChecked = lunchThalis.includes(thali.id);
-                  const allowedPool = thali.sabjiPool?.map((sp) => sp.product) ?? [];
 
                   return (
                     <div key={thali.id} className="border border-gray-150 rounded-xl p-3 bg-white space-y-3">
@@ -678,22 +685,15 @@ export default function MenuPage() {
 
                       {isChecked && thali.maxSabjiCount > 0 && (
                         <div className="pt-2 border-t border-gray-100">
-                          {allowedPool.length > 0 ? (
-                            <SabjiPicker
-                              products={allowedPool}
-                              selected={lunchSabjiMap[thali.id] ?? []}
-                              onChange={(ids) => handleSabjiChange("LUNCH", thali.id, ids)}
-                              maxCount={thali.maxSabjiCount}
-                              minRequired={lunchMinSabjiMap[thali.id] ?? 1}
-                              onMinChange={(n) => handleMinSabjiChange("LUNCH", thali.id, n)}
-                              label="Configure Sabjis for Daily Menu:"
-                            />
-                          ) : (
-                            <div className="flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-lg">
-                              <AlertTriangle size={14} className="flex-shrink-0" />
-                              <span>Go to Catalog &gt; Thalis to associate allowed products in the pool first.</span>
-                            </div>
-                          )}
+                          <SabjiPicker
+                            products={allProducts}
+                            selected={lunchSabjiMap[thali.id] ?? []}
+                            onChange={(ids) => handleSabjiChange("LUNCH", thali.id, ids)}
+                            maxCount={thali.maxSabjiCount}
+                            minRequired={lunchMinSabjiMap[thali.id] ?? 1}
+                            onMinChange={(n) => handleMinSabjiChange("LUNCH", thali.id, n)}
+                            label="Configure Sabjis for Daily Menu:"
+                          />
                         </div>
                       )}
                     </div>
@@ -828,7 +828,6 @@ export default function MenuPage() {
               <div className="space-y-1.5">
                 {allThalis.map((thali) => {
                   const isChecked = dinnerThalis.includes(thali.id);
-                  const allowedPool = thali.sabjiPool?.map((sp) => sp.product) ?? [];
 
                   return (
                     <div key={thali.id} className="border border-gray-150 rounded-xl p-3 bg-white space-y-3">
@@ -859,22 +858,15 @@ export default function MenuPage() {
 
                       {isChecked && thali.maxSabjiCount > 0 && (
                         <div className="pt-2 border-t border-gray-100">
-                          {allowedPool.length > 0 ? (
-                            <SabjiPicker
-                              products={allowedPool}
-                              selected={dinnerSabjiMap[thali.id] ?? []}
-                              onChange={(ids) => handleSabjiChange("DINNER", thali.id, ids)}
-                              maxCount={thali.maxSabjiCount}
-                              minRequired={dinnerMinSabjiMap[thali.id] ?? 1}
-                              onMinChange={(n) => handleMinSabjiChange("DINNER", thali.id, n)}
-                              label="Configure Sabjis for Daily Menu:"
-                            />
-                          ) : (
-                            <div className="flex items-center gap-1.5 p-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs rounded-lg">
-                              <AlertTriangle size={14} className="flex-shrink-0" />
-                              <span>Go to Catalog &gt; Thalis to associate allowed products in the pool first.</span>
-                            </div>
-                          )}
+                          <SabjiPicker
+                            products={allProducts}
+                            selected={dinnerSabjiMap[thali.id] ?? []}
+                            onChange={(ids) => handleSabjiChange("DINNER", thali.id, ids)}
+                            maxCount={thali.maxSabjiCount}
+                            minRequired={dinnerMinSabjiMap[thali.id] ?? 1}
+                            onMinChange={(n) => handleMinSabjiChange("DINNER", thali.id, n)}
+                            label="Configure Sabjis for Daily Menu:"
+                          />
                         </div>
                       )}
                     </div>

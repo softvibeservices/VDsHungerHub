@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, X, CheckSquare, Square } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -17,7 +17,6 @@ interface Thali {
   description?: string | null;
   maxSabjiCount: number;
   items: ThaliItem[];
-  sabjiPool?: { productId: string }[];
 }
 
 interface ThaliModalProps {
@@ -45,8 +44,6 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
   const [maxSabjiCount, setMaxSabjiCount] = useState("1");
   const [items, setItems] = useState<string[]>([""]);
   const [newItem, setNewItem] = useState("");
-  const [allProducts, setAllProducts] = useState<{ id: string; name: string; nameGu?: string | null }[]>([]);
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -60,24 +57,8 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
       setItems(thali?.items?.map((i) => i.itemName) ?? [""]);
       setNewItem("");
       setErrors({});
-
-      const poolIds = thali?.sabjiPool?.map((p) => p.productId) ?? [];
-      setSelectedProductIds(poolIds);
-
-      fetch("/api/products?isActive=true")
-        .then((res) => res.json())
-        .then((data) => setAllProducts(data.products ?? []))
-        .catch((err) => console.error("Error fetching active products:", err));
     }
   }, [isOpen, thali]);
-
-  const toggleProduct = (productId: string) => {
-    setSelectedProductIds((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId]
-    );
-  };
 
   const addItem = () => {
     if (newItem.trim()) {
@@ -95,12 +76,6 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
     if (!name.trim()) errs.name = "Name is required";
     if (!price || isNaN(Number(price)) || Number(price) <= 0) errs.price = "Valid price is required";
     if (items.filter(Boolean).length === 0) errs.items = "At least one fixed item is required";
-    
-    const count = Number(maxSabjiCount);
-    if (count > 0 && selectedProductIds.length < count) {
-      errs.sabjiPool = `Select at least ${count} allowed sabji option(s)`;
-    }
-
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -120,7 +95,7 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
           description: description.trim() || null,
           maxSabjiCount: Number(maxSabjiCount),
           items: items.filter(Boolean),
-          sabjiProductIds: Number(maxSabjiCount) > 0 ? selectedProductIds : [],
+          // sabjiProductIds intentionally removed — sabji is chosen at menu creation
         }),
       });
       const json = await res.json();
@@ -155,50 +130,14 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
         <Input label="નામ (Gujarati Name)" placeholder="દા.ત. નાની ગુજરાતી થાળી" value={nameGu} onChange={(e) => setNameGu(e.target.value)} />
         <div className="grid grid-cols-2 gap-3">
           <Input label="Price (₹)" type="number" min="0" placeholder="e.g. 80" required value={price} onChange={(e) => setPrice(e.target.value)} error={errors.price} />
-          <Select label="Max Sabji Choice" required options={sabjiOptions} value={maxSabjiCount} onChange={(e) => setMaxSabjiCount(e.target.value)} />
+          <div className="space-y-1">
+            <Select label="Max Sabji Choice" required options={sabjiOptions} value={maxSabjiCount} onChange={(e) => setMaxSabjiCount(e.target.value)} />
+            <p className="text-xs text-gray-400">
+              How many sabji items the customer picks from today&apos;s menu options.
+            </p>
+          </div>
         </div>
         <Input label="Description" placeholder="e.g. 4 Roti, 1 Subji, Salad (optional)" value={description} onChange={(e) => setDescription(e.target.value)} />
-
-        {/* Sabji Pool selection */}
-        {Number(maxSabjiCount) > 0 && (
-          <div>
-            <label className="text-sm font-medium text-gray-700 block mb-2">
-              Allowed Sabji Options <span className="text-red-500">*</span>
-              <span className="text-xs text-gray-400 font-normal ml-2">
-                (these products will be choosable at menu time)
-              </span>
-            </label>
-            <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-xl p-3">
-              {allProducts.map((product) => {
-                const isSelected = selectedProductIds.includes(product.id);
-                return (
-                  <button
-                    key={product.id}
-                    type="button"
-                    onClick={() => toggleProduct(product.id)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs text-left transition-all ${
-                      isSelected
-                        ? "border-orange-400 bg-orange-50 text-orange-700"
-                        : "border-gray-200 text-gray-600 hover:border-gray-300"
-                    }`}
-                  >
-                    {isSelected ? <CheckSquare size={14} className="text-orange-500 flex-shrink-0" /> : <Square size={14} className="text-gray-300 flex-shrink-0" />}
-                    <div>
-                      <p className="font-semibold">{product.name}</p>
-                      {product.nameGu && <p className="text-[10px] text-gray-400">{product.nameGu}</p>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            {errors.sabjiPool && <p className="text-xs text-red-500 mt-1">{errors.sabjiPool}</p>}
-            {selectedProductIds.length < Number(maxSabjiCount) && (
-              <p className="text-xs text-amber-600 mt-1">
-                ⚠ Select at least {maxSabjiCount} product(s) to allow valid sabji choices
-              </p>
-            )}
-          </div>
-        )}
 
         {/* Fixed items */}
         <div>
@@ -236,9 +175,9 @@ export default function ThaliModal({ isOpen, onClose, onSuccess, thali }: ThaliM
           </div>
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-          <p className="text-xs text-amber-700">
-            💡 Fixed items are included by default. Sabji options must be configured in this pool first to be chosen during daily menus.
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <p className="text-xs text-blue-700">
+            💡 Fixed items are always included. Sabji options are chosen by the admin at daily menu creation time — no need to configure them here.
           </p>
         </div>
       </div>

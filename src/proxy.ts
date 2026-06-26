@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
+import type { TokenPayload } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/menu", "/api/public"];
+const PUBLIC_PATHS = ["/", "/login", "/api/auth/login", "/api/auth/logout", "/menu", "/api/public"];
 
-const PROTECTED_PAGE_PREFIXES = [
+// Pages only ADMIN can access
+const ADMIN_ONLY_PREFIXES = ["/companies", "/users", "/api/companies", "/api/users"];
+
+// Pages both ADMIN and STAFF can access (require authentication)
+const PROTECTED_PREFIXES = [
   "/dashboard",
   "/companies",
   "/users",
@@ -14,28 +19,43 @@ const PROTECTED_PAGE_PREFIXES = [
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths (exact match for root "/", and prefix matching for others)
+  // Allow public paths
   if (pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
-  // Protect admin pages
-  const isProtectedPage = PROTECTED_PAGE_PREFIXES.some((p) =>
-    pathname.startsWith(p)
-  );
+  // Allow static assets
+  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
+    return NextResponse.next();
+  }
 
-  // Protect API routes (except auth)
+  const isProtectedPage = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   const isProtectedApi =
-    pathname.startsWith("/api") && !pathname.startsWith("/api/auth");
+    pathname.startsWith("/api") &&
+    !pathname.startsWith("/api/auth") &&
+    !pathname.startsWith("/api/public");
 
   if (isProtectedPage || isProtectedApi) {
-    const token = request.cookies.get("vd_admin_token")?.value;
+    const token =
+      request.cookies.get("vdh_token")?.value ??
+      request.cookies.get("vd_admin_token")?.value; // legacy cookie support
 
-    if (!token || !verifyToken(token)) {
-      if (isProtectedApi) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    if (!token) {
+      if (isProtectedApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    const payload: TokenPayload | null = verifyToken(token);
+    if (!payload) {
+      if (isProtectedApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
+
+    // Role check: STAFF cannot access admin-only pages/routes
+    const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
+    if (isAdminOnly && payload.role !== "ADMIN") {
+      if (isProtectedApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 

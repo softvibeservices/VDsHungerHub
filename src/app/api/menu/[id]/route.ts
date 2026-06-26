@@ -20,6 +20,14 @@ export async function PUT(
       return NextResponse.json({ error: "Cannot edit a menu for a past date" }, { status: 400 });
     }
 
+    // Convert cutoffTime from IST "HH:MM" to UTC DateTime
+    let cutoffTimeUTC: Date | null = null;
+    if (cutoffTime && typeof cutoffTime === "string" && cutoffTime.includes(":")) {
+      const menuDateIST = existingMenu.date.toISOString().split("T")[0];
+      const { istTimeToUTC } = await import("@/lib/time");
+      cutoffTimeUTC = istTimeToUTC(cutoffTime, menuDateIST);
+    }
+
     // Delete existing relations
     await prisma.dailyMenuThali.deleteMany({ where: { menuId: id } });
     await prisma.dailyMenuSabjiOption.deleteMany({ where: { menuId: id } });
@@ -27,7 +35,7 @@ export async function PUT(
     const menu = await prisma.dailyMenu.update({
       where: { id },
       data: {
-        cutoffTime: cutoffTime || null,
+        cutoffTime: cutoffTimeUTC,
         ...(isPublished !== undefined && { isPublished }),
         thalis: {
           create: (thaliIds as string[]).map((thaliId) => ({
@@ -84,7 +92,7 @@ export async function GET(
     const menu = await prisma.dailyMenu.findUnique({
       where: { id },
       include: {
-        thalis: { include: { thali: { include: { sabjiPool: { include: { product: true } } } } } },
+        thalis: { include: { thali: { include: { items: true } } } },
         sabjiOptions: { include: { product: true, thali: true } },
       },
     });

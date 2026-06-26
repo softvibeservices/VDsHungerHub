@@ -14,44 +14,62 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const cleanedNumber = cleanMobileNumber(String(number));
+    const cleanNumber = cleanMobileNumber(String(number));
 
-    const admin = await prisma.admin.findUnique({
-      where: { number: cleanedNumber },
+    // Look up in unified AppUser table
+    const user = await prisma.appUser.findUnique({
+      where: { number: cleanNumber },
     });
 
-    if (!admin) {
+    if (!user) {
       return NextResponse.json(
-        { error: "Invalid credentials" },
+        { error: "Invalid mobile number or password" },
         { status: 401 }
       );
     }
 
-    const isMatch = await comparePassword(String(password), admin.password);
-    if (!isMatch) {
+    if (!user.isActive) {
       return NextResponse.json(
-        { error: "Invalid credentials" },
+        { error: "Your account has been deactivated. Contact the admin." },
+        { status: 403 }
+      );
+    }
+
+    const passwordValid = await comparePassword(password, user.password);
+    if (!passwordValid) {
+      return NextResponse.json(
+        { error: "Invalid mobile number or password" },
         { status: 401 }
       );
     }
 
     const token = signToken({
-      id: admin.id,
-      number: admin.number,
-      name: admin.name,
+      id: user.id,
+      number: user.number,
+      name: user.name,
+      role: user.role,
     });
 
     await setAuthCookie(token);
 
     return NextResponse.json({
       success: true,
-      admin: { id: admin.id, name: admin.name, number: admin.number },
+      user: {
+        id: user.id,
+        name: user.name,
+        number: user.number,
+        role: user.role,
+      },
+      // Legacy compat: some client code references data.admin
+      admin: {
+        id: user.id,
+        name: user.name,
+        number: user.number,
+        role: user.role,
+      },
     });
-  } catch (error) {
-    console.error("[LOGIN ERROR]", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  } catch (err) {
+    console.error("[login]", err);
+    return NextResponse.json({ error: "Login failed" }, { status: 500 });
   }
 }

@@ -8,7 +8,7 @@ async function main() {
 
   // ── Admin ──────────────────────────────────
   const hashedPassword = await bcrypt.hash("VDAdmin@2024", 12);
-  await prisma.admin.upsert({
+  const admin = await prisma.admin.upsert({
     where: { number: "6356350086" },
     update: {},
     create: {
@@ -18,6 +18,19 @@ async function main() {
     },
   });
   console.log("✅ Admin seeded");
+
+  // ── AppUser for Admin ────────────────────────
+  await prisma.appUser.upsert({
+    where: { number: "6356350086" },
+    update: { name: admin.name, role: "ADMIN" },
+    create: {
+      name: admin.name,
+      number: admin.number,
+      password: admin.password, // already bcrypt hashed
+      role: "ADMIN",
+    },
+  });
+  console.log("✅ Admin AppUser seeded");
 
   // ── Sample Companies ───────────────────────
   const companies = await Promise.all([
@@ -84,7 +97,6 @@ async function main() {
   ]);
   console.log("✅ Products seeded");
 
-  // ── Thalis ────────────────────────────────
   // ── Thalis ────────────────────────────────
   const thaliDefs = [
     {
@@ -157,7 +169,7 @@ async function main() {
   for (const t of thaliDefs) {
     const existing = await prisma.thali.findUnique({ where: { name: t.name } });
     if (!existing) {
-      const createdThali = await prisma.thali.create({
+      await prisma.thali.create({
         data: {
           name: t.name,
           nameGu: t.nameGu,
@@ -172,17 +184,6 @@ async function main() {
           },
         },
       });
-
-      // If it is a thali that can have sabji options, pre-associate some products
-      if (t.maxSabjiCount > 0) {
-        const allowedSabjis = seededProducts.filter(p => p.name !== "Dal Fry");
-        await prisma.thaliSabjiProduct.createMany({
-          data: allowedSabjis.map(p => ({
-            thaliId: createdThali.id,
-            productId: p.id,
-          })),
-        });
-      }
     }
   }
   console.log("✅ Thalis seeded");
@@ -209,19 +210,37 @@ async function main() {
   console.log("✅ Sample users seeded");
 
   // ── Sample Staff ──────────────────────────
-  await prisma.staff.upsert({
-    where: { number: "9000000001" },
-    update: {},
-    create: { name: "Ramesh (Delivery)", number: "9000000001" },
-  });
-  await prisma.staff.upsert({
-    where: { number: "9000000002" },
-    update: {},
-    create: { name: "Suresh (Kitchen)", number: "9000000002" },
-  });
+  const defaultStaffPassword = await bcrypt.hash("VDStaff@2024", 12);
+
+  const staffMembers = [
+    { name: "Ramesh (Delivery)", number: "9000000001" },
+    { name: "Suresh (Kitchen)", number: "9000000002" },
+  ];
+
+  for (const s of staffMembers) {
+    await prisma.staff.upsert({
+      where: { number: s.number },
+      update: {},
+      create: { name: s.name, number: s.number },
+    });
+
+    // Also create AppUser for staff login
+    await prisma.appUser.upsert({
+      where: { number: s.number },
+      update: {},
+      create: {
+        name: s.name,
+        number: s.number,
+        password: defaultStaffPassword,
+        role: "STAFF",
+      },
+    });
+  }
   console.log("✅ Staff seeded");
 
   console.log("🎉 Seeding complete!");
+  console.log("🔑 Admin login: 6356350086 / VDAdmin@2024");
+  console.log("👤 Staff login: 9000000001 or 9000000002 / VDStaff@2024");
 }
 
 main()

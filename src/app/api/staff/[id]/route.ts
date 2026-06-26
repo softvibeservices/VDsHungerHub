@@ -23,6 +23,15 @@ export async function PUT(
       },
     });
 
+    // Sync AppUser name/active status
+    await prisma.appUser.updateMany({
+      where: { number: staff.number },
+      data: {
+        name: name.trim(),
+        ...(isActive !== undefined && { isActive }),
+      },
+    });
+
     return NextResponse.json({ staff });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2002") {
@@ -42,7 +51,18 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+    const staff = await prisma.staff.findUnique({ where: { id } });
+
     await prisma.staff.delete({ where: { id } });
+
+    // Deactivate matching AppUser rather than deleting
+    if (staff) {
+      await prisma.appUser.updateMany({
+        where: { number: staff.number, role: "STAFF" },
+        data: { isActive: false },
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2025") {
@@ -70,6 +90,12 @@ export async function PATCH(
       data: { isActive },
     });
 
+    // Sync AppUser active status
+    await prisma.appUser.updateMany({
+      where: { number: staff.number, role: "STAFF" },
+      data: { isActive },
+    });
+
     return NextResponse.json({ staff });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2025") {
@@ -79,4 +105,3 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

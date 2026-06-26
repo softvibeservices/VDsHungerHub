@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight } from "lucide-react";
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Upload } from "lucide-react";
 import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
@@ -9,6 +9,7 @@ import Select from "@/components/ui/Select";
 import { ActiveBadge } from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ProductModal from "@/components/modals/ProductModal";
+import BulkProductModal from "@/components/modals/BulkProductModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatCurrency } from "@/lib/utils";
@@ -35,6 +36,7 @@ export default function ProductsTab() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const fetchProducts = async () => {
     setIsLoading(true);
@@ -227,16 +229,25 @@ export default function ProductsTab() {
           <h3 className="text-lg font-bold text-gray-900">Products</h3>
           <p className="text-xs text-gray-500 mt-0.5">Sabji items used to build thalis</p>
         </div>
-        <Button
-          variant="primary"
-          leftIcon={<Plus size={16} />}
-          onClick={() => {
-            setEditProduct(null);
-            setModalOpen(true);
-          }}
-        >
-          Add Product
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            leftIcon={<Upload size={16} />}
+            onClick={() => setBulkModalOpen(true)}
+          >
+            Bulk Upload
+          </Button>
+          <Button
+            variant="primary"
+            leftIcon={<Plus size={16} />}
+            onClick={() => {
+              setEditProduct(null);
+              setModalOpen(true);
+            }}
+          >
+            Add Product
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -261,6 +272,14 @@ export default function ProductsTab() {
           }}
           onSuccess={fetchProducts}
           product={editProduct}
+        />
+      )}
+
+      {bulkModalOpen && (
+        <BulkProductModal
+          isOpen={bulkModalOpen}
+          onClose={() => setBulkModalOpen(false)}
+          onSuccess={fetchProducts}
         />
       )}
       

@@ -9,7 +9,27 @@ datasource db {
 }
 
 // ─────────────────────────────────────────
-// ADMIN
+// APP USER (unified login — Admin + Staff)
+// ─────────────────────────────────────────
+enum AppRole {
+  ADMIN
+  STAFF
+  CUSTOMER
+}
+
+model AppUser {
+  id        String   @id @default(cuid())
+  name      String
+  number    String   @unique // 10-digit mobile, used as username
+  password  String           // bcrypt hashed
+  role      AppRole  @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────────────────
+// ADMIN (legacy — kept for backwards compat)
 // ─────────────────────────────────────────
 model Admin {
   id        String   @id @default(cuid())
@@ -129,7 +149,7 @@ model DailyMenu {
   publicSlug   String?                @unique @default(cuid())
   date         DateTime               @db.Date
   mealType     MealType
-  cutoffTime   String? // e.g. "11:30" — stored as HH:MM string
+  cutoffTime   DateTime? // UTC DateTime (display in IST via utcToISTTimeString)
   isPublished  Boolean                @default(false)
   thalis       DailyMenuThali[]
   sabjiOptions DailyMenuSabjiOption[]
