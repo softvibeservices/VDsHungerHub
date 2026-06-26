@@ -17,6 +17,7 @@ interface SabjiPickerProps {
   minRequired?: number;         // for menu slot
   onMinChange?: (n: number) => void;
   label?: string;
+  adminMode?: boolean;          // NEW — when true, no selection cap is enforced
 }
 
 export default function SabjiPicker({
@@ -27,6 +28,7 @@ export default function SabjiPicker({
   minRequired = 1,
   onMinChange,
   label,
+  adminMode = false,            // NEW
 }: SabjiPickerProps) {
   const { query, setQuery, sorted, frequentItems, recordSelection } =
     useSabjiSearch(products);
@@ -45,6 +47,9 @@ export default function SabjiPicker({
     });
     onChange(products.map((p) => p.id));
   };
+
+  // In adminMode there is no cap. In user mode, cap at maxCount.
+  const isAtCap = !adminMode && selected.length >= maxCount;
 
   return (
     <div className="space-y-2 bg-gray-50 border border-gray-150 p-3.5 rounded-xl">
@@ -67,21 +72,28 @@ export default function SabjiPicker({
           <span className="flex items-center gap-0.5 text-[10px] text-orange-600 font-semibold uppercase tracking-wider">
             <Zap size={10} className="fill-orange-500 text-orange-500" /> Quick Add:
           </span>
-          {frequentItems.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => toggle(p.id)}
-              className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all cursor-pointer ${
-                selected.includes(p.id)
-                  ? "bg-orange-100 border-orange-400 text-orange-700"
-                  : "bg-white border-gray-200 text-gray-600 hover:border-orange-300"
-              }`}
-            >
-              {p.name}
-              {selected.includes(p.id) && " ✓"}
-            </button>
-          ))}
+          {frequentItems.map((p) => {
+            const isSelected = selected.includes(p.id);
+            const isDisabled = isAtCap && !isSelected;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => !isDisabled && toggle(p.id)}
+                disabled={isDisabled}
+                className={`text-[11px] px-2 py-0.5 rounded-full border font-medium transition-all cursor-pointer ${
+                  isSelected
+                    ? "bg-orange-100 border-orange-400 text-orange-700"
+                    : isDisabled
+                    ? "bg-gray-50 border-gray-150 text-gray-350 opacity-40 cursor-not-allowed"
+                    : "bg-white border-gray-200 text-gray-600 hover:border-orange-300"
+                }`}
+              >
+                {p.name}
+                {isSelected && " ✓"}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -110,14 +122,21 @@ export default function SabjiPicker({
       <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
         {sorted.map((product) => {
           const isSelected = selected.includes(product.id);
+          const isDisabled = isAtCap && !isSelected;
           return (
             <button
               key={product.id}
               type="button"
-              onClick={() => toggle(product.id)}
+              onClick={() => {
+                if (isDisabled) return;
+                toggle(product.id);
+              }}
+              disabled={isDisabled}
               className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
                 isSelected
                   ? "border-orange-400 bg-orange-50/50 text-orange-700"
+                  : isDisabled
+                  ? "border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed"
                   : "border-gray-100 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
               }`}
             >
@@ -177,7 +196,8 @@ export default function SabjiPicker({
       {/* Selection summary */}
       <div className="flex justify-between items-center text-[10px] text-gray-400 pt-0.5">
         <span>
-          {selected.length} of {products.length} options selected (Max choice: {maxCount})
+          {selected.length} of {products.length} options selected
+          {adminMode ? " (Admin — no limit)" : ` (Max choice: ${maxCount})`}
         </span>
         {selected.length > 0 && (
           <button

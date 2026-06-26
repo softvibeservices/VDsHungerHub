@@ -97,7 +97,13 @@ export default function OtpModal({
       />
 
       {/* Bottom-sheet modal */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex flex-col max-h-[90vh] bg-white rounded-t-3xl shadow-2xl max-w-lg mx-auto animate-in slide-in-from-bottom duration-300">
+      <div className="
+        fixed inset-x-0 bottom-0 z-50
+        flex flex-col max-h-[92dvh]
+        bg-white rounded-t-3xl shadow-2xl
+        animate-in slide-in-from-bottom duration-300
+        sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-lg
+      ">
         {/* Handle bar */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-200" />
@@ -110,7 +116,7 @@ export default function OtpModal({
           <X size={18} />
         </button>
 
-        <div className="p-6 pb-10 overflow-y-auto">
+        <div className="p-4 pb-8 sm:p-6 sm:pb-10 overflow-y-auto">
           {state === "phone_input" ? (
             <form onSubmit={handlePhoneSubmit} className="space-y-5">
               <div className="text-center space-y-1">
@@ -181,7 +187,7 @@ export default function OtpModal({
               </div>
 
               {/* 6-digit OTP input boxes */}
-              <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
+              <div className="flex gap-1.5 sm:gap-2 justify-center" onPaste={handleOtpPaste}>
                 {otp.map((digit, i) => (
                   <input
                     key={i}
@@ -194,7 +200,7 @@ export default function OtpModal({
                     value={digit}
                     onChange={(e) => handleOtpDigit(i, e.target.value)}
                     onKeyDown={(e) => handleOtpKeyDown(i, e)}
-                    className="w-12 h-14 text-center text-xl font-bold border-2 rounded-xl outline-none border-gray-200 focus:border-orange-500 transition-colors text-gray-900"
+                    className="w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold border-2 rounded-xl outline-none border-gray-200 focus:border-orange-500 transition-colors text-gray-900"
                   />
                 ))}
               </div>

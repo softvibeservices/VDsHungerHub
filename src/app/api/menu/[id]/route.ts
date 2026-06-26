@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { cutoffTime, thaliIds, sabjiOptions, isPublished } = await req.json();
+    const { cutoffTime, thaliIds, sabjiOptions } = await req.json();
 
     const existingMenu = await prisma.dailyMenu.findUnique({ where: { id } });
     if (!existingMenu) return NextResponse.json({ error: "Menu not found" }, { status: 404 });
@@ -42,7 +42,6 @@ export async function PUT(
       where: { id },
       data: {
         cutoffTime: cutoffTimeUTC,
-        ...(isPublished !== undefined && { isPublished }),
         thalis: {
           create: (thaliIds as string[]).map((thaliId) => ({
             thaliId,

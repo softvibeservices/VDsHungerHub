@@ -210,7 +210,6 @@ export interface DailyMenu {
   date: string;
   mealType: MealType;
   cutoffTime?: string | null;
-  isPublished: boolean;
   thalis: DailyMenuThali[];
   sabjiOptions: DailyMenuSabjiOption[];
   createdAt: string;
@@ -225,9 +224,7 @@ export interface CreateDailyMenuInput {
   sabjiOptions: SabjiOption[];
 }
 
-export interface UpdateDailyMenuInput extends Partial<CreateDailyMenuInput> {
-  isPublished?: boolean;
-}
+export interface UpdateDailyMenuInput extends Partial<CreateDailyMenuInput> {}
 
 // ─────────────────────────────────────────
 // DASHBOARD

@@ -175,7 +175,6 @@ model DailyMenu {
   date         DateTime               @db.Date
   mealType     MealType
   cutoffTime   DateTime? // UTC DateTime (display in IST via utcToISTTimeString)
-  isPublished  Boolean                @default(false)
   thalis       DailyMenuThali[]
   sabjiOptions DailyMenuSabjiOption[]
   orders       Order[]

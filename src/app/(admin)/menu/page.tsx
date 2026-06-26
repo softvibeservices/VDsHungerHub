@@ -14,7 +14,6 @@ import {
   Check,
   X,
   Link2,
-  ToggleRight,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import SabjiPicker from "@/components/admin/SabjiPicker";
@@ -41,7 +40,6 @@ interface DailyMenu {
   publicSlug?: string | null;
   mealType: "LUNCH" | "DINNER";
   cutoffTime?: string | null;
-  isPublished: boolean;
   thalis: { thaliId: string; thali: Thali; minSabjiRequired: number }[];
   sabjiOptions: { categoryId: string; productId: string }[];
 }
@@ -115,7 +113,6 @@ function groupThalisByCategory(selectedThaliIds: string[], allThalis: Thali[]) {
 interface MealDraft {
   existingId: string | null;
   publicSlug: string | null;
-  isPublished: boolean;
   cutoffTime: string;
   selectedThaliIds: string[];
   // sabjiMap: categoryId → selected product IDs
@@ -130,7 +127,6 @@ function emptyDraft(mealType: "LUNCH" | "DINNER"): MealDraft {
   return {
     existingId: null,
     publicSlug: null,
-    isPublished: false,
     cutoffTime: getLastCutoff(mealType),
     selectedThaliIds: [],
     sabjiMap: {},
@@ -209,7 +205,6 @@ export default function MenuPage() {
         return {
           existingId: menu.id,
           publicSlug: menu.publicSlug ?? null,
-          isPublished: menu.isPublished,
           cutoffTime,
           selectedThaliIds: menu.thalis.map((t) => t.thaliId),
           sabjiMap,
@@ -339,7 +334,6 @@ export default function MenuPage() {
       updateDraft(mealType, {
         existingId: saved.id,
         publicSlug: saved.publicSlug ?? null,
-        isPublished: saved.isPublished,
         isSaving: false,
       });
     } catch (err: unknown) {
@@ -366,40 +360,6 @@ export default function MenuPage() {
     }
   };
 
-  // ── Toggle publish ───────────────────────────────────────────────────────────
-  const togglePublish = async (mealType: "LUNCH" | "DINNER") => {
-    const draft = getDraft(mealType);
-    if (!draft.existingId) return;
-
-    const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
-    const sabjiOptions = groups
-      .filter((g) => g.sabjiCount > 0 && g.thalis[0].categoryId)
-      .map((g) => ({
-        categoryId: g.thalis[0].categoryId!,
-        productIds: draft.sabjiMap[g.key] ?? [],
-      }));
-
-    try {
-      const res = await fetch(`/api/menu/${draft.existingId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: selectedDate,
-          mealType,
-          cutoffTime: draft.cutoffTime || null,
-          thaliIds: draft.selectedThaliIds,
-          sabjiOptions,
-          isPublished: !draft.isPublished,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? "Failed");
-      updateDraft(mealType, { isPublished: !draft.isPublished });
-      toast.success(draft.isPublished ? "Menu unpublished" : "Menu published");
-    } catch {
-      toast.error("Failed to toggle publish");
-    }
-  };
 
   // ── Save as template ─────────────────────────────────────────────────────────
   const saveAsTemplate = async () => {
@@ -582,7 +542,6 @@ export default function MenuPage() {
             onUpdateDraft={(partial) => updateDraft(mealType, partial)}
             onSave={() => saveMenu(mealType)}
             onDelete={() => deleteMenu(mealType)}
-            onTogglePublish={() => togglePublish(mealType)}
             onLoadTemplate={(t) => loadTemplate(mealType, t)}
             onOpenSaveTemplate={() =>
               setTemplateSaveModal({ mealType, open: true, name: "" })
@@ -647,7 +606,6 @@ interface MealColumnProps {
   onUpdateDraft: (partial: Partial<MealDraft>) => void;
   onSave: () => void;
   onDelete: () => void;
-  onTogglePublish: () => void;
   onLoadTemplate: (t: MenuTemplate) => void;
   onOpenSaveTemplate: () => void;
   onDeleteTemplate: (id: string) => void;
@@ -664,7 +622,6 @@ function MealColumn({
   onUpdateDraft,
   onSave,
   onDelete,
-  onTogglePublish,
   onLoadTemplate,
   onOpenSaveTemplate,
   onDeleteTemplate,
@@ -730,26 +687,8 @@ function MealColumn({
           {isLunch ? <Sun size={18} /> : <Moon size={18} />}
           <div>
             <p className="font-bold text-sm">{isLunch ? "Lunch" : "Dinner"}</p>
-            {draft.existingId && (
-              <p className="text-[10px] text-white/70">
-                {draft.isPublished ? "Published ✓" : "Draft"}
-              </p>
-            )}
           </div>
         </div>
-        {draft.existingId && (
-          <button
-            onClick={onTogglePublish}
-            className={`flex items-center gap-1 text-[10px] font-semibold px-2.5 py-1 rounded-full transition-colors cursor-pointer ${
-              draft.isPublished
-                ? "bg-white/20 hover:bg-white/30 text-white"
-                : "bg-white text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            <ToggleRight size={12} />
-            {draft.isPublished ? "Unpublish" : "Publish"}
-          </button>
-        )}
       </div>
 
       <div className="p-4 space-y-4">
@@ -875,6 +814,7 @@ function MealColumn({
                     selected={draft.sabjiMap[group.key] ?? []}
                     maxCount={group.sabjiCount}
                     minRequired={group.sabjiCount}
+                    adminMode={true}
                     onChange={(ids) =>
                       onUpdateDraft({
                         sabjiMap: { ...draft.sabjiMap, [group.key]: ids },

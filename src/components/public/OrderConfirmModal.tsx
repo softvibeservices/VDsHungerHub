@@ -45,8 +45,8 @@ export default function OrderConfirmModal({
   return (
     <>
       <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" />
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-        <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-5 animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0 sm:zoom-in-95">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-3 sm:p-4">
+        <div className="bg-white rounded-3xl p-4 sm:p-6 w-full max-w-md shadow-2xl space-y-4 sm:space-y-5 max-h-[90dvh] overflow-y-auto animate-in slide-in-from-bottom duration-300 sm:zoom-in-95">
           {/* Header */}
           <div className="text-center">
             <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -65,9 +65,9 @@ export default function OrderConfirmModal({
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">
               Ordering As
             </p>
-            <p className="font-bold text-gray-900 text-base">{user.name}</p>
-            <p className="text-sm text-gray-600">{user.companyName}</p>
-            <p className="text-sm text-gray-400">+91 {user.number}</p>
+            <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{user.name}</p>
+            <p className="text-xs sm:text-sm text-gray-600 truncate">{user.companyName}</p>
+            <p className="text-xs sm:text-sm text-gray-400">+91 {user.number}</p>
           </div>
 
           {/* Order summary */}
@@ -143,18 +143,18 @@ export default function OrderConfirmModal({
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3">
+          <div className="flex flex-col-reverse min-[480px]:flex-row gap-2.5 sm:gap-3">
             <button
               onClick={onBack}
               disabled={isLoading}
-              className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-40"
+              className="w-full min-[480px]:flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors disabled:opacity-40 cursor-pointer"
             >
               Go Back
             </button>
             <button
               onClick={onConfirm}
               disabled={isLoading}
-              className="flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+              className="w-full min-[480px]:flex-1 py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-colors disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
             >
               {isLoading && <Loader2 size={16} className="animate-spin" />}
               {isLoading ? "Placing…" : "Yes, Confirm"}

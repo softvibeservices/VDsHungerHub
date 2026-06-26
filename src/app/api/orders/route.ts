@@ -44,9 +44,9 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  if (!menu || !menu.isPublished) {
+  if (!menu) {
     return NextResponse.json(
-      { error: "Menu not found or not published" },
+      { error: "Menu not found" },
       { status: 404 }
     );
   }

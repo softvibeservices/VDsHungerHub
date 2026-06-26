@@ -109,19 +109,19 @@ async function main() {
       data: { isAddOnAvailable: true },
     });
 
-    // Create sample add-ons
+    // Create sample add-ons as standalone Products
     const addOnDefs = [
-      { name: "Extra Roti", price: 5, sortOrder: 0 },
-      { name: "Buttermilk", price: 0, sortOrder: 1 },
-      { name: "Shreekhnd", price: 15, sortOrder: 2 },
-      { name: "Jaggery", price: 0, sortOrder: 3 },
+      { name: "Extra Roti", price: 5, quantity: "1 piece", nameGu: "વધારાની રોટલી" },
+      { name: "Buttermilk", price: 10, quantity: "1 glass", nameGu: "છાશ" },
+      { name: "Shreekhnd", price: 15, quantity: "1 cup", nameGu: "શ્રીખંડ" },
+      { name: "Jaggery", price: 5, quantity: "1 piece", nameGu: "ગોળ" },
     ];
 
     for (const ao of addOnDefs) {
-      await prisma.productAddon.upsert({
-        where: { productId_name: { productId: palakPaneer.id, name: ao.name } },
-        update: { price: ao.price },
-        create: { productId: palakPaneer.id, ...ao },
+      await prisma.product.upsert({
+        where: { name: ao.name },
+        update: { price: ao.price, isAddOnAvailable: true },
+        create: { ...ao, isAddOnAvailable: true },
       });
     }
     console.log("✅ Sample add-ons seeded");
