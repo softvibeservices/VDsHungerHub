@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { date, mealType, cutoffTime, thaliIds, sabjiOptions, minSabjiMap } = await req.json();
+    const { date, mealType, cutoffTime, thaliIds, sabjiOptions } = await req.json();
 
     if (!date) return NextResponse.json({ error: "Date is required" }, { status: 400 });
     if (!mealType) return NextResponse.json({ error: "Meal type is required" }, { status: 400 });
@@ -48,6 +48,12 @@ export async function POST(req: NextRequest) {
 
     if (!Array.isArray(thaliIds) || thaliIds.length === 0)
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
+
+    // Fetch the thalis to get their maxSabjiCount
+    const thalisFromDb = await prisma.thali.findMany({
+      where: { id: { in: thaliIds } },
+    });
+    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.maxSabjiCount]));
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
@@ -63,7 +69,7 @@ export async function POST(req: NextRequest) {
         thalis: {
           create: thaliIds.map((thaliId: string) => ({
             thaliId,
-            minSabjiRequired: minSabjiMap?.[thaliId] ?? 1,
+            minSabjiRequired: thaliMap.get(thaliId) ?? 1,
           })),
         },
         sabjiOptions: {

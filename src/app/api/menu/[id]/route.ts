@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { cutoffTime, thaliIds, sabjiOptions, minSabjiMap, isPublished } = await req.json();
+    const { cutoffTime, thaliIds, sabjiOptions, isPublished } = await req.json();
 
     const existingMenu = await prisma.dailyMenu.findUnique({ where: { id } });
     if (!existingMenu) return NextResponse.json({ error: "Menu not found" }, { status: 404 });
@@ -19,6 +19,12 @@ export async function PUT(
     if (menuDateStr < todayStr) {
       return NextResponse.json({ error: "Cannot edit a menu for a past date" }, { status: 400 });
     }
+
+    // Fetch the thalis to get their maxSabjiCount
+    const thalisFromDb = await prisma.thali.findMany({
+      where: { id: { in: thaliIds } },
+    });
+    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.maxSabjiCount]));
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     let cutoffTimeUTC: Date | null = null;
@@ -40,7 +46,7 @@ export async function PUT(
         thalis: {
           create: (thaliIds as string[]).map((thaliId) => ({
             thaliId,
-            minSabjiRequired: minSabjiMap?.[thaliId] ?? 1,
+            minSabjiRequired: thaliMap.get(thaliId) ?? 1,
           })),
         },
         sabjiOptions: {

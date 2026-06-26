@@ -69,14 +69,12 @@ export default function MenuPage() {
   const [lunchCutoff, setLunchCutoff] = useState("11:30");
   const [lunchThalis, setLunchThalis] = useState<string[]>([]);
   const [lunchSabjiMap, setLunchSabjiMap] = useState<Record<string, string[]>>({});
-  const [lunchMinSabjiMap, setLunchMinSabjiMap] = useState<Record<string, number>>({});
   const [isSavingLunch, setIsSavingLunch] = useState(false);
 
   // Dinner states
   const [dinnerCutoff, setDinnerCutoff] = useState("18:30");
   const [dinnerThalis, setDinnerThalis] = useState<string[]>([]);
   const [dinnerSabjiMap, setDinnerSabjiMap] = useState<Record<string, string[]>>({});
-  const [dinnerMinSabjiMap, setDinnerMinSabjiMap] = useState<Record<string, number>>({});
   const [isSavingDinner, setIsSavingDinner] = useState(false);
 
   // Delete state
@@ -128,21 +126,15 @@ export default function MenuPage() {
         setLunchThalis(lunch.thalis.map((mt) => mt.thali.id));
         
         const sabjis: Record<string, string[]> = {};
-        const mins: Record<string, number> = {};
-        lunch.thalis.forEach((mt) => {
-          mins[mt.thali.id] = mt.minSabjiRequired ?? 1;
-        });
         lunch.sabjiOptions.forEach((opt) => {
           if (!sabjis[opt.thaliId]) sabjis[opt.thaliId] = [];
           sabjis[opt.thaliId].push(opt.productId);
         });
         setLunchSabjiMap(sabjis);
-        setLunchMinSabjiMap(mins);
       } else {
         setLunchCutoff("11:30");
         setLunchThalis([]);
         setLunchSabjiMap({});
-        setLunchMinSabjiMap({});
       }
 
       // Populate DINNER draft
@@ -152,21 +144,15 @@ export default function MenuPage() {
         setDinnerThalis(dinner.thalis.map((mt) => mt.thali.id));
         
         const sabjis: Record<string, string[]> = {};
-        const mins: Record<string, number> = {};
-        dinner.thalis.forEach((mt) => {
-          mins[mt.thali.id] = mt.minSabjiRequired ?? 1;
-        });
         dinner.sabjiOptions.forEach((opt) => {
           if (!sabjis[opt.thaliId]) sabjis[opt.thaliId] = [];
           sabjis[opt.thaliId].push(opt.productId);
         });
         setDinnerSabjiMap(sabjis);
-        setDinnerMinSabjiMap(mins);
       } else {
         setDinnerCutoff("18:30");
         setDinnerThalis([]);
         setDinnerSabjiMap({});
-        setDinnerMinSabjiMap({});
       }
 
       // Load active thalis
@@ -188,13 +174,11 @@ export default function MenuPage() {
             if (draft.lunchCutoff !== undefined) setLunchCutoff(draft.lunchCutoff);
             if (draft.lunchThalis !== undefined) setLunchThalis(draft.lunchThalis);
             if (draft.lunchSabjiMap !== undefined) setLunchSabjiMap(draft.lunchSabjiMap);
-            if (draft.lunchMinSabjiMap !== undefined) setLunchMinSabjiMap(draft.lunchMinSabjiMap);
           }
           if (!dinner) {
             if (draft.dinnerCutoff !== undefined) setDinnerCutoff(draft.dinnerCutoff);
             if (draft.dinnerThalis !== undefined) setDinnerThalis(draft.dinnerThalis);
             if (draft.dinnerSabjiMap !== undefined) setDinnerSabjiMap(draft.dinnerSabjiMap);
-            if (draft.dinnerMinSabjiMap !== undefined) setDinnerMinSabjiMap(draft.dinnerMinSabjiMap);
           }
         } catch (e) {
           console.error("Error parsing menu draft:", e);
@@ -218,11 +202,9 @@ export default function MenuPage() {
       lunchCutoff,
       lunchThalis,
       lunchSabjiMap,
-      lunchMinSabjiMap,
       dinnerCutoff,
       dinnerThalis,
       dinnerSabjiMap,
-      dinnerMinSabjiMap,
     };
     sessionStorage.setItem(`vdh_menu_draft_${selectedDate}`, JSON.stringify(draft));
   }, [
@@ -231,11 +213,9 @@ export default function MenuPage() {
     lunchCutoff,
     lunchThalis,
     lunchSabjiMap,
-    lunchMinSabjiMap,
     dinnerCutoff,
     dinnerThalis,
     dinnerSabjiMap,
-    dinnerMinSabjiMap,
   ]);
 
   const todayStr = getTodayIST();
@@ -287,31 +267,21 @@ export default function MenuPage() {
         setLunchThalis(menu.thalis.map((t) => t.thaliId));
         
         const sabjis: Record<string, string[]> = {};
-        const mins: Record<string, number> = {};
-        menu.thalis.forEach((mt) => {
-          mins[mt.thaliId] = mt.minSabjiRequired;
-        });
         menu.sabjiOptions.forEach((opt) => {
           if (!sabjis[opt.thaliId]) sabjis[opt.thaliId] = [];
           sabjis[opt.thaliId].push(opt.productId);
         });
         setLunchSabjiMap(sabjis);
-        setLunchMinSabjiMap(mins);
       } else {
         setDinnerCutoff(menu.cutoffTime ? utcToISTTimeString(new Date(menu.cutoffTime)) : "18:30");
         setDinnerThalis(menu.thalis.map((t) => t.thaliId));
         
         const sabjis: Record<string, string[]> = {};
-        const mins: Record<string, number> = {};
-        menu.thalis.forEach((mt) => {
-          mins[mt.thaliId] = mt.minSabjiRequired;
-        });
         menu.sabjiOptions.forEach((opt) => {
           if (!sabjis[opt.thaliId]) sabjis[opt.thaliId] = [];
           sabjis[opt.thaliId].push(opt.productId);
         });
         setDinnerSabjiMap(sabjis);
-        setDinnerMinSabjiMap(mins);
       }
       toast.success(`Copied yesterday's ${mealType.toLowerCase()} menu!`);
     } catch {
@@ -328,7 +298,6 @@ export default function MenuPage() {
       setLunchThalis(template.thaliIds);
       
       const sabjis: Record<string, string[]> = {};
-      const mins: Record<string, number> = {};
       
       const config = Array.isArray(template.sabjiConfig) 
         ? template.sabjiConfig 
@@ -338,17 +307,14 @@ export default function MenuPage() {
           
       config.forEach((cfg: any) => {
         sabjis[cfg.thaliId] = cfg.productIds;
-        mins[cfg.thaliId] = cfg.minRequired ?? 1;
       });
       
       setLunchSabjiMap(sabjis);
-      setLunchMinSabjiMap(mins);
     } else {
       setDinnerCutoff(template.cutoffTime ?? "18:30");
       setDinnerThalis(template.thaliIds);
       
       const sabjis: Record<string, string[]> = {};
-      const mins: Record<string, number> = {};
       
       const config = Array.isArray(template.sabjiConfig) 
         ? template.sabjiConfig 
@@ -358,11 +324,9 @@ export default function MenuPage() {
           
       config.forEach((cfg: any) => {
         sabjis[cfg.thaliId] = cfg.productIds;
-        mins[cfg.thaliId] = cfg.minRequired ?? 1;
       });
       
       setDinnerSabjiMap(sabjis);
-      setDinnerMinSabjiMap(mins);
     }
     toast.success(`Loaded template: ${template.name}`);
   };
@@ -375,7 +339,6 @@ export default function MenuPage() {
     const cutoffTime = isLunch ? lunchCutoff : dinnerCutoff;
     const thaliIds = isLunch ? lunchThalis : dinnerThalis;
     const sabjiMap = isLunch ? lunchSabjiMap : dinnerSabjiMap;
-    const minSabjiMap = isLunch ? lunchMinSabjiMap : dinnerMinSabjiMap;
 
     if (thaliIds.length === 0) {
       toast.error("Configure at least one thali before saving a template.");
@@ -385,7 +348,7 @@ export default function MenuPage() {
     const sabjiConfig = thaliIds.map((tid) => ({
       thaliId: tid,
       productIds: sabjiMap[tid] ?? [],
-      minRequired: minSabjiMap[tid] ?? 1,
+      minRequired: 1, // kept for DB compatibility
     }));
 
     try {
@@ -414,7 +377,6 @@ export default function MenuPage() {
     const cutoffTime = isLunch ? lunchCutoff : dinnerCutoff;
     const thaliIds = isLunch ? lunchThalis : dinnerThalis;
     const sabjiMap = isLunch ? lunchSabjiMap : dinnerSabjiMap;
-    const minSabjiMap = isLunch ? lunchMinSabjiMap : dinnerMinSabjiMap;
     const setSaving = isLunch ? setIsSavingLunch : setIsSavingDinner;
     const existingMenu = menus.find((m) => m.mealType === mealType);
 
@@ -423,14 +385,13 @@ export default function MenuPage() {
       return;
     }
 
-    // Validation of minimum sabji pool choices
+    // Validation of sabji choices: must pick at least thali.maxSabjiCount options for customers to choose from
     for (const thaliId of thaliIds) {
       const thali = allThalis.find((t) => t.id === thaliId);
       if (thali && thali.maxSabjiCount > 0) {
         const selectedSabjis = sabjiMap[thaliId] ?? [];
-        const minReq = minSabjiMap[thaliId] ?? 1;
-        if (selectedSabjis.length < minReq) {
-          toast.error(`Please select at least ${minReq} sabji choices for ${thali.name}`);
+        if (selectedSabjis.length < thali.maxSabjiCount) {
+          toast.error(`Please select at least ${thali.maxSabjiCount} sabji option(s) for ${thali.name} Daily Menu.`);
           return;
         }
       }
@@ -454,7 +415,6 @@ export default function MenuPage() {
         cutoffTime,
         thaliIds,
         sabjiOptions,
-        minSabjiMap,
       };
 
       const url = existingMenu ? `/api/menu/${existingMenu.id}` : "/api/menu";
@@ -510,12 +470,6 @@ export default function MenuPage() {
     const isLunch = mealType === "LUNCH";
     const setSabjiMap = isLunch ? setLunchSabjiMap : setDinnerSabjiMap;
     setSabjiMap((prev) => ({ ...prev, [thaliId]: productIds }));
-  };
-
-  const handleMinSabjiChange = (mealType: "LUNCH" | "DINNER", thaliId: string, minCount: number) => {
-    const isLunch = mealType === "LUNCH";
-    const setMinSabjiMap = isLunch ? setLunchMinSabjiMap : setDinnerMinSabjiMap;
-    setMinSabjiMap((prev) => ({ ...prev, [thaliId]: minCount }));
   };
 
   const copyPublicLink = (slug: string) => {
@@ -732,8 +686,6 @@ export default function MenuPage() {
                             selected={lunchSabjiMap[thali.id] ?? []}
                             onChange={(ids) => handleSabjiChange("LUNCH", thali.id, ids)}
                             maxCount={thali.maxSabjiCount}
-                            minRequired={lunchMinSabjiMap[thali.id] ?? 1}
-                            onMinChange={(n) => handleMinSabjiChange("LUNCH", thali.id, n)}
                             label="Configure Sabjis for Daily Menu:"
                           />
                         </div>
@@ -925,8 +877,6 @@ export default function MenuPage() {
                             selected={dinnerSabjiMap[thali.id] ?? []}
                             onChange={(ids) => handleSabjiChange("DINNER", thali.id, ids)}
                             maxCount={thali.maxSabjiCount}
-                            minRequired={dinnerMinSabjiMap[thali.id] ?? 1}
-                            onMinChange={(n) => handleMinSabjiChange("DINNER", thali.id, n)}
                             label="Configure Sabjis for Daily Menu:"
                           />
                         </div>

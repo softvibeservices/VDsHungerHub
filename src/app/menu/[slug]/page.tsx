@@ -188,10 +188,7 @@ export default function PublicMenuPage({ params }: PageProps) {
     const thali = selectedMenuThali.thali;
     if (thali.maxSabjiCount > 0) {
       const selectedCount = (selectedSabjis[thali.id] ?? []).length;
-      const minReq = selectedMenuThali.minSabjiRequired;
-      if (selectedCount < minReq) {
-        return false;
-      }
+      return selectedCount === thali.maxSabjiCount;
     }
     return true;
   };
@@ -301,7 +298,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                     Step 2: Choose Sabji
                   </p>
                   <p className="text-[10px] text-orange-600 font-bold bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">
-                    Pick {selectedSabjis[selectedMenuThali.thali.id]?.length ?? 0} of {selectedMenuThali.thali.maxSabjiCount} (Min: {selectedMenuThali.minSabjiRequired})
+                    Pick {selectedSabjis[selectedMenuThali.thali.id]?.length ?? 0} of {selectedMenuThali.thali.maxSabjiCount}
                   </p>
                 </div>
 
@@ -359,7 +356,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                 >
                   {validateOrder()
                     ? "Order via WhatsApp"
-                    : `Please select at least ${selectedMenuThali.minSabjiRequired} sabji(s)`}
+                    : `Please select ${selectedMenuThali.thali.maxSabjiCount} sabji(s)`}
                 </Button>
               </a>
             </div>
