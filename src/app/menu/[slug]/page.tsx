@@ -341,7 +341,11 @@ export default function PublicMenuPage({ params }: PageProps) {
 
       if (!verifyRes.ok) {
         const err = await verifyRes.json();
-        toast.error(err.error ?? "Verification failed");
+        toast.error(
+          err.details
+            ? `${err.error}: ${err.details}`
+            : (err.error ?? "Verification failed")
+        );
         return;
       }
 

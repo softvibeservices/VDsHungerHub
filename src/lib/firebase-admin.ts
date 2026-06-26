@@ -15,8 +15,8 @@ export function getFirebaseAdmin(): Auth {
       credential: cert({
         projectId: process.env.FIREBASE_PROJECT_ID!,
         clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
-        // Env vars sometimes escape the newlines — restore them
-        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        // Env vars sometimes escape the newlines — restore them, and strip surrounding double quotes on Vercel
+        privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n").replace(/^"|"$/g, ""),
       }),
     });
   }

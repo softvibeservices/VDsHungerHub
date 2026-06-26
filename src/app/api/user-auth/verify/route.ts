@@ -25,9 +25,13 @@ export async function POST(req: NextRequest) {
     const adminAuth = getFirebaseAdmin();
     const decoded = await adminAuth.verifyIdToken(idToken);
     phoneNumber = decoded.phone_number ?? "";
-  } catch {
+  } catch (err: any) {
+    console.error("Firebase ID Token verification failed:", err);
     return NextResponse.json(
-      { error: "Invalid or expired OTP token" },
+      { 
+        error: "Invalid or expired OTP token",
+        details: err instanceof Error ? err.message : String(err)
+      },
       { status: 401 }
     );
   }
@@ -57,11 +61,15 @@ export async function POST(req: NextRequest) {
 
   // 4. Store or update device fingerprint
   if (deviceHash && typeof deviceHash === "string" && deviceHash.length === 64) {
-    await prisma.userDevice.upsert({
-      where: { userId_deviceHash: { userId: user.id, deviceHash } },
-      update: { lastSeenAt: new Date() },
-      create: { userId: user.id, deviceHash },
-    });
+    try {
+      await prisma.userDevice.upsert({
+        where: { userId_deviceHash: { userId: user.id, deviceHash } },
+        update: { lastSeenAt: new Date() },
+        create: { userId: user.id, deviceHash },
+      });
+    } catch (err) {
+      console.error("Prisma userDevice upsert failed:", err);
+    }
   }
 
   // 5. Mint 180-day user JWT
