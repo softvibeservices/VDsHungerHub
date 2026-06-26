@@ -22,7 +22,7 @@ import { formatDateForAPI, getTodayIST } from "@/lib/utils";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ThaliItem { id: string; itemName: string }
-interface Product { id: string; name: string; nameGu?: string | null }
+interface Product { id: string; name: string; nameGu?: string | null; isAddOnAvailable?: boolean }
 interface ThaliCategory { id: string; name: string; nameGu?: string | null }
 interface Thali {
   id: string;
@@ -269,19 +269,6 @@ export default function MenuPage() {
     }
 
     const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
-
-    // Validation 1: Mismatched sabji counts in the same category
-    for (const group of groups) {
-      const counts = new Set(group.thalis.map((t) => t.sabjiCount));
-      if (counts.size > 1) {
-        toast.error(
-          `"${group.label}" category has thalis with different sabji counts (${[...counts].join(
-            ", "
-          )}). All thalis in a category must use the same sabji count.`
-        );
-        return;
-      }
-    }
 
     // Validation 2: Block uncategorized thalis that require sabjis
     const uncategorizedWithSabji = draft.selectedThaliIds
@@ -752,7 +739,37 @@ function MealColumn({
 
         {/* Thali selector */}
         <div>
-          <p className="text-xs font-semibold text-gray-600 mb-2">Thalis</p>
+          <div className="flex justify-between items-baseline mb-2">
+            <p className="text-xs font-semibold text-gray-600">Thalis</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const allIds = thalis.map((t) => t.id);
+                  const minSabjiMap = { ...draft.minSabjiMap };
+                  thalis.forEach((t) => {
+                    if (minSabjiMap[t.id] === undefined) {
+                      minSabjiMap[t.id] = t.sabjiCount ?? 1;
+                    }
+                  });
+                  onUpdateDraft({ selectedThaliIds: allIds, minSabjiMap });
+                }}
+                className="text-[10px] text-orange-500 hover:underline font-semibold cursor-pointer"
+              >
+                Select All
+              </button>
+              <span className="text-[10px] text-gray-300">|</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateDraft({ selectedThaliIds: [], sabjiMap: {}, minSabjiMap: {} });
+                }}
+                className="text-[10px] text-gray-450 hover:underline font-semibold cursor-pointer"
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {thalis.map((thali) => {
               const isSelected = draft.selectedThaliIds.includes(thali.id);
@@ -795,7 +812,7 @@ function MealColumn({
               .filter((g) => g.sabjiCount > 0)
               .map((group) => {
                 const groupThalisWithPool = group.thalis.filter((t) => t.sabjiPool && t.sabjiPool.length > 0);
-                const pool: Product[] =
+                const pool: Product[] = (
                   groupThalisWithPool.length > 0
                     ? Array.from(
                         new Map(
@@ -804,7 +821,8 @@ function MealColumn({
                             .map((sp) => [sp.product.id, sp.product])
                         ).values()
                       )
-                    : products;
+                    : products
+                ).filter((p) => !p.isAddOnAvailable);
 
                 return (
                   <SabjiPicker
