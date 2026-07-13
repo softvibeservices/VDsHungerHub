@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Upload, Pencil, Trash2 } from "lucide-react";
+import { Plus, Upload, Pencil, Trash2, ShieldCheck, ShieldOff } from "lucide-react";
 import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
@@ -13,11 +13,16 @@ import BulkUserModal from "@/components/modals/BulkUserModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatMobileNumber } from "@/lib/utils";
+import { formatDateTimeIST } from "@/lib/time";
 
 interface Company { id: string; name: string }
 interface User {
   id: string; name: string; number: string; isActive: boolean; companyId: string;
   company: Company;
+  isVerified: boolean;
+  verifiedAt?: string | null;
+  workAddress?: string | null;
+  _count?: { deviceFingerprints: number };
 }
 
 export default function UsersPage() {
@@ -28,6 +33,7 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [companyFilter, setCompanyFilter] = useState("");
+  const [verifiedFilter, setVerifiedFilter] = useState(""); // "" | "verified" | "unverified"
   const debouncedSearch = useDebounce(search, 300);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -47,6 +53,7 @@ export default function UsersPage() {
     try {
       const params = new URLSearchParams({ search: debouncedSearch });
       if (companyFilter) params.set("companyId", companyFilter);
+      if (verifiedFilter) params.set("isVerified", verifiedFilter === "verified" ? "true" : "false");
       const res = await fetch(`/api/users?${params}`);
       const json = await res.json();
       setUsers(json.users ?? []);
@@ -64,7 +71,7 @@ export default function UsersPage() {
   useEffect(() => {
     fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedSearch, companyFilter]);
+  }, [debouncedSearch, companyFilter, verifiedFilter]);
 
   const handleDelete = async () => {
     if (!deleteId) return;
@@ -87,7 +94,23 @@ export default function UsersPage() {
     { key: "name", header: "Name", render: (row) => <span className="font-medium text-gray-900">{row.name}</span> },
     { key: "number", header: "Mobile", render: (row) => <span className="text-gray-600 font-mono text-xs">{formatMobileNumber(row.number)}</span> },
     { key: "company", header: "Company", render: (row) => <span className="text-gray-600">{row.company?.name ?? "—"}</span> },
-    { key: "status", header: "Status", render: (row) => <ActiveBadge isActive={row.isActive} /> },
+    { key: "verified", header: "Verified", render: (row) => (
+      <div className="flex flex-col gap-0.5">
+        {row.isVerified ? (
+          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 font-medium">
+            <ShieldCheck size={11} /> Verified
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 font-medium">
+            <ShieldOff size={11} /> Pending
+          </span>
+        )}
+        {row.verifiedAt && (
+          <span className="text-[10px] text-gray-400">{formatDateTimeIST(row.verifiedAt)}</span>
+        )}
+      </div>
+    )},
+    { key: "status", header: "Active", render: (row) => <ActiveBadge isActive={row.isActive} /> },
     { key: "actions", header: "Actions", width: "w-24", render: (row) => (
       <div className="flex gap-1">
         <button onClick={() => { setEditUser(row); setModalOpen(true); }}
@@ -105,6 +128,12 @@ export default function UsersPage() {
   const companyOptions = [
     { value: "", label: "All Companies" },
     ...companies.map((c) => ({ value: c.id, label: c.name })),
+  ];
+
+  const verifiedOptions = [
+    { value: "", label: "All Users" },
+    { value: "verified", label: "Verified Only" },
+    { value: "unverified", label: "Unverified Only" },
   ];
 
   return (
@@ -128,6 +157,7 @@ export default function UsersPage() {
       <div className="flex flex-wrap gap-3">
         <SearchInput value={search} onChange={setSearch} placeholder="Search by name or number..." className="w-64" />
         <Select options={companyOptions} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-52" />
+        <Select options={verifiedOptions} value={verifiedFilter} onChange={(e) => setVerifiedFilter(e.target.value)} className="w-48" />
       </div>
 
       <Table columns={columns} data={users} isLoading={isLoading}

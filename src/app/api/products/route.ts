@@ -6,10 +6,15 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
     const isActiveParam = searchParams.get("isActive");
+    const addonsOnly = searchParams.get("addonsOnly") === "true";
 
     const where: Record<string, unknown> = {};
     if (isActiveParam !== null && isActiveParam !== "") {
       where.isActive = isActiveParam === "true";
+    }
+    if (addonsOnly) {
+      where.isAddOnAvailable = true;
+      where.isActive = true;
     }
     if (search) {
       where.OR = [

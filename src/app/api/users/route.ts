@@ -6,12 +6,14 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
     const companyId = searchParams.get("companyId") ?? "";
+    const isVerifiedParam = searchParams.get("isVerified"); // "true" | "false" | null
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
     if (companyId) where.companyId = companyId;
+    if (isVerifiedParam !== null) where.isVerified = isVerifiedParam === "true";
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -25,7 +27,11 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        include: { company: { select: { id: true, name: true } } },
+        include: {
+          company: { select: { id: true, name: true } },
+          _count: { select: { deviceFingerprints: true } },
+        },
+        // Select verifiedAt, workAddress (not lat/long)
       }),
       prisma.user.count({ where }),
     ]);
