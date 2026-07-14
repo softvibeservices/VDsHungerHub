@@ -150,12 +150,11 @@ async function getTodayMenu() {
     }
   }
 
+  const today = new Date(Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()));
+
   const menu = await prisma.dailyMenu.findFirst({
     where: {
-      date: {
-        gte: new Date(dateStr + "T00:00:00.000Z"),
-        lt: new Date(dateStr + "T23:59:59.000Z"),
-      },
+      date: today,
       mealType,
     },
     include: {
