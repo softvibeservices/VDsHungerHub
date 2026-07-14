@@ -41,6 +41,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
   // Step 1 state
   const [fullName, setFullName] = useState("");
+  const [mobile, setMobile] = useState("");
   const [workAddress, setWorkAddress] = useState("");
   const [homeAddress, setHomeAddress] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -50,7 +51,6 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   const [draftId, setDraftId] = useState("");
 
   // Step 2 state
-  const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [preAuthToken, setPreAuthToken] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -83,10 +83,45 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    // Client-side validations
+    if (!fullName.trim() || fullName.trim().length < 2 || fullName.trim().length > 80) {
+      setError("Full name must be between 2 and 80 characters.");
+      return;
+    }
+
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(mobile)) {
+      setError("Please enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+
+    if (!workAddress.trim() || workAddress.trim().length < 10 || workAddress.trim().length > 300) {
+      setError("Work / Delivery Address must be between 10 and 300 characters.");
+      return;
+    }
+
+    if (homeAddress.trim() && (homeAddress.trim().length < 10 || homeAddress.trim().length > 300)) {
+      setError("Home Address must be between 10 and 300 characters if provided.");
+      return;
+    }
+
+    if (!newCompany && !companyId) {
+      setError("Please select a company.");
+      return;
+    }
+
+    if (newCompany && (!newCompanyName.trim() || newCompanyName.trim().length < 2 || newCompanyName.trim().length > 100)) {
+      setError("Company name must be between 2 and 100 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const visitorId = await getDeviceVisitorId();
+
+      // 1. Create the user draft
       const res = await fetch("/api/customer/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -107,7 +142,34 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
         return;
       }
 
-      setDraftId(data.draftId);
+      const registeredDraftId = data.draftId;
+      setDraftId(registeredDraftId);
+
+      // 2. Immediately send OTP to the mobile number
+      const otpRes = await fetch("/api/customer/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftId: registeredDraftId,
+          mobile,
+          deviceVisitorId: visitorId,
+          purpose: "REGISTER",
+        }),
+      });
+
+      const otpData = await otpRes.json();
+
+      if (!otpRes.ok) {
+        if (otpData.error === "MOBILE_ALREADY_REGISTERED") {
+          setError("This number is already registered. Please go to the Login page.");
+          return;
+        }
+        setError(otpData.error ?? "Failed to send OTP");
+        return;
+      }
+
+      setOtpSent(true);
+      setOtpCooldown(60);
       setStep("OTP");
     } catch {
       setError("Network error. Please try again.");
@@ -116,7 +178,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
     }
   };
 
-  // ── Step 2a: Send OTP ───────────────────────────────────────────────────────
+  // ── Step 2a: Resend OTP ─────────────────────────────────────────────────────
   const handleSendOtp = async () => {
     setError("");
     setLoading(true);
@@ -138,7 +200,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
       if (!res.ok) {
         if (data.error === "MOBILE_ALREADY_REGISTERED") {
-          setError("This number is already registered. Please use the Login tab.");
+          setError("This number is already registered. Please go to the Login page.");
           return;
         }
         setError(data.error ?? "Failed to send OTP");
@@ -158,6 +220,12 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (otp.length !== 6) {
+      setError("OTP must be exactly 6 digits.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -183,24 +251,38 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
     }
   };
 
-  // ── Step 3: Set PIN ─────────────────────────────────────────────────────────
+  // ── Step 3: Complete registration (Set PIN) ──────────────────────────────────
   const handleSetPin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
+    if (pin.length !== 6) {
+      setError("PIN must be exactly 6 digits.");
+      return;
+    }
+
     if (pin !== confirmPin) {
-      setError("PINs do not match");
+      setError("PINs do not match.");
+      return;
+    }
+
+    // Avoid simple PINs (consecutive or identical digits)
+    const simplePins = [
+      "000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777", "888888", "999999",
+      "123456", "654321"
+    ];
+    if (simplePins.includes(pin)) {
+      setError("PIN is too simple. Please choose a more secure PIN.");
       return;
     }
 
     setLoading(true);
 
     try {
-      const visitorId = await getDeviceVisitorId();
       const res = await fetch("/api/customer/set-pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ preAuthToken, pin, confirmPin, deviceVisitorId: visitorId }),
+        body: JSON.stringify({ draftId, preAuthToken, pin }),
       });
 
       const data = await res.json();
@@ -280,6 +362,27 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               placeholder="Your full name"
               className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Mobile Number *
+            </label>
+            <div className="flex gap-2">
+              <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500 font-medium">
+                +91
+              </span>
+              <input
+                id="register-mobile"
+                type="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                required
+                maxLength={10}
+                placeholder="10-digit mobile number"
+                className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              />
+            </div>
           </div>
 
           <div>
@@ -376,6 +479,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
             disabled={
               loading ||
               !fullName.trim() ||
+              mobile.length !== 10 ||
               !workAddress.trim() ||
               (!newCompany && !companyId) ||
               (newCompany && !newCompanyName.trim())
@@ -399,75 +503,61 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       {/* ── STEP 2: OTP ──────────────────────────────────────────────────────── */}
       {step === "OTP" && (
         <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div className="text-center mb-2">
+          <div className="text-center mb-6">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3 border border-orange-100">
               <Phone size={22} className="text-orange-500" />
             </div>
-            <p className="text-sm text-gray-600">
-              Enter your mobile number to verify
+            <h3 className="font-bold text-gray-900">Verify Mobile</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Enter the 6-digit OTP code sent to <strong className="text-gray-800">+91 {mobile}</strong>
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Mobile Number *
+              Enter 6-digit OTP
             </label>
-            <div className="flex gap-2">
-              <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500 font-medium">
-                +91
-              </span>
-              <input
-                id="register-mobile"
-                type="tel"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                required
-                maxLength={10}
-                placeholder="10-digit number"
-                className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-              />
-              <button
-                type="button"
-                id="register-send-otp"
-                onClick={handleSendOtp}
-                disabled={loading || mobile.length !== 10 || otpCooldown > 0}
-                className="px-3 py-2 bg-orange-500 text-white text-xs font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-              >
-                {otpCooldown > 0 ? `${otpCooldown}s` : otpSent ? "Resend" : "Send OTP"}
-              </button>
-            </div>
+            <input
+              id="register-otp"
+              type="text"
+              inputMode="numeric"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              required
+              maxLength={6}
+              placeholder="••••••"
+              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+            />
           </div>
 
-          {otpSent && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                Enter 6-digit OTP
-              </label>
-              <input
-                id="register-otp"
-                type="text"
-                inputMode="numeric"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                required
-                maxLength={6}
-                placeholder="••••••"
-                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-              />
-            </div>
-          )}
+          <button
+            id="register-verify-otp"
+            type="submit"
+            disabled={loading || otp.length !== 6}
+            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+          >
+            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
+            Verify OTP
+          </button>
 
-          {otpSent && (
+          <div className="flex flex-col items-center gap-2 mt-4">
             <button
-              id="register-verify-otp"
-              type="submit"
-              disabled={loading || otp.length !== 6}
-              className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+              type="button"
+              onClick={handleSendOtp}
+              disabled={loading || otpCooldown > 0}
+              className="text-xs text-orange-600 hover:text-orange-700 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed"
             >
-              {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-              Verify OTP
+              {otpCooldown > 0 ? `Resend OTP in ${otpCooldown}s` : "Resend OTP"}
             </button>
-          )}
+
+            <button
+              type="button"
+              onClick={() => { setStep("DETAILS"); setOtpSent(false); }}
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium hover:underline mt-1"
+            >
+              Change Mobile Number
+            </button>
+          </div>
         </form>
       )}
 
