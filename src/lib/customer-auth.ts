@@ -369,8 +369,11 @@ export async function createCustomerSession(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export class RateLimitExceededError extends Error {
-  constructor(public readonly action: string) {
-    super(`Rate limit exceeded for action: ${action}`);
+  constructor(
+    public readonly action: string,
+    public readonly waitTimeMs: number
+  ) {
+    super(`Rate limit exceeded for action: ${action}. Wait time: ${waitTimeMs}ms`);
     this.name = "RateLimitExceededError";
   }
 }
@@ -394,7 +397,15 @@ export async function checkRateLimit(
   });
 
   if (count >= maxEvents) {
-    throw new RateLimitExceededError(action);
+    // Find the oldest event in the active window
+    const oldestEvent = await prisma.rateLimitEvent.findFirst({
+      where: { scopeType, scopeKey, action, createdAtUtc: { gte: since } },
+      orderBy: { createdAtUtc: "asc" },
+      select: { createdAtUtc: true },
+    });
+    const oldestTime = oldestEvent ? oldestEvent.createdAtUtc.getTime() : since.getTime();
+    const waitTimeMs = Math.max(0, oldestTime + windowMs - Date.now());
+    throw new RateLimitExceededError(action, waitTimeMs);
   }
 
   // Record this event
@@ -406,11 +417,14 @@ export async function checkRateLimit(
 /** Check resend cooldown (60 seconds between OTP requests for same mobile) */
 export async function checkResendCooldown(mobile: string, action: "SEND_OTP_REGISTER" | "SEND_OTP_LOGIN" | "SEND_OTP_FORGOT_PIN"): Promise<void> {
   const since = new Date(Date.now() - 60 * 1000);
-  const recent = await prisma.rateLimitEvent.count({
+  const recentEvent = await prisma.rateLimitEvent.findFirst({
     where: { scopeType: "MOBILE", scopeKey: mobile, action, createdAtUtc: { gte: since } },
+    orderBy: { createdAtUtc: "desc" },
+    select: { createdAtUtc: true },
   });
-  if (recent > 0) {
-    throw new RateLimitExceededError(`${action}_COOLDOWN`);
+  if (recentEvent) {
+    const waitTimeMs = Math.max(0, recentEvent.createdAtUtc.getTime() + 60 * 1000 - Date.now());
+    throw new RateLimitExceededError(`${action}_COOLDOWN`, waitTimeMs);
   }
 }
 
@@ -556,4 +570,17 @@ export async function resolveAuthState(): Promise<CustomerAuthState> {
   }
 
   return { state: "ANONYMOUS" };
+}
+
+export function formatRateLimitWaitTime(ms: number): string {
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) {
+    return `${seconds} second${seconds !== 1 ? "s" : ""}`;
+  }
+  const minutes = Math.ceil(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  }
+  const hours = Math.ceil(minutes / 60);
+  return `${hours} hour${hours !== 1 ? "s" : ""}`;
 }

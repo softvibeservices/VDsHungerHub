@@ -9,6 +9,7 @@ import {
   setCustomerCookies,
   getClientIp,
   checkRateLimit,
+  formatRateLimitWaitTime,
 } from "@/lib/customer-auth";
 
 /**
@@ -103,8 +104,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ pinReset: true, loggedIn: true });
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
       return NextResponse.json(
-        { error: "Too many PIN reset attempts today. Try again tomorrow." },
+        { error: `Too many PIN reset attempts. Please try again after ${waitTime}.` },
         { status: 429 }
       );
     }

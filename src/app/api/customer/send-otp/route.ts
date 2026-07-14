@@ -6,6 +6,7 @@ import {
   checkResendCooldown,
   computeFingerprintHash,
   getClientIp,
+  formatRateLimitWaitTime,
 } from "@/lib/customer-auth";
 import { sendOtp } from "@/lib/message-central";
 
@@ -227,8 +228,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
       return NextResponse.json(
-        { error: "Too many OTP requests. Please wait before trying again." },
+        { error: `Too many OTP requests. Please try again after ${waitTime}.` },
         { status: 429 }
       );
     }

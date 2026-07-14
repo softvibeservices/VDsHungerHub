@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { checkRateLimit, getClientIp } from "@/lib/customer-auth";
+import { checkRateLimit, getClientIp, formatRateLimitWaitTime } from "@/lib/customer-auth";
 
 /**
  * GET /api/customer/registration/status?mobile=9825012345
@@ -108,8 +108,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ registrationStep: null, nextAction: "REGISTER" });
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
       return NextResponse.json(
-        { error: "Too many status checks. Please try again later." },
+        { error: `Too many status checks. Please try again after ${waitTime}.` },
         { status: 429 }
       );
     }

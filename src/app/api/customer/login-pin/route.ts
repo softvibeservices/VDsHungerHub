@@ -8,6 +8,7 @@ import {
   setCustomerCookies,
   checkRateLimit,
   getClientIp,
+  formatRateLimitWaitTime,
 } from "@/lib/customer-auth";
 
 /**
@@ -190,8 +191,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ loggedIn: true });
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
       return NextResponse.json(
-        { error: "Too many attempts from this IP. Please try again later." },
+        { error: `Too many attempts from this IP. Please try again after ${waitTime}.` },
         { status: 429 }
       );
     }

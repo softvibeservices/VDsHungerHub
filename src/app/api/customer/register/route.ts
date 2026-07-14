@@ -5,6 +5,7 @@ import {
   setDraftCookie,
   checkRateLimit,
   getClientIp,
+  formatRateLimitWaitTime,
 } from "@/lib/customer-auth";
 
 /**
@@ -134,8 +135,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
       return NextResponse.json(
-        { error: "Too many registration attempts. Please try again later." },
+        { error: `Too many registration attempts. Please try again after ${waitTime}.` },
         { status: 429 }
       );
     }
