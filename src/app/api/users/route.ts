@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search") ?? "";
     const companyId = searchParams.get("companyId") ?? "";
     const isVerifiedParam = searchParams.get("isVerified"); // "true" | "false" | null
+    const statusFilter = searchParams.get("status") ?? "";
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const skip = (page - 1) * limit;
@@ -14,6 +15,7 @@ export async function GET(req: NextRequest) {
     const where: Record<string, unknown> = {};
     if (companyId) where.companyId = companyId;
     if (isVerifiedParam !== null) where.isVerified = isVerifiedParam === "true";
+    if (statusFilter) where.status = statusFilter;
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -41,6 +43,9 @@ export async function GET(req: NextRequest) {
           longitude: true,
           companyId: true,
           createdAt: true,
+          status: true,
+          statusReason: true,
+          statusChangedAt: true,
           company: { select: { id: true, name: true } },
           _count: { select: { deviceFingerprints: true } },
         },

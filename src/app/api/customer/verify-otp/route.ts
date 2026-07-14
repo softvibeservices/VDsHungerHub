@@ -103,27 +103,59 @@ export async function POST(req: NextRequest) {
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: { company: { select: { id: true, status: true } } },
+        select: {
+          id: true,
+          companyId: true,
+          companyNameManual: true,
+          company: { select: { id: true, status: true } },
+        },
       });
 
       if (!user) {
         return NextResponse.json({ error: "Draft user not found" }, { status: 404 });
       }
 
-      // Transaction: verify user + confirm company if PENDING
+      // ── THIS IS THE CRITICAL MOMENT (§6.4):
+      // If the user typed a new company name (companyNameManual), create the Company
+      // row HERE — only now that OTP is verified — then link it and clear the field.
+      // This is what ensures "company name stored in DB only if user is verified."
+      let resolvedCompanyId = user.companyId;
+
+      if (user.companyNameManual && !user.companyId) {
+        // Check for existing company with same name (case-insensitive)
+        const existing = await prisma.company.findFirst({
+          where: { name: { equals: user.companyNameManual, mode: "insensitive" } },
+          select: { id: true },
+        });
+
+        if (existing) {
+          resolvedCompanyId = existing.id;
+        } else {
+          // Create the Company row now (OTP just verified — user is now confirmed)
+          const newCompany = await prisma.company.create({
+            data: {
+              name: user.companyNameManual,
+              status: "CONFIRMED", // will appear in admin Pending tab since isVerifiedByAdmin=false
+              addedByUserId: userId,
+              isVerifiedByAdmin: false,
+              isFlaggedFake: false,
+            },
+          });
+          resolvedCompanyId = newCompany.id;
+        }
+      }
+
+      // Transaction: verify user + link company + clear companyNameManual
       await prisma.$transaction([
         prisma.user.update({
           where: { id: userId },
-          data: { isVerified: true, verifiedAt: new Date() },
+          data: {
+            isVerified: true,
+            verifiedAt: new Date(),
+            companyId: resolvedCompanyId,
+            companyNameManual: null, // cleared once company row is created
+          },
         }),
-        ...(user.company.status === "PENDING"
-          ? [
-              prisma.company.update({
-                where: { id: user.company.id },
-                data: { status: "CONFIRMED", confirmedAtUtc: new Date() },
-              }),
-            ]
-          : []),
       ]);
 
       // Issue a short-lived pre-auth token to gate the set-pin step

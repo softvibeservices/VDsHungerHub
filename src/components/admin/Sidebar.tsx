@@ -11,6 +11,7 @@ import {
   ShoppingBag,
   LogOut,
   X,
+  Settings,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -22,6 +23,7 @@ const allNavItems = [
   { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
   { href: "/catalog", icon: ShoppingBasket, label: "Catalog", roles: ["ADMIN", "STAFF"] },
   { href: "/daily-menu", icon: CalendarDays, label: "Daily Menu", roles: ["ADMIN", "STAFF"] },
+  { href: "/settings/meal-cutoff", icon: Settings, label: "Cutoff Settings", roles: ["ADMIN", "STAFF"] },
 ];
 
 interface SidebarProps {

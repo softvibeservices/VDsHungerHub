@@ -42,6 +42,21 @@ export async function POST(req: NextRequest) {
     const ip = getClientIp(req);
     await checkRateLimit("IP", ip, "LOGIN_PIN_ATTEMPT", 60 * 60 * 1000, 20);
 
+    const userAgent = req.headers.get("user-agent") ?? "";
+    const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
+
+    // Device fingerprint blocking check
+    const blockedDevice = await prisma.deviceFingerprint.findFirst({
+      where: { fingerprintHash, isBlocked: true },
+      select: { blockedReason: true },
+    });
+    if (blockedDevice) {
+      return NextResponse.json(
+        { error: blockedDevice.blockedReason ?? "This device has been restricted.", code: "DEVICE_BLOCKED" },
+        { status: 403 }
+      );
+    }
+
     // ── Fetch user ────────────────────────────────────────────────────────────
     const user = await prisma.user.findFirst({
       where: { number: mobile, isVerified: true },
@@ -53,12 +68,21 @@ export async function POST(req: NextRequest) {
         pinFailedAttempts: true,
         pinLockedUntil: true,
         isActive: true,
+        status: true,
+        statusReason: true,
       },
     });
 
     if (!user || !user.isActive) {
       // Deliberately vague to prevent number enumeration
       return NextResponse.json({ error: "Invalid number or PIN" }, { status: 401 });
+    }
+
+    if (user.status !== "ACTIVE") {
+      return NextResponse.json(
+        { error: user.statusReason ?? `Account is ${user.status.toLowerCase()}.`, code: `USER_${user.status}` },
+        { status: 403 }
+      );
     }
 
     if (!user.pinHash) {
@@ -140,8 +164,7 @@ export async function POST(req: NextRequest) {
     });
 
     // ── Device fingerprint ────────────────────────────────────────────────────
-    const userAgent = req.headers.get("user-agent") ?? "";
-    const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
+    // fingerprintHash is already computed at the top of this route handler
 
     await prisma.deviceFingerprint.upsert({
       where: { userId_fingerprintHash: { userId: user.id, fingerprintHash } },

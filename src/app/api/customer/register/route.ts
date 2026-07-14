@@ -11,15 +11,21 @@ import {
  * POST /api/customer/register
  *
  * Step 1 of registration: collect name, addresses, company.
- * Creates an unverified User draft + optional PENDING Company.
- * Sets reg_draft cookie so the user can resume at the Verify tab.
+ *
+ * CRITICAL SPEC RULE (§6.2, §6.4):
+ * - If user picks a company from the dropdown (companyId), link it immediately
+ *   since dropdown-listed companies are already admin-verified — no fake-company risk.
+ * - If user types a NEW company name (newCompanyName), do NOT create a Company row
+ *   here. Store the text in User.companyNameManual only. The real Company row is
+ *   created in verify-otp (§6.4) only if/when OTP succeeds. This ensures the
+ *   company name only enters the DB if the user is verified.
  *
  * Body:
  *   fullName        string (2-80)
  *   workAddress     string (10-300)
  *   homeAddress?    string (10-300)
- *   companyId?      string
- *   newCompanyName? string
+ *   companyId?      string   — existing admin-verified company
+ *   newCompanyName? string   — typed company name (NOT created until OTP verify)
  *   deviceVisitorId string (from FingerprintJS)
  */
 export async function POST(req: NextRequest) {
@@ -67,83 +73,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (newCompanyName?.trim() && (newCompanyName.trim().length < 2 || newCompanyName.trim().length > 100)) {
+      return NextResponse.json(
+        { error: "Company name must be 2-100 characters" },
+        { status: 400 }
+      );
+    }
+
     // ── Device fingerprint ────────────────────────────────────────────────────
     const userAgent = req.headers.get("user-agent") ?? "";
     const ip = getClientIp(req);
     const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
 
-    // ── Rate limit: company creation (2 per device per day) ─────────────────
-    if (newCompanyName?.trim()) {
-      await checkRateLimit("DEVICE", fingerprintHash, "ADD_COMPANY", 24 * 60 * 60 * 1000, 2);
-    }
+    // ── Rate limit ────────────────────────────────────────────────────────────
+    await checkRateLimit("DEVICE", fingerprintHash, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 3);
+    await checkRateLimit("IP", ip, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 8);
 
-    // ── Transaction: create Company (if new) + User draft ───────────────────
-    let resolvedCompanyId = companyId;
-
-    if (newCompanyName?.trim()) {
-      // Check for existing (case-insensitive match)
-      const normalized = newCompanyName.trim().toLowerCase();
-      const existing = await prisma.company.findFirst({
-        where: { name: { equals: newCompanyName.trim(), mode: "insensitive" } },
-        select: { id: true, status: true },
-      });
-
-      if (existing) {
-        if (existing.status === "CONFIRMED") {
-          // Already confirmed company — just use it
-          resolvedCompanyId = existing.id;
-        } else {
-          // Pending duplicate — use the existing pending one
-          resolvedCompanyId = existing.id;
-        }
-      } else {
-        // Create new PENDING company (placeholder user ID, updated in transaction below)
-        const newCompany = await prisma.company.create({
-          data: {
-            name: newCompanyName.trim(),
-            status: "PENDING",
-          },
-        });
-        resolvedCompanyId = newCompany.id;
-      }
-    }
-
-    if (!resolvedCompanyId) {
-      return NextResponse.json({ error: "Company resolution failed" }, { status: 500 });
-    }
-
-    // Validate the chosen company exists and is CONFIRMED (if pre-existing)
+    // ── If companyId given — validate it exists and is admin-verified ─────────
     if (companyId) {
       const company = await prisma.company.findUnique({
         where: { id: companyId },
-        select: { id: true, status: true },
+        select: { id: true, isVerifiedByAdmin: true, isFlaggedFake: true, isActive: true },
       });
-      if (!company || company.status !== "CONFIRMED") {
+      if (!company || !company.isVerifiedByAdmin || company.isFlaggedFake || !company.isActive) {
         return NextResponse.json({ error: "Selected company is not available" }, { status: 400 });
       }
     }
 
-    // Create the User draft (isVerified=false, no mobile yet, no PIN)
+    // ── Create User draft (NO Company row for typed names — stored in companyNameManual) ──
     const draft = await prisma.user.create({
       data: {
         name: fullName.trim(),
         number: `DRAFT_${Date.now()}`, // temporary placeholder, replaced in send-otp
-        companyId: resolvedCompanyId,
+        companyId: companyId || null,
+        companyNameManual: newCompanyName?.trim() || null,
         workAddress: workAddress.trim(),
         homeAddress: homeAddress?.trim() || null,
         isVerified: false,
       },
     });
 
-    // If we created a new company, backfill addedByUserId
-    if (newCompanyName?.trim()) {
-      await prisma.company.update({
-        where: { id: resolvedCompanyId },
-        data: { addedByUserId: draft.id },
-      });
-    }
-
-    // Create untrusted DeviceFingerprint entry
+    // ── Device fingerprint upsert ─────────────────────────────────────────────
     await prisma.deviceFingerprint.upsert({
       where: { userId_fingerprintHash: { userId: draft.id, fingerprintHash } },
       update: { lastSeenAtUtc: new Date() },
@@ -155,7 +125,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Set reg_draft cookie (30-min httpOnly)
+    // ── Set reg_draft cookie (30-min httpOnly) ────────────────────────────────
     await setDraftCookie(draft.id);
 
     return NextResponse.json({
@@ -165,7 +135,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
       return NextResponse.json(
-        { error: "Too many company additions. Please try again later." },
+        { error: "Too many registration attempts. Please try again later." },
         { status: 429 }
       );
     }

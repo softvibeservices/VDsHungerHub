@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, use } from "react";
+import { useEffect, useState, use } from "react";
 import {
   UtensilsCrossed,
   Clock,
@@ -12,17 +12,11 @@ import {
   PackagePlus,
   CheckCircle2,
 } from "lucide-react";
-import {
-  RecaptchaVerifier,
-  signInWithPhoneNumber,
-  type ConfirmationResult,
-} from "firebase/auth";
-import { firebaseAuth } from "@/lib/firebase-client";
-import { getDeviceHash } from "@/lib/user-auth";
 import { formatCurrency } from "@/lib/utils";
 import { formatTimeIST } from "@/lib/time";
 import { toast } from "react-hot-toast";
-import OtpModal from "@/components/public/OtpModal";
+import AuthOverlay, { type AuthMode } from "@/components/customer/AuthOverlay";
+import AddressSheet from "@/components/customer/AddressSheet";
 import OrderConfirmModal from "@/components/public/OrderConfirmModal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -80,6 +74,12 @@ interface DailyMenu {
   sabjiOptions: DailyMenuSabjiOption[];
 }
 
+interface MealSettings {
+  cutoffTime: string;          // "HH:mm"
+  menuVisibleFrom: string;     // "HH:mm"
+  isOrderingOpen: boolean;
+}
+
 interface UserInfo {
   id: string;
   name: string;
@@ -90,10 +90,10 @@ interface UserInfo {
 type PageState =
   | "loading"
   | "not_found"
+  | "ordering_closed"
   | "cutoff_passed"
   | "menu"
-  | "phone_input"
-  | "otp_pending"
+  | "address"
   | "confirming"
   | "success";
 
@@ -103,27 +103,21 @@ interface PageProps {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const LOCAL_JWT_KEY = "vdh_user_jwt";
-
-function getStoredJwt(): string | null {
-  try {
-    return localStorage.getItem(LOCAL_JWT_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function storeJwt(token: string) {
-  try {
-    localStorage.setItem(LOCAL_JWT_KEY, token);
-  } catch {
-    /* ignore in SSR or private browsing */
-  }
-}
-
 function isCutoffPassed(cutoffTime: string | null | undefined): boolean {
   if (!cutoffTime) return false;
   return new Date() > new Date(cutoffTime);
+}
+
+/** Parse "HH:mm" (24h IST) and return a Date for today in IST */
+function parseISTTime(hhmm: string): Date {
+  const [hh, mm] = hhmm.split(":").map(Number);
+  // Get current date in IST
+  const now = new Date();
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(now.getTime() + istOffset);
+  istNow.setUTCHours(hh, mm, 0, 0);
+  // Convert back to UTC-equivalent
+  return new Date(istNow.getTime() - istOffset);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -135,24 +129,24 @@ export default function PublicMenuPage({ params }: PageProps) {
   const [pageState, setPageState] = useState<PageState>("loading");
   const [menu, setMenu] = useState<DailyMenu | null>(null);
   const [addOns, setAddOns] = useState<Product[]>([]);
+  const [mealSettings, setMealSettings] = useState<MealSettings | null>(null);
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
   // Selections
   const [selectedThaliId, setSelectedThaliId] = useState<string>("");
-  const [selectedSabjis, setSelectedSabjis] = useState<Record<string, string[]>>({}); // thaliId -> productIds
-  const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({}); // productId -> quantity
+  const [selectedSabjis, setSelectedSabjis] = useState<Record<string, string[]>>({});
+  const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({});
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
 
-  // OTP state
-  const [otpSending, setOtpSending] = useState(false);
-  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
-  const recaptchaContainerRef = useRef<HTMLDivElement>(null);
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  // Auth overlay state
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
 
   // Order state
   const [placingOrder, setPlacingOrder] = useState(false);
   const [placedOrderId, setPlacedOrderId] = useState<string>("");
 
-  // ─── Init: fetch menu + check auth ────────────────────────────────────────
+  // ─── Init: fetch menu + check session ────────────────────────────────────
   useEffect(() => {
     async function init() {
       const res = await fetch(`/api/public/menu/${slug}`);
@@ -163,36 +157,37 @@ export default function PublicMenuPage({ params }: PageProps) {
       const data = await res.json();
       const menuData: DailyMenu = data.menu;
       const addOnsData: Product[] = data.addOns ?? [];
+      const settings: MealSettings | null = data.mealSettings ?? null;
 
       setMenu(menuData);
       setAddOns(addOnsData);
+      setMealSettings(settings);
 
       if (menuData.thalis.length > 0) {
         setSelectedThaliId(menuData.thalis[0].thali.id);
       }
 
-      // Check cutoff (client-side display only; server enforces it too)
+      // Check global kill-switch
+      if (settings && !settings.isOrderingOpen) {
+        setPageState("ordering_closed");
+        return;
+      }
+
+      // Check cutoff (client-side display; server also enforces)
       if (isCutoffPassed(menuData.cutoffTime)) {
         setPageState("cutoff_passed");
         return;
       }
 
-      // Check stored JWT
-      const jwt = getStoredJwt();
-      if (jwt) {
-        const deviceHash = await getDeviceHash();
-        const meRes = await fetch(`/api/user-auth/me?deviceHash=${deviceHash}`, {
-          headers: { Authorization: `Bearer ${jwt}` },
-        });
+      // Check if user already has a valid session
+      try {
+        const meRes = await fetch("/api/customer/me");
         if (meRes.ok) {
           const me = await meRes.json();
-          if (!me.newDevice) {
-            setUserInfo(me);
-          }
-        } else {
-          // JWT invalid — clear it
-          localStorage.removeItem(LOCAL_JWT_KEY);
+          if (me.user) setUserInfo({ ...me.user, companyName: me.user.companyName ?? "" });
         }
+      } catch {
+        // No session — anonymous user
       }
 
       setPageState("menu");
@@ -256,147 +251,68 @@ export default function PublicMenuPage({ params }: PageProps) {
       return;
     }
     if (!validateSabjiSelection()) {
-      toast.error(
-        `Please select exactly ${selectedMenuThali.thali.sabjiCount} sabji(s)`
-      );
+      toast.error(`Please select exactly ${selectedMenuThali.thali.sabjiCount} sabji(s)`);
       return;
     }
-    if (userInfo) {
-      setPageState("confirming");
-    } else {
-      setPageState("phone_input");
-    }
-  }
-
-  // ─── Phone number submit ───────────────────────────────────────────────────
-  async function handlePhoneSubmit(phone: string) {
-    const normalized = phone.replace(/\D/g, "").slice(-10);
-
-    // Check if number is registered
-    const checkRes = await fetch("/api/user-auth/check-number", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ number: normalized }),
-    });
-    const checkData = await checkRes.json();
-
-    if (!checkData.found) {
-      const waNumber = process.env.NEXT_PUBLIC_ADMIN_WHATSAPP ?? "916356350086";
-      const waMsg = encodeURIComponent(
-        `Hi, I want to register for VD's Hunger Hub. My number is +91${normalized}`
-      );
-      window.open(`https://wa.me/${waNumber}?text=${waMsg}`, "_blank");
-      toast("Your number is not registered. Opening WhatsApp for you!", {
-        icon: "📱",
-        duration: 5000,
-      });
-      setPageState("menu");
+    if (!userInfo) {
+      // Open auth overlay
+      setShowAuth(true);
+      setAuthMode("login");
       return;
     }
-
-    // Number is registered — trigger OTP via Firebase
-    setOtpSending(true);
-    try {
-      if (!recaptchaVerifierRef.current && recaptchaContainerRef.current) {
-        recaptchaVerifierRef.current = new RecaptchaVerifier(
-          firebaseAuth,
-          recaptchaContainerRef.current,
-          { size: "invisible" }
-        );
-      }
-      const result = await signInWithPhoneNumber(
-        firebaseAuth,
-        `+91${normalized}`,
-        recaptchaVerifierRef.current!
-      );
-      setConfirmationResult(result);
-      setPageState("otp_pending");
-      toast.success("OTP sent to your number");
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("too-many-requests")) {
-        toast.error("Too many attempts. Please try again after a few minutes.");
-      } else {
-        toast.error("Could not send OTP. Please try again.");
-      }
-      setPageState("phone_input");
-    } finally {
-      setOtpSending(false);
-    }
+    // User authenticated — go to address selection
+    setPageState("address");
   }
 
-  // ─── OTP verify ───────────────────────────────────────────────────────────
-  async function handleOtpVerify(otp: string) {
-    if (!confirmationResult) return;
+  // Called when auth succeeds — refresh user info and continue to address
+  const handleAuthSuccess = async () => {
+    setShowAuth(false);
     try {
-      const credential = await confirmationResult.confirm(otp);
-      const idToken = await credential.user.getIdToken();
-      const deviceHash = await getDeviceHash();
-
-      const verifyRes = await fetch("/api/user-auth/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken, deviceHash }),
-      });
-
-      if (!verifyRes.ok) {
-        const contentType = verifyRes.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const err = await verifyRes.json();
-          toast.error(
-            err.details
-              ? `${err.error}: ${err.details}`
-              : (err.error ?? "Verification failed")
-          );
-        } else {
-          const rawText = await verifyRes.text();
-          console.error("Non-JSON error response from verify endpoint:", rawText);
-          toast.error(`Server error (${verifyRes.status}): Please check backend configuration/logs.`);
+      const meRes = await fetch("/api/customer/me");
+      if (meRes.ok) {
+        const me = await meRes.json();
+        if (me.user) {
+          setUserInfo({ ...me.user, companyName: me.user.companyName ?? "" });
+          toast.success(`Welcome, ${me.user.name}!`);
+          // Continue to address selection
+          setPageState("address");
         }
-        return;
       }
-
-      const contentType = verifyRes.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const rawText = await verifyRes.text();
-        console.error("Unexpected non-JSON success response:", rawText);
-        toast.error("Invalid response format from server.");
-        return;
-      }
-
-      const { token, user } = await verifyRes.json();
-      storeJwt(token);
-      setUserInfo(user);
-      toast.success(`Welcome, ${user.name}!`);
-      setPageState("confirming");
-    } catch (err: any) {
-      console.error("Firebase confirm OTP failed:", err);
-      toast.error(err instanceof Error ? `Error: ${err.message}` : "Incorrect OTP. Please try again.");
+    } catch {
+      toast.error("Could not load your profile. Please refresh.");
     }
-  }
+  };
+
+  // Called when address is confirmed
+  const handleAddressConfirmed = (addressId: string) => {
+    setSelectedAddressId(addressId);
+    setPageState("confirming");
+  };
 
   // ─── Confirm order ─────────────────────────────────────────────────────────
   async function handleConfirmOrder() {
-    if (!menu || !selectedThaliId || !userInfo) return;
+    if (!menu || !selectedMenuThali || !userInfo) return;
     setPlacingOrder(true);
 
-    const jwt = getStoredJwt();
     try {
-      const thaliId = selectedMenuThali?.thali.id ?? selectedThaliId;
-      const res = await fetch("/api/orders", {
+      const thaliId = selectedMenuThali.thali.id;
+      const res = await fetch("/api/customer/orders", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${jwt}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           menuId: menu.id,
-          thaliId,
-          selectedSabjiIds: selectedSabjis[thaliId] ?? [],
-          selectedAddons: Object.entries(selectedAddons).map(([productId, quantity]) => ({
-            productId,
+          thaliItems: [
+            {
+              thaliId,
+              sabjiProductId: (selectedSabjis[thaliId] ?? [])[0] ?? null,
+              quantity: 1,
+            },
+          ],
+          addonItems: Object.entries(selectedAddons).map(([addonProductId, quantity]) => ({
+            addonProductId,
             quantity,
           })),
+          addressId: selectedAddressId || undefined,
         }),
       });
 
@@ -404,7 +320,7 @@ export default function PublicMenuPage({ params }: PageProps) {
         const err = await res.json();
         toast.error(err.error ?? "Order failed");
         if (res.status === 409) {
-          setPageState("menu"); // already ordered
+          setPageState("menu");
         }
         return;
       }
@@ -441,9 +357,34 @@ export default function PublicMenuPage({ params }: PageProps) {
           </div>
           <h2 className="text-lg font-bold text-gray-900">Menu Unavailable</h2>
           <p className="text-sm text-gray-500">
-            This menu may have expired or hasn&apos;t been published yet. Please
-            check back later.
+            This menu may have expired or hasn&apos;t been published yet. Please check back later.
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (pageState === "ordering_closed") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-2xl border border-gray-200 p-8 text-center shadow-sm space-y-5">
+          <div className="w-16 h-16 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto">
+            <Lock className="text-orange-500" size={32} />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Ordering Temporarily Closed</h2>
+            <p className="text-sm text-gray-500 mt-2">
+              The admin has temporarily paused ordering. Please check back soon.
+            </p>
+          </div>
+          <a
+            href={`https://wa.me/${process.env.NEXT_PUBLIC_ADMIN_WHATSAPP ?? "916356350086"}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-3 rounded-xl text-sm transition-colors"
+          >
+            Contact Admin on WhatsApp
+          </a>
         </div>
       </div>
     );
@@ -457,16 +398,18 @@ export default function PublicMenuPage({ params }: PageProps) {
             <Lock className="text-red-500" size={32} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">
-              Ordering Closed
-            </h2>
+            <h2 className="text-xl font-bold text-gray-900">Ordering Closed</h2>
             <p className="text-sm text-gray-500 mt-2">
-              The cutoff time for today&apos;s menu has passed. Orders are no longer
-              accepted for this meal.
+              The cutoff time for today&apos;s menu has passed. Orders are no longer accepted for this meal.
             </p>
             {menu.cutoffTime && (
               <p className="text-xs text-red-500 font-semibold mt-2 flex items-center gap-1 justify-center">
                 <Clock size={12} /> Cutoff was at {formatTimeIST(menu.cutoffTime)}
+              </p>
+            )}
+            {mealSettings?.menuVisibleFrom && (
+              <p className="text-xs text-gray-400 mt-1">
+                Next ordering window opens at {mealSettings.menuVisibleFrom} IST
               </p>
             )}
           </div>
@@ -491,9 +434,7 @@ export default function PublicMenuPage({ params }: PageProps) {
             <CheckCircle2 className="text-green-500" size={40} />
           </div>
           <div>
-            <h2 className="text-2xl font-extrabold text-gray-900">
-              Order Placed! 🎉
-            </h2>
+            <h2 className="text-2xl font-extrabold text-gray-900">Order Placed! 🎉</h2>
             {userInfo && (
               <p className="text-sm text-gray-600 mt-1">
                 Hello <strong>{userInfo.name}</strong>, your order has been received.
@@ -532,15 +473,12 @@ export default function PublicMenuPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50/50 pt-6 pb-24 px-4 sm:py-8 sm:px-4 md:px-6">
-      {/* Invisible reCAPTCHA container — required by Firebase */}
-      <div ref={recaptchaContainerRef} id="recaptcha-container" />
-
       <div className="max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
-          
+
           {/* Left Column: Selection controls */}
           <div className="md:col-span-2 space-y-4">
-            
+
             {/* Combined Header Card */}
             <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 pb-3">
@@ -590,16 +528,17 @@ export default function PublicMenuPage({ params }: PageProps) {
                   <div className="flex items-center gap-1.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     <span>
-                      Welcome, <strong className="text-gray-800">{userInfo.name}</strong> ({userInfo.companyName})
+                      Welcome, <strong className="text-gray-800">{userInfo.name}</strong>
+                      {userInfo.companyName && ` (${userInfo.companyName})`}
                     </span>
                   </div>
                   <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded border border-emerald-200">
-                    Registered Active
+                    Logged In
                   </span>
                 </div>
               ) : (
-                <div className="text-[10px] text-gray-405 italic">
-                  * Please select your meal options below to place your order.
+                <div className="text-[10px] text-gray-400 italic">
+                  * Please select your meal options below and tap &quot;Place Order&quot; to sign in.
                 </div>
               )}
             </div>
@@ -733,10 +672,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                             }`}
                           >
                             {isChecked && (
-                              <CheckCircle
-                                size={11}
-                                className="text-white fill-white"
-                              />
+                              <CheckCircle size={11} className="text-white fill-white" />
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -897,6 +833,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                   md:px-0 md:pb-0 md:pt-0 md:bg-transparent md:border-t-0 md:shadow-none md:backdrop-blur-none
                 ">
                   <button
+                    id="place-order-btn"
                     onClick={handlePlaceOrder}
                     disabled={!canOrder || cutoffExpired}
                     className={`w-full py-4 rounded-xl font-bold text-sm transition-all duration-200 shadow-sm cursor-pointer ${
@@ -911,7 +848,7 @@ export default function PublicMenuPage({ params }: PageProps) {
                       ? `Select ${selectedMenuThali.thali.sabjiCount} sabji(s) to continue`
                       : userInfo
                       ? "Place Order →"
-                      : "Place Order — Verify to Continue →"}
+                      : "Place Order — Sign In to Continue →"}
                   </button>
                 </div>
               </>
@@ -920,13 +857,21 @@ export default function PublicMenuPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* OTP Flow Modal */}
-      {(pageState === "phone_input" || pageState === "otp_pending") && (
-        <OtpModal
-          state={pageState}
-          onPhoneSubmit={handlePhoneSubmit}
-          onOtpVerify={handleOtpVerify}
-          otpSending={otpSending}
+      {/* Auth Overlay — opens when unauthenticated user taps Place Order */}
+      {showAuth && (
+        <AuthOverlay
+          mode={authMode}
+          onModeChange={setAuthMode}
+          onSuccess={handleAuthSuccess}
+          onClose={() => setShowAuth(false)}
+          title="Sign in to place your order"
+        />
+      )}
+
+      {/* Address selection sheet */}
+      {pageState === "address" && (
+        <AddressSheet
+          onConfirm={handleAddressConfirmed}
           onClose={() => setPageState("menu")}
         />
       )}

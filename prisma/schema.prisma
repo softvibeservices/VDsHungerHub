@@ -59,46 +59,100 @@ model Company {
   // New fields for customer self-registration
   status         CompanyStatus @default(CONFIRMED) // CONFIRMED for admin-created, PENDING for customer-created
   addedByUserId  String?       // which User's registration triggered creation
+  addedByUser    User?         @relation("CompanyAddedBy", fields: [addedByUserId], references: [id])
   confirmedAtUtc DateTime?     // when status flipped to CONFIRMED
+  isVerifiedByAdmin Boolean   @default(false)
+  isFlaggedFake     Boolean   @default(false)
+  flaggedReason     String?
   users          User[]
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
+}
+
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+  BANNED
+}
+
+// -----------------------------------------
+// ADDRESS TYPE
+// -----------------------------------------
+enum AddressType {
+  WORK
+  HOME
 }
 
 // -----------------------------------------
 // USERS (Tiffin Customers)
 // -----------------------------------------
 model User {
-  id         String  @id @default(cuid())
+  id         String   @id @default(cuid())
   name       String
-  number     String  @unique // WhatsApp number -- used as PK for ordering
-  company    Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  companyId  String
-  isActive   Boolean @default(true)
+  number     String   @unique // WhatsApp number -- used as PK for ordering
+  company    Company? @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  companyId  String?  // null until OTP verified (company created in verify-otp step)
+  isActive   Boolean  @default(true)
 
-  // New: customer self-registration fields
+  // Customer self-registration fields
   workAddress       String?
   homeAddress       String?
   isVerified        Boolean   @default(false) // false until OTP verified
   verifiedAt        DateTime?
 
-  // New: PIN-based login
+  // companyNameManual: typed company name held here until OTP verification succeeds.
+  // At OTP verify time this is converted to a real Company row and cleared.
+  // NEVER persisted as a Company row while the user is still unverified.
+  companyNameManual String?
+
+  // PIN-based login
   pinHash           String?   // bcrypt hash of 6-digit PIN, null until set
   pinFailedAttempts Int       @default(0)
   pinLockedUntil    DateTime?
 
-  // New: admin-only geolocation (never sent to customer API)
+  // Admin-only geolocation (never sent to customer API)
   latitude  Float?
   longitude Float?
+
+  // Block/Ban features
+  status            UserStatus @default(ACTIVE)
+  statusReason      String?
+  statusChangedAt   DateTime?
+  banHistory        BanHistory[]
+  companiesAdded    Company[]  @relation("CompanyAddedBy")
 
   devices            UserDevice[]
   deviceFingerprints DeviceFingerprint[]
   sessions           CustomerSession[]
   orders             Order[]
+  addresses          Address[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
   @@index([isVerified])
+  @@index([status])
+  @@index([companyId])
+}
+
+// -----------------------------------------
+// ADDRESS (user delivery addresses)
+// -----------------------------------------
+model Address {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AddressType
+  line1     String
+  line2     String?
+  landmark  String?
+  city      String?
+  pincode   String?
+  isDefault Boolean     @default(false)
+  orders    Order[]
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([userId])
 }
 
 // -----------------------------------------
@@ -284,9 +338,12 @@ model DeviceFingerprint {
   firstSeenAtUtc  DateTime @default(now())
   lastSeenAtUtc   DateTime @updatedAt
   isTrusted       Boolean  @default(false) // true after first successful full login
+  isBlocked       Boolean  @default(false)
+  blockedReason   String?
 
   @@unique([userId, fingerprintHash])
   @@index([fingerprintHash])
+  @@index([isBlocked])
 }
 
 // -----------------------------------------
@@ -388,6 +445,9 @@ model Order {
   menu         DailyMenu   @relation(fields: [menuId], references: [id], onDelete: Restrict)
   thaliId      String
   thali        Thali       @relation(fields: [thaliId], references: [id], onDelete: Restrict)
+  // Delivery address (nullable for backwards compat with existing orders)
+  addressId    String?
+  address      Address?    @relation(fields: [addressId], references: [id], onDelete: SetNull)
   selectedSabji  OrderSabji[]
   selectedAddons OrderAddon[]
   // Multi-thali support (new)
@@ -461,4 +521,46 @@ model OrderAddonItem {
 enum MealType {
   LUNCH
   DINNER
+}
+
+// -----------------------------------------
+// BAN HISTORY (audit trail)
+// -----------------------------------------
+model BanHistory {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action          String    // "BLOCKED" | "UNBLOCKED" | "BANNED" | "UNBANNED"
+  reason          String?
+  actedByStaffId  String    // AppUser ID
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// -----------------------------------------
+// ADMIN AUDIT LOG
+// -----------------------------------------
+model AdminAuditLog {
+  id              String   @id @default(cuid())
+  actedByStaffId  String
+  action          String   // "COMPANY_VERIFIED" | "COMPANY_FLAGGED_FAKE" | "MEAL_SETTINGS_UPDATED"
+  targetType      String   // "Company" | "MealSettings" | "User" | "Device"
+  targetId        String
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([targetType, targetId])
+}
+
+// -----------------------------------------
+// MEAL SETTINGS (global default configs)
+// -----------------------------------------
+model MealSettings {
+  id               String    @id @default(cuid())
+  mealType         MealType  @unique
+  cutoffTime       String    // "10:30" 24h local time (IST)
+  menuVisibleFrom  String    // "18:00"
+  isOrderingOpen   Boolean   @default(true)
+  updatedAt        DateTime  @updatedAt
 }

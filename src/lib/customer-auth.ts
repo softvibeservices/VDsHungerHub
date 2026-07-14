@@ -216,7 +216,21 @@ export async function resolveCustomerAuthState(
   if (accessToken) {
     const claims = verifyCustomerAccessToken(accessToken);
     if (claims) {
-      return { state: "VERIFIED_SESSION", userId: claims.sub, fph: claims.fph };
+      // Check user status
+      const user = await prisma.user.findUnique({
+        where: { id: claims.sub },
+        select: { status: true },
+      });
+      const blockedDevice = await prisma.deviceFingerprint.findFirst({
+        where: { fingerprintHash: claims.fph, isBlocked: true },
+      });
+      if (user && user.status === "ACTIVE" && !blockedDevice) {
+        return { state: "VERIFIED_SESSION", userId: claims.sub, fph: claims.fph };
+      } else {
+        // Clear cookies to force logout if blocked/banned
+        await clearCustomerCookies();
+        return { state: "ANONYMOUS" };
+      }
     }
   }
 
@@ -448,4 +462,54 @@ export function getClientIp(req: NextRequest): string {
     req.headers.get("x-real-ip") ??
     "unknown"
   );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Block & Ban Checker Helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function checkUserAndDeviceStatus(
+  userId: string,
+  fingerprintHash?: string
+): Promise<{ allowed: boolean; code?: string; message?: string }> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { status: true, statusReason: true },
+  });
+
+  if (!user) {
+    return { allowed: false, code: "USER_NOT_FOUND", message: "User not found" };
+  }
+
+  if (user.status === "BLOCKED") {
+    return {
+      allowed: false,
+      code: "USER_BLOCKED",
+      message: user.statusReason ?? "Your account is temporarily restricted.",
+    };
+  }
+
+  if (user.status === "BANNED") {
+    return {
+      allowed: false,
+      code: "USER_BANNED",
+      message: user.statusReason ?? "Your account is permanently restricted.",
+    };
+  }
+
+  if (fingerprintHash) {
+    const blockedDevice = await prisma.deviceFingerprint.findFirst({
+      where: { fingerprintHash, isBlocked: true },
+      select: { blockedReason: true },
+    });
+    if (blockedDevice) {
+      return {
+        allowed: false,
+        code: "DEVICE_BLOCKED",
+        message: blockedDevice.blockedReason ?? "This device has been restricted.",
+      };
+    }
+  }
+
+  return { allowed: true };
 }

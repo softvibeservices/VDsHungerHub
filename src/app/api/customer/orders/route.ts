@@ -6,6 +6,7 @@ import {
   DEFAULT_MAX_THALI,
   DEFAULT_MAX_ADDON,
   CUSTOMER_ACCESS_COOKIE,
+  checkUserAndDeviceStatus,
 } from "@/lib/customer-auth";
 
 /**
@@ -34,6 +35,15 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = claims.sub;
+
+    // Check user and device status
+    const statusCheck = await checkUserAndDeviceStatus(userId, claims.fph);
+    if (!statusCheck.allowed) {
+      return NextResponse.json(
+        { error: statusCheck.message, code: statusCheck.code },
+        { status: 403 }
+      );
+    }
 
     // ── Fetch verified, active user ───────────────────────────────────────────
     const user = await prisma.user.findUnique({
@@ -106,7 +116,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Menu not found" }, { status: 404 });
     }
 
-    if (menu.cutoffTime && new Date() > new Date(menu.cutoffTime)) {
+    // Fetch global meal settings
+    const settings = await prisma.mealSettings.findUnique({
+      where: { mealType: menu.mealType },
+    });
+
+    if (settings && !settings.isOrderingOpen) {
+      return NextResponse.json(
+        { error: "Ordering is temporarily closed by the administrator." },
+        { status: 403 }
+      );
+    }
+
+    let activeCutoff = menu.cutoffTime;
+    if (!activeCutoff && settings && settings.cutoffTime) {
+      const [hours, minutes] = settings.cutoffTime.split(":").map(Number);
+      const combined = new Date(menu.date);
+      combined.setHours(hours, minutes, 0, 0);
+      activeCutoff = combined;
+    }
+
+    if (activeCutoff && new Date() > new Date(activeCutoff)) {
       return NextResponse.json(
         { error: "Ordering cutoff time has passed." },
         { status: 400 }
@@ -265,6 +295,15 @@ export async function GET(req: NextRequest) {
     const claims = verifyCustomerAccessToken(token);
     if (!claims) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check user and device status
+    const statusCheck = await checkUserAndDeviceStatus(claims.sub, claims.fph);
+    if (!statusCheck.allowed) {
+      return NextResponse.json(
+        { error: statusCheck.message, code: statusCheck.code },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = req.nextUrl;

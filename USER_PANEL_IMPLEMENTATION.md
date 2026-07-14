@@ -1,643 +1,1046 @@
-# VD's Hunger Hub — Customer Registration, OTP/PIN Auth, Device Anti-Abuse & Multi-Thali Ordering
-## Complete Implementation Plan
+# TiffinOS — Public Ordering, Auth (OTP+PIN), and Admin Control
+## Complete Implementation Plan (v3)
+
+> **How to use this file:** This is a self-contained engineering spec. Every section has enough concrete detail (schema, endpoint contracts, validation numbers, state flows) that it can be fed directly to an LLM (Claude Code, Cursor, etc.) one section at a time, or top-to-bottom, to generate the actual implementation. Where the plan assumes something about the existing codebase that wasn't specified in the requirements doc, it's flagged with `⚠️ ASSUMPTION`.
 
 ---
 
-### How to use this document
-This plan is written to be handed to any developer (or AI coding tool) and implemented section by section. Model names, field names, and file paths follow your existing conventions (`AppUser` for admin/staff, Next.js App Router, Prisma/PostgreSQL, JWT-based sessions, UTC storage + IST display utility). Your live schema/route files weren't attached to this conversation, so I've introduced a distinct `Customer` model to avoid clashing with your admin/staff `AppUser` table — **rename to match whatever your existing customer-facing user model is actually called** (you referenced it as `User` in your OTP research). If you paste or upload `schema.prisma` and your current `src/app/api/auth/` routes in a follow-up, I can convert this into an exact diff against your real files.
+## Table of Contents
 
-**Requirement → Section map** (so you can verify all 13 points are covered):
-
-| # | Requirement | Covered in |
-|---|---|---|
-| 1 | Mandatory registration before ordering; added to admin Customer List | §4, §5.1, §13 |
-| 2 | Cost/abuse control on OTP (IT-crowd prank risk), long-lived JWT | §7, §9, §10 |
-| 3 | Registration form: name, work/home address, company dropdown + add-new | §5.1, §11 |
-| 4 | Mobile + OTP verification gate before company shows in dashboard | §5.2, §11 |
-| 5 | 6-digit PIN creation after verification | §5.3, §9 |
-| 6 | Device fingerprint storage + strict abuse prevention everywhere | §6, §7 |
-| 7 | 3 dashboard states: Login / Register / Verify, all strictly rate-limited | §4, §13 |
-| 8 | Only verified users can order / enter site | §4, §5.4 |
-| 9 | Single `/menu` URL replacing scattered menu pages | §13 |
-| 10 | Multi-thali ordering, per-thali sabji choice, max 10 per mobile | §12 |
-| 11 | Add-ons max 30, both limits configurable | §12 |
-| 12 | New-device flow: PIN or OTP login + Forgot PIN | §5.5, §9, §10 |
-| 13 | Hidden lat/long fields, admin-only, for staff navigation | §2, §14 |
-
----
-
-## 1. High-Level Architecture Change Summary
-
-**Before:** Firebase OTP for customers → ad-hoc check-then-send → single thali per order → menu spread across multiple pages → no PIN, no device tracking, no company directory.
-
-**After:**
-- Message Central VerifyNow replaces Firebase for customer OTP (per your existing research — kept as-is here, see reference notes for provider setup).
-- Registration is mandatory and gated: **Details → Mobile+OTP → PIN** is a strict linear funnel; nothing after step 1 is optional.
-- A `Customer` record is created (unverified) the moment step 1 is submitted, so it appears in the admin Customer List immediately (satisfies #1) — but the associated `Company` stays `PENDING` and invisible in the dashboard/dropdown until OTP verification succeeds (satisfies #4). This reconciliation is intentional: it lets admins see registration attempts while still preventing prank/garbage company names from cluttering the dashboard.
-- Every customer-facing auth action is rate-limited on three independent axes: mobile number, IP address, and device fingerprint.
-- Sessions use short-lived access JWTs + long-lived, rotating, device-bound refresh tokens (mirrors the 100-day persistence pattern you already use for Admin/Staff).
-- One canonical `/menu` route renders the full experience; auth state (anonymous / draft-pending-verification / verified) is resolved server-side on that same route and swaps in the right UI slice.
+1. [Scope & Assumptions](#1-scope--assumptions)
+2. [High-Level Architecture](#2-high-level-architecture)
+3. [Database Schema (Prisma)](#3-database-schema-prisma)
+4. [Rate Limiting & Abuse Prevention](#4-rate-limiting--abuse-prevention)
+5. [Device Fingerprinting & Device Binding](#5-device-fingerprinting--device-binding)
+6. [Authentication & Onboarding Flow](#6-authentication--onboarding-flow)
+7. [Company Directory & Moderation](#7-company-directory--moderation)
+8. [Public Menu, Cutoff Time & Visibility Window](#8-public-menu-cutoff-time--visibility-window)
+9. [Order Placement Flow](#9-order-placement-flow)
+10. [Order Status Tracking (User Side)](#10-order-status-tracking-user-side)
+11. [Admin Panel — User Management & Banning](#11-admin-panel--user-management--banning)
+12. [Admin Panel — Company Moderation](#12-admin-panel--company-moderation)
+13. [Admin Panel — Meal Settings / Cutoff](#13-admin-panel--meal-settings--cutoff)
+14. [Complete API Route Map](#14-complete-api-route-map)
+15. [Frontend Route Map & Single-URL Navigation](#15-frontend-route-map--single-url-navigation)
+16. [Component Architecture & Responsive UI (Zomato-style)](#16-component-architecture--responsive-ui-zomato-style)
+17. [Validation Rules — Master Reference](#17-validation-rules--master-reference)
+18. [Security Checklist](#18-security-checklist)
+19. [Error Codes Reference](#19-error-codes-reference)
+20. [Day-wise Implementation Plan](#20-day-wise-implementation-plan)
+21. [Open Questions Log](#21-open-questions-log)
 
 ---
 
-## 2. Database Schema Changes (Prisma)
+## 1. Scope & Assumptions
 
-Add the following to `schema.prisma`. Field/model names are illustrative — align to your actual naming.
+This plan covers three connected feature sets for the TiffinOS customer-facing (public) side:
+
+1. **Auth**: mobile+OTP registration, 6-digit PIN login, forgot-PIN, resume/verify-account, strict multi-layer rate limiting, device fingerprinting, admin blocking/banning.
+2. **Ordering**: thali builder (max 10/order, per-thali sabji selection), add-ons (max 30/order), address selection (work default + optional home), order status tracking.
+3. **Admin controls**: user block/ban (ban reversible only by admin role), company directory moderation (fake company detection), meal cutoff time + menu visibility window configuration.
+
+**Stack** (per existing project): Next.js 14+ App Router, TypeScript, Tailwind CSS, Prisma + PostgreSQL, existing bilingual (English/Gujarati) catalog schema, existing `useSabjiPicker` hook and `/catalog` hub, WhatsApp/Baileys bridge running separately (out of scope here — this plan is the *website* ordering path).
+
+**⚠️ ASSUMPTIONS made in this plan** (also repeated in §21):
+
+- An `Order`/menu-item/`Sabji` catalog schema already exists from the V2 work. This plan **extends** it rather than replacing it — treat the `Order`-related models below as "reconcile with existing models," not "create from scratch."
+- Staff/Admin auth (login for the admin panel) already exists as a separate model from the customer `User` model. This plan references it as `actedByStaffId: String` (a plain FK string) rather than redefining it.
+- The public menu URL structure was recently changed and isn't specified. This plan uses `/menu/[date]/[mealType]` as the canonical pattern going forward — swap in whatever the current live pattern is; the auth-gating and visibility-window logic underneath is pattern-agnostic.
+- SMS OTP provider is MessageCentral (per prior context) — cost-per-SMS is a real constraint, which is why the rate-limiting numbers below are deliberately strict.
+- "Add-on items maximum 30 per number" is interpreted as **total add-on quantity ≤ 30 per order** (not 30 distinct SKUs). Flagged in §21 for confirmation — the validation constant is centralized in one place so this is a one-line change either way.
+
+---
+
+## 2. High-Level Architecture
+
+```mermaid
+flowchart LR
+    subgraph Public["Public Website (no auth)"]
+        A[/menu/date/mealType/]
+    end
+    subgraph AuthLayer["Auth Modal Layer (overlay, no navigation)"]
+        B[Login]
+        C[Register]
+        D[OTP Verify]
+        E[PIN Setup / PIN Login]
+        F[Forgot PIN]
+    end
+    subgraph Guarded["Authenticated Customer Area"]
+        G[Order Builder]
+        H[Address Selector]
+        I[Order Status]
+    end
+    subgraph AdminPanel["Admin Panel (staff/admin auth)"]
+        J[User Management]
+        K[Company Moderation]
+        L[Meal Cutoff Settings]
+    end
+    subgraph RateLimit["Rate Limit + Device Fingerprint Layer"]
+        RL[(Redis / Postgres counters)]
+    end
+
+    A -- "Place Order clicked, no session" --> B
+    B -.-> C
+    C --> D --> E
+    F --> D
+    E --> G
+    A --> G
+    G --> H --> I
+    J -.blocks/bans.-> RL
+    RL -.guards.-> B
+    RL -.guards.-> C
+    RL -.guards.-> D
+    RL -.guards.-> F
+    K -.feeds dropdown.-> C
+    L -.gates ordering window.-> A
+```
+
+**Key architectural decision**: the auth flow is a **modal/bottom-sheet overlay on top of the public menu page**, not a set of separate redirect pages. The user never leaves `/menu/[date]/[mealType]`. See §15 for the routing mechanics.
+
+---
+
+## 3. Database Schema (Prisma)
+
+Add the following models/enums. Field names use `camelCase` to match the existing project convention. Adjust `@relation` names if they collide with existing relations in your schema.
 
 ```prisma
-// ---------- Customer-facing identity ----------
+// ============================================================
+// CUSTOMER IDENTITY
+// ============================================================
 
-model Customer {
-  id                 String    @id @default(cuid())
-  fullName           String
-  mobile             String    @unique          // stored as 10-digit, no country code
-  workAddress        String                       // required
-  homeAddress        String?                      // optional
-  companyId          String
-  company            Company   @relation(fields: [companyId], references: [id])
+enum RegistrationStep {
+  DETAILS_SUBMITTED   // name/address/company/mobile captured, nothing verified yet
+  OTP_VERIFIED        // mobile confirmed via OTP, PIN not set yet
+  PIN_SET             // fully onboarded
+}
 
-  pinHash            String?                      // null until step 3 completed
-  pinFailedAttempts  Int       @default(0)
-  pinLockedUntil     DateTime?
+enum UserStatus {
+  ACTIVE
+  BLOCKED   // soft restriction, admin-reversible by any admin/staff with permission
+  BANNED    // hard restriction, reversible ONLY by ADMIN role (see §11)
+}
 
-  isVerified         Boolean   @default(false)
-  verifiedAt         DateTime?
+model User {
+  id                String            @id @default(cuid())
+  name              String
+  mobile            String            @unique
+  pinHash           String?           // bcrypt hash, null until PIN_SET
+  profession        String?
+  registrationStep  RegistrationStep  @default(DETAILS_SUBMITTED)
+  isVerified        Boolean           @default(false) // true once OTP_VERIFIED reached
 
-  // Hidden from customer UI entirely — admin-editable only (Req #13)
-  latitude           Float?
-  longitude          Float?
+  companyId         String?
+  company           Company?          @relation("CompanyMembers", fields: [companyId], references: [id])
+  companiesAdded    Company[]         @relation("CompanyAddedBy")
+  companyNameManual String?           // holding field ONLY — see §6.2/§6.4. A typed (non-dropdown)
+                                       // company name lives here, NOT as a Company row, until OTP
+                                       // verification succeeds. This is what makes "store company
+                                       // name in DB only if user is verified" literally true.
 
-  createdAtUtc       DateTime  @default(now())
-  updatedAtUtc       DateTime  @updatedAt
+  addresses         Address[]
+  orders            Order[]
+  deviceLinks       UserDevice[]
+  banHistory        BanHistory[]
 
-  deviceFingerprints DeviceFingerprint[]
-  sessions           CustomerSession[]
-  orders             Order[]
+  status            UserStatus        @default(ACTIVE)
+  statusReason      String?
+  statusChangedAt   DateTime?
 
-  @@index([isVerified])
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([status])
+  @@index([companyId])
+}
+
+enum AddressType {
+  WORK
+  HOME
+}
+
+model Address {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id])
+  type       AddressType
+  line1      String
+  line2      String?
+  landmark   String?
+  city       String?
+  pincode    String?
+  isDefault  Boolean     @default(false)
+  orders     Order[]
+  createdAt  DateTime    @default(now())
+
+  @@index([userId])
 }
 
 model Company {
-  id                String        @id @default(cuid())
-  name              String        @unique
-  status            CompanyStatus @default(PENDING)
-  addedByCustomerId String?
-  createdAtUtc      DateTime      @default(now())
-  confirmedAtUtc    DateTime?
-  customers         Customer[]
+  id                String    @id @default(cuid())
+  name              String    @unique
+  addedById         String?
+  addedBy           User?     @relation("CompanyAddedBy", fields: [addedById], references: [id])
+  members           User[]    @relation("CompanyMembers")
+  isVerifiedByAdmin Boolean   @default(false)
+  isFlaggedFake     Boolean   @default(false)
+  flaggedReason     String?
+  createdAt         DateTime  @default(now())
+
+  @@index([isVerifiedByAdmin])
+  @@index([isFlaggedFake])
 }
 
-enum CompanyStatus {
-  PENDING    // not yet shown in dropdown or admin dashboard
-  CONFIRMED  // visible everywhere, once the adding customer verifies OTP
-}
+// ============================================================
+// DEVICE FINGERPRINTING (see §5 for the client-side strategy)
+// ============================================================
 
-// ---------- Device fingerprinting ----------
+model Device {
+  id              String        @id @default(cuid())
+  cookieId        String        @unique // first-party long-lived cookie UUID (primary key for matching)
+  fingerprintHash String?       // sha256 of FingerprintJS visitorId, secondary signal
+  lastKnownIp     String?
+  userAgent       String?
+  isBlocked       Boolean       @default(false)
+  blockedReason   String?
+  firstSeenAt     DateTime      @default(now())
+  lastSeenAt      DateTime      @updatedAt
+  userLinks       UserDevice[]
+  otpAttempts     OtpAttempt[]
+  loginAttempts   LoginAttempt[]
 
-model DeviceFingerprint {
-  id              String   @id @default(cuid())
-  customerId      String
-  customer        Customer @relation(fields: [customerId], references: [id])
-  fingerprintHash String              // sha256(clientVisitorId + serverSalt)
-  userAgent       String
-  ipAtFirstSeen   String
-  firstSeenAtUtc  DateTime @default(now())
-  lastSeenAtUtc   DateTime @updatedAt
-  isTrusted       Boolean  @default(false)  // becomes true after first successful full login
-
-  @@unique([customerId, fingerprintHash])
   @@index([fingerprintHash])
+  @@index([isBlocked])
 }
 
-// ---------- OTP bridge table (works with any provider incl. Message Central) ----------
+model UserDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceId    String
+  device      Device   @relation(fields: [deviceId], references: [id])
+  linkedAt    DateTime @default(now())
+  lastUsedAt  DateTime @updatedAt
 
-model OtpVerification {
-  id             String    @id @default(cuid())
-  mobile         String
-  purpose        OtpPurpose
-  verificationId String              // returned by the OTP provider's "send" call
-  customerId     String?             // linked once a Customer draft exists
-  attempts       Int       @default(0)
-  expiresAtUtc   DateTime
-  consumedAtUtc  DateTime?
-  createdAtUtc   DateTime  @default(now())
-
-  @@index([mobile, purpose])
+  @@unique([userId, deviceId])
 }
+
+// ============================================================
+// OTP / RATE-LIMIT AUDIT TRAIL
+// (Redis holds the live counters; these tables are the permanent
+//  audit log + fallback if Redis isn't provisioned — see §4)
+// ============================================================
 
 enum OtpPurpose {
-  REGISTER
-  LOGIN
+  REGISTRATION
   FORGOT_PIN
+  RESUME_VERIFY
 }
 
-// ---------- Sessions (customer JWT refresh tokens) ----------
+model OtpAttempt {
+  id            String     @id @default(cuid())
+  mobile        String
+  deviceId      String?
+  device        Device?    @relation(fields: [deviceId], references: [id])
+  ip            String
+  purpose       OtpPurpose
+  otpHash       String
+  expiresAt     DateTime
+  consumedAt    DateTime?
+  wrongGuesses  Int        @default(0)
+  createdAt     DateTime   @default(now())
 
-model CustomerSession {
-  id                    String    @id @default(cuid())
-  customerId            String
-  customer              Customer  @relation(fields: [customerId], references: [id])
-  refreshTokenHash      String    @unique   // never store the raw token
-  deviceFingerprintHash String
-  createdAtUtc          DateTime  @default(now())
-  expiresAtUtc          DateTime            // now + 100 days, matches Admin/Staff pattern
-  revokedAtUtc          DateTime?
-  replacedBySessionId   String?             // set on rotation, enables reuse detection
-
-  @@index([customerId])
+  @@index([mobile, createdAt])
+  @@index([ip, createdAt])
+  @@index([deviceId, createdAt])
 }
 
-// ---------- Rate limiting ledger ----------
+model LoginAttempt {
+  id          String   @id @default(cuid())
+  mobile      String
+  deviceId    String?
+  device      Device?  @relation(fields: [deviceId], references: [id])
+  ip          String
+  success     Boolean
+  createdAt   DateTime @default(now())
 
-model RateLimitEvent {
-  id         String   @id @default(cuid())
-  scopeType  RateLimitScope
-  scopeKey   String              // the mobile / ip / fingerprintHash value
-  action     RateLimitAction
-  createdAtUtc DateTime @default(now())
-
-  @@index([scopeType, scopeKey, action, createdAtUtc])
+  @@index([mobile, createdAt])
+  @@index([deviceId, createdAt])
+  @@index([ip, createdAt])
 }
 
-enum RateLimitScope {
-  MOBILE
-  IP
-  DEVICE
+// ============================================================
+// BAN / MODERATION AUDIT
+// ============================================================
+
+enum BanAction {
+  BLOCKED
+  UNBLOCKED
+  BANNED
+  UNBANNED
 }
 
-enum RateLimitAction {
-  SEND_OTP_REGISTER
-  SEND_OTP_LOGIN
-  SEND_OTP_FORGOT_PIN
-  VERIFY_OTP
-  LOGIN_PIN_ATTEMPT
-  ADD_COMPANY
+model BanHistory {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id])
+  action          BanAction
+  reason          String?
+  actedByStaffId  String    // FK to existing staff/admin auth model
+  createdAt       DateTime  @default(now())
+
+  @@index([userId])
 }
 
-// ---------- Configurable order limits ----------
+model AdminAuditLog {
+  id              String   @id @default(cuid())
+  actedByStaffId  String
+  action          String   // "COMPANY_VERIFIED" | "COMPANY_FLAGGED_FAKE" | "MEAL_SETTINGS_UPDATED" | ...
+  targetType      String   // "Company" | "MealSettings" | "User" | "Device"
+  targetId        String
+  metadata        Json?
+  createdAt       DateTime @default(now())
 
-model SystemSetting {
-  id           String   @id @default(cuid())
-  key          String   @unique     // e.g. "MAX_THALI_PER_ORDER"
-  value        String               // stored as string, parsed by consumer
-  updatedAtUtc DateTime @updatedAt
+  @@index([targetType, targetId])
 }
 
-// ---------- Order structure (multi-thali + add-ons) ----------
-// Merge these fields into your existing Order model rather than
-// duplicating it if an Order model already exists.
+// ============================================================
+// MEAL / CUTOFF SETTINGS
+// ============================================================
+
+enum MealType {
+  LUNCH
+  DINNER
+}
+
+model MealSettings {
+  id               String    @id @default(cuid())
+  mealType         MealType  @unique
+  cutoffTime       String    // "10:30" 24h local time (IST) — no orders accepted after this
+  menuVisibleFrom  String    // "18:00" — when next cycle's menu becomes browsable again
+  isOrderingOpen   Boolean   @default(true) // manual admin kill-switch, independent of cutoff
+  updatedAt        DateTime  @updatedAt
+}
+
+// ============================================================
+// ORDERS (reconcile with existing Order/Sabji models — see §21)
+// ============================================================
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
 
 model Order {
-  id           String   @id @default(cuid())
-  customerId   String
-  customer     Customer @relation(fields: [customerId], references: [id])
-  thaliItems   OrderThaliItem[]
-  addonItems   OrderAddonItem[]
-  createdAtUtc DateTime @default(now())
-  // ...existing order fields (status, delivery slot, payment, etc.)
+  id             String              @id @default(cuid())
+  orderNumber    String              @unique // e.g. "TF-20260714-0007"
+  userId         String
+  user           User                @relation(fields: [userId], references: [id])
+  mealType       MealType
+  menuDate       DateTime            // the calendar date this order is for
+  addressId      String
+  address        Address             @relation(fields: [addressId], references: [id])
+  thaliItems     OrderThaliItem[]
+  addOnItems     OrderAddOnItem[]
+  status         OrderStatus         @default(PLACED)
+  statusHistory  OrderStatusEvent[]
+  totalAmount    Decimal             @db.Decimal(10, 2)
+  placedAt       DateTime            @default(now())
+
+  @@index([userId])
+  @@index([menuDate, mealType])
+  @@index([status])
 }
 
 model OrderThaliItem {
-  id               String @id @default(cuid())
-  orderId          String
-  order            Order  @relation(fields: [orderId], references: [id])
-  dailyMenuSabjiId String            // FK into that day's sabji options
-  quantity         Int    @default(1)
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  sabjiIds  String[] // references existing Sabji/catalog item ids chosen for this thali
+  quantity  Int      @default(1)
 }
 
-model OrderAddonItem {
-  id             String @id @default(cuid())
-  orderId        String
-  order          Order  @relation(fields: [orderId], references: [id])
-  addonProductId String
-  quantity       Int
+model OrderAddOnItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  itemId    String  // references existing catalog add-on item id
+  quantity  Int     @default(1)
+}
+
+model OrderStatusEvent {
+  id              String      @id @default(cuid())
+  orderId         String
+  order           Order       @relation(fields: [orderId], references: [id])
+  status          OrderStatus
+  changedByStaffId String
+  note            String?
+  createdAt       DateTime    @default(now())
 }
 ```
 
-Run:
-```bash
-npx prisma migrate dev --name customer_auth_ordering_overhaul
-```
+**Migration note:** run this as an additive migration (`prisma migrate dev --name auth_ordering_admin_v3`). None of these fields should require destructive changes to existing tables since the project is confirmed to still be pre-launch (per the source requirements: "currently it is in development, feel free to change the schema").
 
 ---
 
-## 3. Environment Variables
+## 4. Rate Limiting & Abuse Prevention
 
-```env
-# Message Central (customer OTP provider)
-MESSAGECENTRAL_CUSTOMER_ID=
-MESSAGECENTRAL_AUTH_TOKEN=
-MESSAGECENTRAL_BASE_URL=https://cpaas.messagecentral.com
+This is the single most important non-functional requirement in the source doc — the explicit driver is real IT-employee users who will deliberately probe the OTP flow, and a real per-SMS cost on MessageCentral. Rate limiting is layered across **mobile number, device, and IP simultaneously** — a request must pass all three checks.
 
-# Customer JWT
-CUSTOMER_JWT_ACCESS_SECRET=
-CUSTOMER_JWT_REFRESH_SECRET=
-CUSTOMER_ACCESS_TOKEN_TTL_MIN=15
-CUSTOMER_REFRESH_TOKEN_TTL_DAYS=100
+### 4.1 Recommended implementation
 
-# Fingerprint hashing salt (server-side pepper, never sent to client)
-DEVICE_FINGERPRINT_SERVER_SALT=
-
-# PIN hashing
-PIN_HASH_ROUNDS=12
-```
-
-Never expose `MESSAGECENTRAL_AUTH_TOKEN`, `CUSTOMER_JWT_*`, or `DEVICE_FINGERPRINT_SERVER_SALT` to the client — they must only ever be read inside `src/app/api/**/route.ts` files (server-side).
-
----
-
-## 4. Core Auth State Machine
-
-Every request to `/menu` resolves to exactly one of these states server-side before rendering:
-
-```
-                        ┌─────────────────────┐
-                        │   ANONYMOUS          │  no session cookie, no draft cookie
-                        └──────────┬───────────┘
-                                   │
-              ┌────────────────────┼─────────────────────┐
-              ▼                    ▼                     ▼
-        [Register tab]       [Login tab]           [Verify tab]
-        (Req #7, #3)      (Req #12)              (Req #7 — resume
-                                                    a pending registration)
-              │                    │                     │
-              ▼                    ▼                     ▼
-     ┌─────────────────┐   ┌───────────────┐     ┌────────────────────┐
-     │ DRAFT_PENDING_   │   │ Mobile+PIN or │     │ enter mobile →      │
-     │ VERIFICATION     │   │ Mobile+OTP    │     │ if a pending draft  │
-     │ (Customer row    │   └───────┬───────┘     │ exists, resend/     │
-     │ exists,          │           │             │ verify OTP for it   │
-     │ isVerified=false)│           ▼             └──────────┬─────────┘
-     └────────┬─────────┘   VERIFIED_SESSION                 │
-              │              (full JWT issued)                ▼
-              ▼                                        DRAFT_PENDING_
-        OTP verify                                      VERIFICATION
-              │
-              ▼
-     PIN_SETUP_REQUIRED
-              │
-              ▼
-     VERIFIED_SESSION ──── only this state may reach the ordering UI (Req #8)
-```
-
-Server-side resolution logic (pseudocode, e.g. in a shared `resolveCustomerAuthState()` used by `/menu`'s server component and by an auth middleware):
+Use **Upstash Redis** (`@upstash/ratelimit` + `@upstash/redis`) for live sliding-window counters — it's serverless, works natively with Vercel/Next.js Edge or Node runtime, and needs no infra management. The Postgres tables in §3 (`OtpAttempt`, `LoginAttempt`) remain the **permanent audit trail** and double as a fallback counter source if Redis is ever unavailable (fail closed, not open — see below).
 
 ```typescript
-async function resolveCustomerAuthState(req: NextRequest) {
-  const accessToken = req.cookies.get("customer_access")?.value;
-  if (accessToken) {
-    const claims = verifyAccessJwt(accessToken); // throws on invalid/expired
-    if (claims) return { state: "VERIFIED_SESSION", customerId: claims.sub };
-  }
+// lib/rate-limit.ts
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
-  // access token missing/expired — try silent refresh
-  const refreshToken = req.cookies.get("customer_refresh")?.value;
-  if (refreshToken) {
-    const rotated = await tryRotateRefreshToken(refreshToken, req);
-    if (rotated) return { state: "VERIFIED_SESSION", customerId: rotated.customerId };
-  }
+const redis = Redis.fromEnv();
 
-  const draftId = req.cookies.get("reg_draft")?.value;
-  if (draftId) {
-    const draft = await getPendingDraft(draftId);
-    if (draft && !draft.isVerified) return { state: "DRAFT_PENDING_VERIFICATION", draftId };
-  }
+// sliding window limiters, one per (action, scope) pair
+export const otpSendByMobile = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "10 m"),
+  prefix: "rl:otp:mobile",
+});
 
-  return { state: "ANONYMOUS" };
-}
+export const otpSendByMobileDaily = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "24 h"),
+  prefix: "rl:otp:mobile:daily",
+});
+
+export const otpSendByDevice = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "10 m"),
+  prefix: "rl:otp:device",
+});
+
+export const otpSendByIp = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "10 m"),
+  prefix: "rl:otp:ip",
+});
+
+export const loginAttemptsByMobile = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "15 m"),
+  prefix: "rl:login:mobile",
+});
+
+export const loginAttemptsByDevice = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(15, "1 h"),
+  prefix: "rl:login:device",
+});
+
+export const registrationByDevice = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(3, "24 h"),
+  prefix: "rl:register:device",
+});
+
+export const registrationByIp = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(8, "24 h"),
+  prefix: "rl:register:ip",
+});
 ```
 
-Only `VERIFIED_SESSION` is allowed to call the order-creation endpoint — enforce this **server-side on every write route**, not just in the UI (Req #8).
-
----
-
-## 5. API Route Specifications
-
-All routes below live under `src/app/api/customer/` unless noted. Every route validates Indian mobile format first (§8) and checks rate limits (§7) before doing anything else — reject fast, cheaply, before touching the OTP provider.
-
-### 5.1 `POST /api/customer/register` (Req #1, #3)
-**Request:**
-```json
-{
-  "fullName": "string, 2-80 chars",
-  "workAddress": "string, required, 10-300 chars",
-  "homeAddress": "string, optional, 10-300 chars",
-  "companyId": "string | null",
-  "newCompanyName": "string | null",
-  "deviceFingerprint": "string, from client-side fingerprint SDK"
-}
-```
-Exactly one of `companyId` / `newCompanyName` must be present.
-
-**Server logic:**
-1. Validate all fields; reject on any missing required field (no partial drafts).
-2. Rate-limit check: `DEVICE` scope, `ADD_COMPANY` action if `newCompanyName` present (max 2/device/day — prevents junk-company spam even before OTP is involved).
-3. If `newCompanyName`: create `Company` with `status = PENDING`, `addedByCustomerId` filled in after the Customer row exists (two-step insert or a transaction).
-4. Create `Customer` row: `isVerified = false`, `pinHash = null`.
-5. Create/refresh a `DeviceFingerprint` row (not yet trusted) for this customer.
-6. Set an httpOnly, signed `reg_draft` cookie (customerId, 30-min TTL) so the user can resume at the Verify tab if they abandon the flow.
-7. Response: `{ "draftId": "...", "nextStep": "MOBILE_OTP" }`
-
-**Why the Customer row is created immediately, not the Company:** admins want visibility into registration attempts (Req #1), but a prank/duplicate company name shouldn't pollute the dropdown until a real verified human stands behind it (Req #4).
-
-### 5.2 `POST /api/customer/send-otp` (Req #2, #4, #6)
-**Request:** `{ "draftId": "string", "mobile": "10-digit string" }`
-
-**Server logic:**
-1. Validate mobile against the strict Indian-number regex (§8). Reject immediately on failure — never call the OTP provider with an invalid number.
-2. Rate limits (§7): `MOBILE` scope max 3/hour, `IP` scope max 5/hour, `DEVICE` scope max 10/day, plus a 60-second resend cooldown per mobile.
-3. Reject if `mobile` is already `isVerified = true` on a **different** Customer row → respond `{"error": "MOBILE_ALREADY_REGISTERED"}` and point the client to the Login tab instead.
-4. Call Message Central "Send OTP" → get `verificationId`.
-5. Insert `OtpVerification` row: `purpose = REGISTER`, `expiresAtUtc = now + 5 min`, linked to the draft's `customerId`.
-6. Update `Customer.mobile` on the draft row (was empty/placeholder until now).
-7. Response: `{ "otpSent": true, "expiresInSeconds": 300 }`
-
-### 5.3 `POST /api/customer/verify-otp` (Req #4, #5)
-**Request:** `{ "draftId": "string", "otp": "6-digit string" }`
-
-**Server logic:**
-1. Rate limit: `VERIFY_OTP` max 5 attempts per `OtpVerification` row; on the 5th failed attempt, invalidate the row entirely and require a fresh `send-otp` call (forces a new cooldown window — stops brute-forcing a single OTP).
-2. Call Message Central "Verify OTP" with `verificationId` + submitted code.
-3. On success (within transaction):
-   - `Customer.isVerified = true`, `verifiedAt = now()`
-   - If the linked `Company.status === PENDING`, flip to `CONFIRMED`, set `confirmedAtUtc = now()` → **this is the moment the company becomes visible in the admin dashboard and future dropdowns** (Req #4).
-   - Mark `OtpVerification.consumedAtUtc = now()`.
-4. Issue a short-lived **pre-auth token** (not a full session JWT yet — PIN isn't set) redirecting to PIN setup.
-5. Response: `{ "verified": true, "nextStep": "SET_PIN" }`
-
-### 5.4 `POST /api/customer/set-pin` (Req #5, #8)
-**Request:** `{ "preAuthToken": "string", "pin": "6-digit string", "confirmPin": "6-digit string" }`
-
-**Server logic:**
-1. Validate `pin === confirmPin`, exactly 6 digits, reject trivial PINs (`000000`, `123456`, `111111`, etc. — small denylist).
-2. Hash with bcrypt (`PIN_HASH_ROUNDS`), store on `Customer.pinHash`.
-3. Mark the `DeviceFingerprint` used for this flow as `isTrusted = true`.
-4. Issue full session: access JWT (15 min) + refresh token (100 days), create `CustomerSession` row bound to `deviceFingerprintHash`.
-5. Clear the `reg_draft` cookie; set `customer_access` + `customer_refresh` cookies.
-6. Response: `{ "loggedIn": true }` → client redirects into `/menu` fully authenticated (Req #8 — this is the only path that unlocks ordering).
-
-### 5.5 Login variants (Req #12)
-
-**`POST /api/customer/login-pin`**
-`{ "mobile": "string", "pin": "string", "deviceFingerprint": "string" }`
-- Rate limit: 5 failed attempts → set `Customer.pinLockedUntil = now + 15 min`. Three lockouts within 24h → force OTP-only login for that mobile for the next 24h (defeats sustained brute force even across many short lockouts).
-- On success: issue new session bound to this device's fingerprint; if this fingerprint isn't already trusted for this customer, create it as untrusted-but-valid (a PIN alone is sufficient proof of identity — don't force OTP on top of a correct PIN, that would contradict Req #12's "two options").
-
-**`POST /api/customer/login-otp/send` and `/verify`**
-Same shape as §5.2/§5.3 but `purpose = LOGIN`, requires `Customer.isVerified = true` already, and does not touch the Company or PIN.
-
-**`POST /api/customer/forgot-pin/send-otp` and `/reset`**
-`purpose = FORGOT_PIN`. On successful OTP verify, allow one `set-pin`-equivalent call to overwrite `pinHash`. Cap at 3 resets/day/mobile (§7) — this is a sensitive action even though it's OTP-gated.
-
-### 5.6 `GET /api/customer/companies` (Req #3)
-Returns only `status = CONFIRMED` companies, alphabetical, for the dropdown. Never leak `PENDING` companies to any customer-facing endpoint — they don't exist publicly until confirmed.
-
-### 5.7 `GET /menu` — single canonical route (Req #9)
-Server component calls `resolveCustomerAuthState()` (§4) and renders:
-- `ANONYMOUS` → `<AuthTabs default="register" />` (Login / Register / Verify tabs) overlaying/above the read-only menu preview.
-- `DRAFT_PENDING_VERIFICATION` → `<AuthTabs default="verify" draftId={draftId} />`
-- `VERIFIED_SESSION` → full ordering UI (§12).
-
-No other route should render menu/ordering content — redirect any legacy menu URLs (`/order`, `/thali`, etc.) to `/menu` with a 308 permanent redirect.
-
-### 5.8 `POST /api/orders` (Req #10, #11)
-Requires `VERIFIED_SESSION`. See §12 for validation details.
-
----
-
-## 6. Device Fingerprinting Strategy (Req #6)
-
-**Client side:** use the open-source FingerprintJS (`@fingerprintjs/fingerprintjs`, not the paid Pro tier) to generate a `visitorId` from canvas hash, WebGL renderer string, timezone, screen metrics, font subset, and hardware concurrency. Send this `visitorId` with every auth-flow request (registration, send-otp, verify-otp, login).
-
-**Server side:** never trust the client's raw `visitorId` alone as the stored value.
-```typescript
-function computeFingerprintHash(visitorId: string, userAgent: string, salt: string) {
-  return sha256(`${visitorId}|${userAgent}|${salt}`);
-}
-```
-Store only the hash (`DeviceFingerprint.fingerprintHash`), never the raw client identifier, using `DEVICE_FINGERPRINT_SERVER_SALT` as a server-side pepper so the hash can't be reconstructed from leaked client data alone.
-
-**Abuse rules built on top of the fingerprint:**
-- Same fingerprint attempting `register` for **more than 1 distinct mobile number** within 24h → flag the fingerprint (`isTrusted` stays false permanently, log to an `abuse_flags` audit trail) and require staff review before further OTPs from it are sent.
-- Same fingerprint tied to more than, say, 3 verified customers total (rare, e.g. shared office kiosk) → allow but flag for review rather than hard-block, since false positives are real (see honesty note below).
-- A refresh token replay from a fingerprint that doesn't match the one it was issued to → treat as compromised, revoke the entire session family (§10).
-
-**Important honesty note to keep this practical:** No fingerprinting technique is 100% stable or unique — private browsing modes, browser updates, and privacy-focused browsers (Brave, Firefox strict mode) will legitimately rotate a user's fingerprint. Treat fingerprint mismatches as **one signal that raises scrutiny (e.g., require OTP step-up)**, not as an automatic hard block that could lock out a real paying customer. "Most strict" should mean *layered* (mobile + IP + fingerprint + PIN lockouts together), not a single brittle check that produces false positives.
-
----
-
-## 7. Rate Limiting & Abuse Prevention (Req #2, #6, #7)
-
-Every limited action writes a `RateLimitEvent` row; checks count rows in a sliding window before allowing the action. This is a plain-Postgres approach (no Redis dependency required) — swap to Redis `INCR`+`EXPIRE` later purely as a performance optimization if traffic grows, the logic doesn't change.
+A single helper wraps all of them so every route calls one function:
 
 ```typescript
-async function checkRateLimit(
-  scopeType: "MOBILE" | "IP" | "DEVICE",
-  scopeKey: string,
-  action: RateLimitAction,
-  windowMs: number,
-  maxEvents: number
-) {
-  const since = new Date(Date.now() - windowMs);
-  const count = await prisma.rateLimitEvent.count({
-    where: { scopeType, scopeKey, action, createdAtUtc: { gte: since } },
-  });
-  if (count >= maxEvents) throw new RateLimitExceededError(action);
-  await prisma.rateLimitEvent.create({ data: { scopeType, scopeKey, action } });
+// lib/guard-request.ts
+export async function guardAuthRequest({
+  mobile, deviceCookieId, ip, action,
+}: GuardInput): Promise<{ allowed: true } | { allowed: false; code: string; retryAfterSeconds: number }> {
+  // 1. Is the device or the mobile's linked user BLOCKED/BANNED? -> hard reject, no counters consumed
+  // 2. Run the relevant limiter(s) for `action` (otp_send | login | register | forgot_pin)
+  // 3. First limiter to fail wins; return its retryAfter
+  // 4. On success, also append the durable Postgres row (OtpAttempt / LoginAttempt) for audit
 }
 ```
 
-| Action | Mobile limit | IP limit | Device limit | Extra rule |
+### 4.2 Rate limit table (defaults — tune via env vars, do not hardcode)
+
+| Action | Scope | Limit | Window | On breach |
 |---|---|---|---|---|
-| Send OTP (register) | 3 / hour | 5 / hour | 10 / day | 60s resend cooldown |
-| Verify OTP | 5 attempts / OTP row | — | — | row invalidated after 5th fail |
-| Send OTP (login) | 5 / hour | 10 / hour | 15 / day | 60s resend cooldown |
-| Send OTP (forgot PIN) | 3 / day | 5 / hour | 5 / day | — |
-| Login via PIN | 5 fails → 15-min lock | 20 / hour | — | 3 lockouts/24h → OTP-only for 24h |
-| Add new company | 2 / device / day | 5 / IP / day | — | company stays PENDING regardless |
+| Send OTP | mobile | 3 | 10 min | 429, `retryAfterSeconds` |
+| Send OTP | mobile | 5 | 24 h | 429 |
+| Send OTP | device | 5 | 10 min | 429 |
+| Send OTP | IP | 10 | 10 min | 429 |
+| Resend OTP cooldown | mobile | 1 per cooldown | 60s → 120s → 300s (escalating per resend within the same 10-min window) | 429 with exact countdown |
+| Verify OTP wrong guesses | single OTP row | 5 | until `expiresAt` | OTP invalidated, must request new one |
+| OTP expiry | — | — | 5 min | `OTP_EXPIRED`, must resend |
+| PIN login wrong attempts | mobile | 5 | 15 min | Mobile locked 30 min (`PIN_LOCKED`) |
+| PIN login wrong attempts | device (across *any* mobile tried) | 15 | 1 h | Device auto-flagged for admin review; if it crosses 25/hr, auto-block device |
+| Forgot-PIN flow starts | mobile | 3 | 24 h | 429 |
+| New registration submissions | device | 3 | 24 h | 429 (prevents one device farming many fake accounts) |
+| New registration submissions | IP | 8 | 24 h | 429 |
 
-Apply all limits **before** calling Message Central — every blocked request should cost you ₹0, not just be rate-limited after the SMS already went out. This directly protects the cost-optimization concern in Req #2 (IT-crowd prank risk).
+### 4.3 Fail-closed policy
+
+If Redis is unreachable, **do not silently allow all requests** — fall back to counting rows in the Postgres `OtpAttempt`/`LoginAttempt` tables for the same windows (slower, but correct). This is why those tables are populated on every attempt regardless of Redis's availability, not just as an afterthought.
+
+### 4.4 Blocked/banned short-circuit
+
+Every guarded route checks, **before** touching any rate-limit counter:
+- `device.isBlocked === true` → reject with `DEVICE_BLOCKED`, no counters consumed, no OTP sent.
+- If mobile resolves to an existing `User` with `status IN (BLOCKED, BANNED)` → reject with `USER_BLOCKED` / `USER_BANNED`.
+
+This ordering matters: a blocked device shouldn't be able to burn through rate-limit budget trying different mobile numbers, and it shouldn't get a generic rate-limit message that invites retrying — it should get a clear terminal message.
 
 ---
 
-## 8. Indian Mobile Number Validation (Req #6)
+## 5. Device Fingerprinting & Device Binding
+
+Two complementary signals, combined into one `Device` row (see schema in §3):
+
+1. **First-party cookie** (`tos_device_id`) — a random UUID set server-side on first visit, `httpOnly: false` (client needs to read it to send with fingerprint calls), `Secure`, `SameSite=Lax`, 2-year expiry. This is the **primary key** for matching — cookies persist across sessions and are cheap to check.
+2. **FingerprintJS (open-source community edition)** `@fingerprintjs/fingerprintjs` — generates a `visitorId` client-side from canvas/WebGL/font/hardware signals. Hash it (`sha256`) before sending to the server and store only the hash (`Device.fingerprintHash`) — this is a secondary/backup signal for when cookies get cleared, since the open-source edition has a non-trivial collision/instability rate on its own.
 
 ```typescript
-const INDIAN_MOBILE_REGEX = /^[6-9]\d{9}$/;
+// lib/device.ts (client)
+import FingerprintJS from "@fingerprintjs/fingerprintjs";
 
-function normalizeAndValidateMobile(raw: string): string {
-  const digitsOnly = raw.replace(/\D/g, "");
-  const stripped = digitsOnly.startsWith("91") && digitsOnly.length === 12
-    ? digitsOnly.slice(2)
-    : digitsOnly;
-
-  if (!INDIAN_MOBILE_REGEX.test(stripped)) {
-    throw new InvalidMobileNumberError();
-  }
-  return stripped; // always store/compare as bare 10-digit
+export async function getDeviceSignature() {
+  const fp = await FingerprintJS.load();
+  const result = await fp.get();
+  return {
+    fingerprintHash: await sha256(result.visitorId), // hash client-side too, never send raw visitorId
+    cookieId: getOrCreateDeviceCookie(), // reads tos_device_id, sets it via an API call if absent
+  };
 }
 ```
-Run this validator as the **very first line** of `send-otp`, `login-otp/send`, and `forgot-pin/send-otp` — reject before any DB write or provider call. Store `mobile` consistently as the bare 10-digit form everywhere (no `+91` prefix inconsistencies that would create duplicate-looking rows).
+
+Every guarded auth request (`otp/send`, `login`, `register/details`, `pin/forgot/*`) includes this signature in the request body. The server upserts a `Device` row keyed on `cookieId`, and updates `fingerprintHash`/`lastKnownIp`/`userAgent` on every hit.
+
+**Important distinction:** device fingerprinting here is **for abuse prevention, not for skipping auth**. Per the source requirement, returning users log in cross-device with mobile+PIN — there is no "trusted device" bypass. The `UserDevice` join table only exists so that when admin blocks a user, every device that user has ever logged in from can also be flagged for review (see §11).
+
+### 5.1 Blocking cascade
+
+When admin bans/blocks a `User`:
+1. Set `User.status`.
+2. For every `UserDevice` linked to that user, set `Device.isBlocked = true` **only if** that device has been used by 1 user total (i.e., not a shared office device with many legitimate accounts — avoid collateral damage). If a device has multiple linked users, flag it for manual admin review instead of auto-blocking.
+3. Log to `BanHistory`.
 
 ---
 
-## 9. PIN System Design (Req #5, #12)
+## 6. Authentication & Onboarding Flow
 
-- 6 digits, numeric only, confirmed twice on entry.
-- Denylist trivial PINs: `000000`, `111111`...`999999`, `123456`, `654321`.
-- Hash with bcrypt at `PIN_HASH_ROUNDS = 12` (bcryptjs — pure JS, avoids native-module build issues on serverless deploys; switch to `argon2` only if you're on a persistent Node server, not edge/serverless functions).
-- Lockout: 5 failed attempts → 15-minute lock (`Customer.pinLockedUntil`); reset `pinFailedAttempts` to 0 on any successful login.
-- Escalation: 3 lockouts within a rolling 24h window → force that mobile into OTP-only login for the next 24h, regardless of PIN correctness, to shut down sustained brute-force attempts that pace themselves around the 15-minute lock.
-- Forgot PIN (§5.5) always requires a fresh OTP — a PIN can never be reset by knowing the old PIN alone.
+### 6.1 Flow diagram
 
----
+```mermaid
+stateDiagram-v2
+    [*] --> NoSession
+    NoSession --> ChooseLoginOrRegister: clicks "Place Order"
+    ChooseLoginOrRegister --> Login
+    ChooseLoginOrRegister --> RegisterDetails
 
-## 10. JWT / Session Design for Customers (Req #2, #12)
+    RegisterDetails --> OtpSend: submit name/address/company/mobile
+    OtpSend --> OtpVerify: OTP delivered
+    OtpVerify --> PinSetup: correct OTP
+    OtpVerify --> OtpSend: wrong OTP (retry, capped) / resend
+    PinSetup --> Authenticated: PIN created
 
-- **Access token:** JWT, 15-minute TTL, claims `{ sub: customerId, role: "CUSTOMER", fph: deviceFingerprintHash }`, signed with `CUSTOMER_JWT_ACCESS_SECRET`.
-- **Refresh token:** opaque random 256-bit value; only its SHA-256 hash is stored (`CustomerSession.refreshTokenHash`), never the raw value server-side after issuance. TTL = 100 days (matches your existing Admin/Staff persistence choice, so the whole app behaves consistently).
-- **Device binding:** refresh token is only honored if the request's current computed fingerprint hash matches `CustomerSession.deviceFingerprintHash`. Mismatch → do **not** silently issue a new access token; force a step-up challenge (PIN or OTP) before renewing.
-- **Rotation + reuse detection:** every refresh call issues a brand-new refresh token and immediately revokes the old one (`revokedAtUtc`, `replacedBySessionId`). If a *revoked* refresh token is ever presented again, treat it as a stolen/replayed token: revoke the entire session chain for that customer and require full re-login. This is the same pattern used by Auth0/Supabase and is the single biggest defense against a leaked cookie being reused indefinitely.
-- Cookies: `httpOnly`, `secure`, `sameSite=lax`, scoped to your domain — never accessible to client JS, which also means the fingerprint SDK must run independently of the auth cookies.
+    Login --> Authenticated: mobile+PIN correct
+    Login --> ForgotPin: "forgot PIN"
+    Login --> Login: wrong PIN (capped, then locked)
 
----
+    ForgotPin --> OtpSend2[OtpSend: purpose=FORGOT_PIN]
+    OtpSend2 --> OtpVerify2[OtpVerify]
+    OtpVerify2 --> PinReset
+    PinReset --> Authenticated
 
-## 11. Company Add Flow & Admin Dashboard Sync (Req #3, #4)
+    RegisterDetails --> ResumeVerify: closed tab mid-registration, returns later
+    ResumeVerify --> OtpSend: registrationStep < OTP_VERIFIED
+    ResumeVerify --> PinSetup: registrationStep == OTP_VERIFIED, PIN not set
+    ResumeVerify --> Login: registrationStep == PIN_SET (already fully verified)
 
-1. Registration step 1 dropdown fetches `GET /api/customer/companies` (CONFIRMED only).
-2. "My company isn't listed" reveals a free-text input → submitted as `newCompanyName` in `POST /register`.
-3. Server creates `Company { status: PENDING }` immediately, so uniqueness constraints catch accidental duplicates early (case-insensitive comparison recommended — normalize with `.trim().toLowerCase()` before the uniqueness check, but store the user's original casing for display).
-4. The company **only** becomes `CONFIRMED` (and thus visible in the admin dashboard's Company List and in future dropdowns) at the moment that specific registering customer completes OTP verification (§5.3 step 3).
-5. Add a scheduled cleanup job (daily cron / Vercel cron) that deletes `Company` rows still `PENDING` after 48 hours **if** no `Customer` row references them anymore (i.e., the registration was abandoned) — keeps the table from accumulating dead prank entries.
+    Authenticated --> [*]
+```
 
----
+### 6.2 Step A — Registration: Details Submission
 
-## 12. Order Limits: Multi-Thali + Add-ons (Req #10, #11)
+**Fields collected:**
 
-**Configurable constants** — store in `SystemSetting` (DB-backed) rather than a hardcoded file, so admins can change limits without a redeploy:
+| Field | Required | Notes |
+|---|---|---|
+| `name` | ✅ | 2–60 chars |
+| `workAddress` | ✅ | line1 required; landmark/pincode optional |
+| `homeAddress` | ❌ | optional at registration, addable later |
+| `profession` | ✅ | free text or small enum, per existing catalog convention |
+| `companyId` OR `companyNameManual` | ✅ | dropdown search; if not found, user types a name → held as raw text on `User` only, becomes an unverified `Company` row at OTP-verify (§6.4), not before |
+| `mobile` | ✅ | 10-digit Indian mobile, `+91` implicit |
 
-```typescript
-const DEFAULT_MAX_THALI_PER_ORDER = 10;
-const DEFAULT_MAX_ADDON_PER_ORDER = 30;
+`POST /api/auth/register/details`
 
-async function getOrderLimit(key: "MAX_THALI_PER_ORDER" | "MAX_ADDON_PER_ORDER", fallback: number) {
-  const row = await prisma.systemSetting.findUnique({ where: { key } });
-  return row ? parseInt(row.value, 10) : fallback;
+```json
+// Request
+{
+  "name": "Ashal Yuvrajbhai",
+  "profession": "Software Engineer",
+  "workAddress": { "line1": "...", "landmark": "...", "pincode": "..." },
+  "homeAddress": null,
+  "companyId": null,
+  "companyNameManual": "NewCo Pvt Ltd",
+  "mobile": "9825012345",
+  "device": { "cookieId": "...", "fingerprintHash": "..." }
 }
-```
-(If you'd rather skip the admin-editable UI for now, a plain exported constants file `src/config/order-limits.ts` is a fine simpler starting point — just note it requires a redeploy to change, unlike the DB-backed version above.)
 
-**`POST /api/orders` validation, server-side (never trust client-side counts):**
+// Response 200
+{ "userId": "clx...", "nextStep": "OTP_SEND" }
+
+// Response 409 (mobile already has a further-along account)
+{ "error": { "code": "MOBILE_ALREADY_REGISTERED", "message": "...", "nextStep": "LOGIN" } }
+```
+
+- Creates `User` with `registrationStep = DETAILS_SUBMITTED`, `isVerified = false`.
+- If `companyId` (dropdown pick) given: **not** written yet either — hold it in-memory/in the response and re-submit it at OTP-verify time, OR store it on `User.companyId` directly since a *dropdown* pick is already an admin-verified company (no fake-company risk there — see the distinction in the next bullet).
+- If `companyNameManual` (typed, not in dropdown) given: **do not create a `Company` row here.** Store the raw text on `User.companyNameManual` only. This is the deliberate fix for the literal requirement "store the company name in DB, admin side, if and only if the user is registered **and** verified" — a `Company` row is itself "the company name in the DB," so it must not exist yet at this unverified stage. The `Company` row (and the link) gets created in §6.4, at the moment OTP verification succeeds.
+- Guarded by `registrationByDevice` + `registrationByIp` limiters (§4.2).
+
+### 6.3 Step — OTP Send
+
+`POST /api/auth/otp/send`
+
+```json
+// Request
+{ "mobile": "9825012345", "purpose": "REGISTRATION", "device": { "cookieId": "...", "fingerprintHash": "..." } }
+
+// Response 200
+{ "expiresInSeconds": 300, "resendAvailableInSeconds": 60 }
+
+// Response 429
+{ "error": { "code": "OTP_RATE_LIMITED", "message": "Too many OTP requests. Try again later.", "retryAfterSeconds": 420 } }
+```
+
+- Generates a 6-digit numeric OTP, `bcrypt`-hashes it, stores `OtpAttempt { mobile, deviceId, ip, purpose, otpHash, expiresAt: now+5m }`.
+- Sends via MessageCentral.
+- Resend cooldown escalates: 1st resend after 60s, 2nd after 120s, 3rd after 300s, within the same 10-minute mobile window — then the mobile-scoped 10-min hard limit (3 total) takes over.
+
+### 6.4 Step — OTP Verify
+
+`POST /api/auth/otp/verify`
+
+```json
+// Request
+{ "mobile": "9825012345", "otp": "482913", "purpose": "REGISTRATION" }
+
+// Response 200
+{ "otpVerifiedToken": "eyJ...", "nextStep": "PIN_SETUP" } // short-lived, single-purpose JWT, 10 min expiry
+
+// Response 400
+{ "error": { "code": "OTP_INVALID", "message": "Incorrect code.", "attemptsRemaining": 3 } }
+
+// Response 410
+{ "error": { "code": "OTP_EXPIRED", "message": "Code expired, request a new one." } }
+```
+
+- Increments `wrongGuesses` on mismatch; at 5 wrong guesses the OTP row is invalidated (`OTP_MAX_ATTEMPTS`) and the user must request a fresh one (consuming the send-limiter budget).
+- On success: `consumedAt = now()`, `User.registrationStep = OTP_VERIFIED`, `User.isVerified = true`.
+- **This is the moment the company record becomes "real":** if `User.companyNameManual` is set, **create** `Company { name: user.companyNameManual, addedById: user.id, isVerifiedByAdmin: false }` right here, then set `User.companyId = company.id` and clear `companyNameManual`. Wrap this in the same DB transaction as the `registrationStep`/`isVerified` update, so a `Company` row can never exist for a user who ends up not completing OTP verification (e.g., abandons after 5 wrong guesses). This is what makes "company name stored in DB only if the user is registered *and* verified" true at the schema level, not just in application logic.
+- Issues a short-lived `otpVerifiedToken` (JWT, purpose-scoped, 10-min expiry) required by the next call — this prevents someone from calling `pin/set` directly without having passed OTP.
+
+### 6.5 Step — PIN Setup
+
+`POST /api/auth/pin/set`
+
+```json
+// Request
+{ "mobile": "9825012345", "otpVerifiedToken": "eyJ...", "pin": "483920", "confirmPin": "483920" }
+
+// Response 200
+{ "session": "set as httpOnly cookie", "user": { "id": "...", "name": "...", "isVerified": true } }
+```
+
+- Validates `pin` is exactly 6 digits, not a trivial sequence (reject `000000`, `123456`, `111111`, etc. — small denylist).
+- `bcrypt.hash(pin, 10)` → `User.pinHash`, `registrationStep = PIN_SET`.
+- Issues full session JWT (`tos_session` httpOnly cookie, 7-day sliding expiry).
+- Upserts `UserDevice { userId, deviceId }`.
+- Registration complete → auth modal closes, page context resumes (see §15.2).
+
+### 6.6 Login (mobile + PIN)
+
+`POST /api/auth/login`
+
+```json
+// Request
+{ "mobile": "9825012345", "pin": "483920", "device": { "cookieId": "...", "fingerprintHash": "..." } }
+
+// Response 200
+{ "session": "set as httpOnly cookie", "user": { "id": "...", "name": "..." } }
+
+// Response 423 (locked)
+{ "error": { "code": "PIN_LOCKED", "message": "Too many incorrect attempts.", "retryAfterSeconds": 1800 } }
+```
+
+- Guarded by `loginAttemptsByMobile` and `loginAttemptsByDevice`.
+- Logs every attempt (success or fail) to `LoginAttempt` for audit, regardless of Redis outcome.
+- Works from any device by design — this is the "different device, no OTP needed" path from the requirement.
+
+### 6.7 Forgot PIN
+
+```
+POST /api/auth/pin/forgot/send-otp   { mobile, device }
+POST /api/auth/pin/forgot/verify-otp { mobile, otp }        -> { resetToken }
+POST /api/auth/pin/reset             { mobile, resetToken, newPin, confirmNewPin }
+```
+
+- **Enumeration protection**: `send-otp` always returns the same generic `200 { "message": "If this number is registered, a code has been sent." }` regardless of whether the mobile exists — but only actually dispatches an SMS if it does. This satisfies "if the number exists in the DB then and only then we send OTP" without leaking which mobiles are registered to an attacker probing numbers.
+- Same rate-limit and device-fingerprint machinery as registration OTP, under `purpose: FORGOT_PIN`.
+- Max 3 forgot-PIN flow starts per mobile per 24h (§4.2).
+
+### 6.8 Resume / Verify Account
+
+Handles the "closed the tab mid-registration" case.
+
+`GET /api/auth/registration/status?mobile=...`
+
+```json
+// Response
+{ "registrationStep": "OTP_VERIFIED", "nextAction": "PIN_SETUP" }
+```
+
+- If `registrationStep === PIN_SET` → `409 { code: "ALREADY_VERIFIED", nextAction: "LOGIN" }` (rate-limited endpoint too, per the source requirement — someone shouldn't be able to hammer this to enumerate mobiles either).
+- If `< OTP_VERIFIED` → resume by calling `otp/send` with `purpose: RESUME_VERIFY` (same mechanics as §6.3, separate purpose value purely for analytics/audit clarity).
+- If `OTP_VERIFIED` but not `PIN_SET` → send straight to PIN setup (no need to re-verify OTP; a fresh `otpVerifiedToken` can be minted server-side since the mobile is already confirmed verified in the DB, or require one quick OTP re-check if the security bar should be higher — **⚠️ recommend requiring a fresh OTP here too**, since letting anyone who knows the mobile number jump straight to PIN setablishment is a soft spot).
+
+---
+
+## 7. Company Directory & Moderation
+
+`GET /api/companies?search=abc` — public, used by the registration dropdown. Returns only `isVerifiedByAdmin: true AND isFlaggedFake: false` companies, plus always allows "Can't find your company? Type it manually" as a fallback which creates the unverified `Company` row described in §6.2.
+
+Admin sees three buckets in the panel (§12):
+- **Verified** — shown in the public dropdown.
+- **Pending** (`isVerifiedByAdmin: false, isFlaggedFake: false`) — user-submitted, awaiting review, shows `addedBy` (name + mobile) so admin can trace who submitted it.
+- **Flagged fake** — hidden from dropdown, and the admin action to flag-fake surfaces a one-click "also block reporter" option (not automatic — a confirm step, since a company can legitimately be a duplicate/misspelling rather than malicious).
+
+---
+
+## 8. Public Menu, Cutoff Time & Visibility Window
+
+### 8.1 `MealSettings` semantics
+
+Each `MealType` (LUNCH/DINNER) has:
+- `cutoffTime` — last moment orders are accepted (e.g., lunch cutoff `10:30`).
+- `menuVisibleFrom` — when the *next* cycle's menu becomes browsable again (e.g., `18:00` for tomorrow's lunch to start showing after today's dinner cutoff logic clears, or same-day for dinner after lunch's cutoff).
+- `isOrderingOpen` — manual override (holiday kill-switch), independent of the time-based logic.
+
+### 8.2 State at any given moment for a given `(date, mealType)`
+
+| Condition | Menu state |
+|---|---|
+| `now < cutoffTime` AND `isOrderingOpen` | **Open** — full ordering UI |
+| `now >= cutoffTime` | **Closed** — menu shown read-only, banner: "Ordering closed for today's [lunch/dinner]. Opens again at `menuVisibleFrom`." |
+| `!isOrderingOpen` (manual override) | **Closed** — banner shows admin-set custom message if provided |
+| `now < menuVisibleFrom` (previous cycle's closed window) | Menu for that date/meal not rendered at all — redirect to the next available one |
+
+This state is computed server-side (in the page's server component / API) using the server's timezone-aware clock (IST), never trusted from the client.
+
+### 8.3 Public URL
+
+`/menu/[date]/[mealType]` e.g. `/menu/2026-07-14/lunch` — canonical, shareable, matches "Zomato type" pattern of a stable per-listing URL. ⚠️ swap for whatever pattern is already live; only the server-side gating logic above needs to sit behind it.
+
+---
+
+## 9. Order Placement Flow
+
+### 9.1 Thali Builder
+
+- Max **10 thalis** per order.
+- Each thali: pick from that day's sabji options via the existing `useSabjiPicker` hook (reuse, don't rebuild) — one thali = one base combo + selected sabji swaps.
+- Client-side: "+" button disabled at 10 with a toast ("Max 10 thalis per order — place a second order if you need more"). Server re-validates independently (never trust client cap).
+
+### 9.2 Add-ons
+
+- Max **30 total add-on quantity** per order (⚠️ see §21 — confirm distinct-SKU vs total-quantity interpretation).
+- Same client-cap + server-revalidate pattern as thalis.
+
+### 9.3 Address Selection
+
+Triggered after "Place Order" is tapped:
+
+- If user has **only** a work address → it's pre-selected, with a visible "+ Add Home Address" option that opens a small form inline (doesn't leave the order flow).
+- If user has **both** → radio-style selector (Zomato-style address cards), defaults to whichever is `isDefault`.
+- "Place Order" (final confirm) stays disabled until an address is selected.
+
+### 9.4 Order Submission
+
+`POST /api/orders`
+
+```json
+// Request
+{
+  "mealType": "LUNCH",
+  "menuDate": "2026-07-14",
+  "addressId": "clx...",
+  "thaliItems": [ { "sabjiIds": ["s1", "s2"], "quantity": 2 }, ... ], // max 10 total quantity across all rows
+  "addOnItems": [ { "itemId": "a1", "quantity": 3 }, ... ]            // max 30 total quantity
+}
+
+// Response 201
+{ "orderId": "clx...", "orderNumber": "TF-20260714-0007", "status": "PLACED" }
+
+// Response 422
+{ "error": { "code": "THALI_LIMIT_EXCEEDED", "message": "Max 10 thalis per order." } }
+
+// Response 423
+{ "error": { "code": "CUTOFF_PASSED", "message": "Ordering closed for this meal window." } }
+```
+
+Server validates, in order: session valid & user not blocked/banned → cutoff window still open (§8.2, re-checked server-side even if the client page was loaded before cutoff) → thali/add-on caps → address belongs to the authenticated user → computes `totalAmount` from live catalog pricing (never trust client-sent prices) → creates `Order` + line items + initial `OrderStatusEvent { status: PLACED }`.
+
+---
+
+## 10. Order Status Tracking (User Side)
+
+`GET /api/orders/mine?status=active|past` — user's own orders, paginated.
+`GET /api/orders/:id` — single order with full `statusHistory` timeline.
+
+Status values flow linearly: `PLACED → CONFIRMED → PREPARING → OUT_FOR_DELIVERY → DELIVERED`, with `CANCELLED` reachable from any pre-`DELIVERED` state (staff/admin action, out of scope here — covered when the staff panel is built). The user-facing UI renders this as a simple horizontal/vertical timeline (see §16).
+
+---
+
+## 11. Admin Panel — User Management & Banning
+
+| Action | Who can do it | Reversible by |
+|---|---|---|
+| **Block** | Any staff with `users:moderate` permission | Any staff with `users:moderate` |
+| **Unblock** | Same | — |
+| **Ban** | `ADMIN` role only | `ADMIN` role only |
+| **Unban** | `ADMIN` role only | — |
+
+`POST /api/admin/users/:id/ban` — server-side role check (`req.staff.role === 'ADMIN'`), **not** just a hidden button in the UI. Sets `User.status = BANNED`, cascades device blocking per §5.1, writes `BanHistory { action: BANNED, actedByStaffId, reason }`.
+
+A banned/blocked user hitting any auth or order endpoint gets an immediate, unambiguous rejection (`USER_BANNED` / `USER_BLOCKED`) — no partial functionality leaks through.
+
+Admin user list view: search by mobile/name/company, filter by status, column showing linked device count and last-seen device, one-click "View ban history."
+
+---
+
+## 12. Admin Panel — Company Moderation
+
+Three tabs: **Pending**, **Verified**, **Flagged**.
+
+- `POST /api/admin/companies/:id/verify` → `isVerifiedByAdmin = true`, now appears in the public registration dropdown.
+- `POST /api/admin/companies/:id/flag-fake` → `{ reason, alsoBlockReporter: boolean }`. If `alsoBlockReporter`, chains into the block-user action from §11 against `company.addedById`.
+- `DELETE /api/admin/companies/:id` — hard delete, only allowed once flagged (prevents accidental deletion of a company mid-legitimate-review).
+- Every action writes to `AdminAuditLog`.
+
+---
+
+## 13. Admin Panel — Meal Settings / Cutoff
+
+Simple settings page, two rows (LUNCH, DINNER):
+
+```
+GET  /api/admin/meal-settings
+PUT  /api/admin/meal-settings/:mealType   { cutoffTime, menuVisibleFrom, isOrderingOpen }
+```
+
+Time inputs as `HH:mm` (24h, IST implicit). Changes take effect immediately for the current cycle's evaluation (§8.2) — no caching layer should sit between this table and the public menu page's server-side render beyond a short (≤30s) revalidation window if using ISR.
+
+---
+
+## 14. Complete API Route Map
+
+| Method | Route | Auth | Purpose |
+|---|---|---|---|
+| POST | `/api/auth/register/details` | none (rate-limited) | §6.2 |
+| POST | `/api/auth/otp/send` | none (rate-limited) | §6.3 |
+| POST | `/api/auth/otp/verify` | none (rate-limited) | §6.4 |
+| POST | `/api/auth/pin/set` | `otpVerifiedToken` | §6.5 |
+| POST | `/api/auth/login` | none (rate-limited) | §6.6 |
+| POST | `/api/auth/pin/forgot/send-otp` | none (rate-limited) | §6.7 |
+| POST | `/api/auth/pin/forgot/verify-otp` | none (rate-limited) | §6.7 |
+| POST | `/api/auth/pin/reset` | `resetToken` | §6.7 |
+| GET | `/api/auth/registration/status` | none (rate-limited) | §6.8 |
+| POST | `/api/auth/logout` | session | clears cookie |
+| GET | `/api/companies` | none | §7 |
+| GET | `/api/menu/:date/:mealType` | none | §8 |
+| POST | `/api/addresses` | session | add home address post-registration |
+| GET | `/api/addresses/mine` | session | §9.3 |
+| POST | `/api/orders` | session | §9.4 |
+| GET | `/api/orders/mine` | session | §10 |
+| GET | `/api/orders/:id` | session | §10 |
+| GET | `/api/admin/users` | staff | §11 |
+| POST | `/api/admin/users/:id/block` \| `/unblock` \| `/ban` \| `/unban` | staff (`ban`/`unban` = ADMIN only) | §11 |
+| GET | `/api/admin/companies` | staff | §12 |
+| POST | `/api/admin/companies/:id/verify` \| `/flag-fake` | staff | §12 |
+| DELETE | `/api/admin/companies/:id` | staff | §12 |
+| GET/PUT | `/api/admin/meal-settings` | staff | §13 |
+
+---
+
+## 15. Frontend Route Map & Single-URL Navigation
+
+```
+app/
+  (public)/
+    menu/[date]/[mealType]/page.tsx     ← the ONE public URL, everything happens here
+  (admin)/
+    admin/users/page.tsx
+    admin/companies/page.tsx
+    admin/settings/meal-cutoff/page.tsx
+  api/...
+```
+
+### 15.1 Why one URL
+
+Per the requirement to keep the user panel "easy to navigate... that one public URL, complete things there" — the flow is modeled on Zomato/Swiggy: browsing, login, registration, and ordering all happen **without leaving the menu page's URL**. There is no `/login`, `/register`, `/order` page to navigate to and from.
+
+### 15.2 How it works technically
+
+A single client-side context, `AuthOrderFlowProvider`, wraps the menu page and holds:
+
 ```typescript
-const maxThali = await getOrderLimit("MAX_THALI_PER_ORDER", DEFAULT_MAX_THALI_PER_ORDER);
-const maxAddon = await getOrderLimit("MAX_ADDON_PER_ORDER", DEFAULT_MAX_ADDON_PER_ORDER);
-
-const totalThaliQty = thaliItems.reduce((sum, t) => sum + t.quantity, 0);
-const totalAddonQty = addonItems.reduce((sum, a) => sum + a.quantity, 0);
-
-if (totalThaliQty > maxThali) throw new OrderLimitExceededError("thali", maxThali);
-if (totalAddonQty > maxAddon) throw new OrderLimitExceededError("addon", maxAddon);
-if (totalThaliQty < 1) throw new EmptyOrderError();
+type FlowState =
+  | { step: "browsing" }
+  | { step: "auth"; mode: "choose" | "login" | "register" | "otp" | "pin-setup" | "forgot-pin"; pendingAction?: "place-order" }
+  | { step: "order-builder" }
+  | { step: "address-select" }
+  | { step: "confirmed"; orderId: string };
 ```
 
-**Interpretation note:** I've read "max 10 thali per mobile number" as a per-order-submission cap (a single checkout can contain up to 10 thalis, each independently configured with its own sabji, per Req #10's "different thali with different sabji options"). If you actually intend a *daily* cumulative cap across multiple separate orders instead, the check needs to aggregate `SUM(quantity) WHERE customerId = X AND createdAtUtc >= startOfTodayIST` — let me know and I'll adjust the validator; the schema above supports either interpretation without changes.
-
-Each `OrderThaliItem` carries its own `dailyMenuSabjiId`, so the frontend must render one sabji-selector per thali line, not one global selector for the whole order.
-
----
-
-## 13. `/menu` Consolidation & Frontend UI State Flow (Req #7, #9)
-
-Single route `src/app/menu/page.tsx` (server component) → `resolveCustomerAuthState()` → passes state into a client component that renders one of:
-
-- **`<AuthTabs>`** (state = `ANONYMOUS` or `DRAFT_PENDING_VERIFICATION`) with three tabs:
-  - **Register** — the step 1 form (§5.1)
-  - **Login** — mobile + choice of PIN or OTP (§5.5)
-  - **Verify** — mobile input → looks up pending draft → resumes OTP entry (§5.2/§5.3); shows a clear "no pending registration found" message if none exists, with a CTA back to Register.
-- **`<OrderingExperience>`** (state = `VERIFIED_SESSION`) — the actual multi-thali + add-on ordering UI (§12), reading `getOrderLimit()` values to render "X of 10 thalis used" style counters client-side (purely UX; the real enforcement is server-side per §12).
-
-Redirect all legacy menu-related URLs to `/menu` with `permanentRedirect()` (Next.js) so bookmarks/links don't break.
+- Tapping "Place Order" while unauthenticated sets `step: "auth", pendingAction: "place-order"` — this opens the auth overlay (bottom sheet on mobile, centered modal on desktop) **on top of** the still-visible, still-scrollable menu.
+- On successful auth, the provider checks `pendingAction` and automatically continues into `order-builder` — the user never has to re-tap "Place Order."
+- The overlay uses Next.js **intercepting routes** (`@auth/(.)login` convention) if deep-linkability of each auth step is wanted (e.g., a direct link to `/menu/2026-07-14/lunch/login` still renders the menu behind it), or simple client state if that's overkill for this use case — ⚠️ **recommendation: start with plain client state** (simpler, no route-interception complexity) and only move to intercepting routes if there's a real need to deep-link into a specific auth step.
+- Browser back button closes the current overlay step rather than navigating away, via `history.pushState` shims tied to `FlowState` transitions.
 
 ---
 
-## 14. Admin Panel Changes (Req #1, #4, #13)
+## 16. Component Architecture & Responsive UI (Zomato-style)
 
-**Customer List** (new/updated page under your existing admin routes):
-- Columns: Name, Mobile, Company, Work Address, Home Address, Verified (badge), Registered At (IST), Verified At (IST), Device Count, Last Login At (IST).
-- Filter by verified/unverified so staff can see registration attempts that never completed (Req #1's "added to customer list" — including the not-yet-verified ones, which is useful operationally even though their company stays hidden per Req #4).
+### 16.1 Layout shell
 
-**Company List** (new page):
-- Columns: Name, Status (Pending/Confirmed), Added By, Added At (IST), Customer Count, Confirmed At (IST).
-- Action: "Merge duplicate" (handles near-identical company names typed slightly differently by different customers).
+- **Desktop (≥1024px)**: sticky top navbar (logo, date/meal-type toggle, login/profile), content in a centered max-width column, modals render centered with backdrop.
+- **Mobile (<768px)**: sticky top bar (logo + hamburger only), sticky **bottom order bar** appears once ≥1 thali is added ("2 Thalis · ₹240 · View Order →", exactly like Zomato/Swiggy's cart bar), overlays render as bottom sheets that slide up (use `vaul` or a small custom drawer — respects safe-area-inset for notches).
 
-**Lat/Long editing** (Req #13):
-- Add to the existing Customer detail view in admin only — plain numeric lat/lng inputs, never rendered anywhere in customer-facing code.
-- These feed directly into the delivery/live-map work already in progress on the admin side, so staff can locate a customer precisely without the customer ever seeing or setting coordinates themselves.
+### 16.2 Core components
 
----
+| Component | Responsibility |
+|---|---|
+| `MenuHeader` | date, meal-type toggle (Lunch/Dinner tabs), cutoff countdown badge |
+| `ThaliBuilderCard` | one thali's sabji selection, wraps existing `useSabjiPicker` |
+| `AddOnGrid` | responsive grid, quantity steppers, running total badge |
+| `StickyOrderBar` | mobile-only, appears/disappears based on cart state |
+| `AuthOverlay` | routes to the right step component based on `FlowState.mode` |
+| `OtpInputBoxes` | 6 separate auto-advancing digit boxes, paste-friendly |
+| `PinPad` | large touch targets (≥44px), numeric-only, mobile-optimized |
+| `AddressSheet` | bottom sheet (mobile) / modal (desktop), radio cards + inline "add new" form |
+| `OrderStatusTimeline` | vertical stepper, current status highlighted |
+| `AdminUserTable` | search/filter/status badges/action menu (block/ban with confirm dialogs) |
+| `AdminCompanyTabs` | Pending/Verified/Flagged tab view |
 
-## 15. Security Hardening Checklist
+### 16.3 Responsiveness rules
 
-- [ ] All auth routes validate mobile format server-side before any DB write or provider call (§8).
-- [ ] Rate limits enforced on MOBILE + IP + DEVICE independently for every OTP-triggering action (§7).
-- [ ] OTP verification capped at 5 attempts per `verificationId`, then invalidated (§5.3).
-- [ ] PIN hashed with bcrypt (12 rounds), never stored or logged in plaintext anywhere, including error logs.
-- [ ] Refresh tokens stored only as hashes; raw token never persisted after issuance (§10).
-- [ ] Refresh token rotation + reuse detection implemented — a replayed revoked token kills the whole session family (§10).
-- [ ] Device fingerprint hash computed server-side with a private salt; raw client `visitorId` never stored (§6).
-- [ ] Company rows stay `PENDING`/invisible until the registering customer's OTP verifies (§11).
-- [ ] Order limits (thali/add-on) enforced server-side on every write, never trusting client-submitted totals (§12).
-- [ ] `MESSAGECENTRAL_AUTH_TOKEN`, JWT secrets, and the fingerprint salt only ever read in server-side route handlers, never bundled to client JS.
-- [ ] Legacy menu URLs 308-redirect to `/menu`; no other route can create an order (§13).
-- [ ] Cleanup cron removes abandoned `PENDING` companies and expired `OtpVerification`/draft rows (§11).
-- [ ] Admin-only lat/long fields excluded from every customer-facing API response (`select` explicitly, don't rely on omission).
+- Mobile-first Tailwind: base styles target mobile, `md:`/`lg:` add desktop refinements — not the reverse.
+- All tap targets ≥44×44px (PIN pad, OTP boxes, stepper buttons — this audience is mobile-heavy per "IT employees ordering from phones at work").
+- Bottom sheets, not full-page navigation, for every auth/order sub-step on mobile — reinforces the single-URL principle in §15.
 
 ---
 
-## 16. Phased Build & Rollout Order
+## 17. Validation Rules — Master Reference
 
-1. **Schema & migration** — all models in §2, run `prisma migrate dev`.
-2. **Rate limiting infrastructure** — `RateLimitEvent` model + `checkRateLimit()` helper (§7), since every later route depends on it.
-3. **Message Central client module** — `src/lib/message-central.ts` (send/verify functions), env vars (§3).
-4. **Registration + OTP routes** — §5.1–§5.3, wired to rate limiting and mobile validation from steps 2–3.
-5. **PIN system** — set-pin, login-pin, forgot-pin (§5.4, §5.5, §9).
-6. **Device fingerprinting** — client SDK integration + server hashing (§6), retrofitted into steps 4–5's routes.
-7. **JWT/session issuance + rotation** — §10, replacing the pre-auth token from step 4 with full sessions.
-8. **`/menu` consolidation** — §13, `resolveCustomerAuthState()`, redirect legacy routes.
-9. **Multi-thali + add-on ordering** — §12, including the `SystemSetting`-backed configurable limits.
-10. **Admin dashboard: Customer List, Company List, Lat/Long fields** — §14.
-11. **Security pass + abuse simulation** — deliberately hammer send-otp/login-pin from a test script to confirm rate limits actually trigger before wiring in real Message Central spend.
-
----
-
-## 17. Testing / QA Checklist
-
-- [ ] Registering with an invalid (non-Indian-format) mobile number is rejected before any OTP is sent.
-- [ ] Sending 4 OTPs to the same mobile within an hour is blocked on the 4th.
-- [ ] Entering a wrong OTP 5 times invalidates that OTP row and requires a fresh send.
-- [ ] A new company stays absent from the dropdown and admin Company List until its registering customer verifies.
-- [ ] Abandoning registration after step 1 (no OTP sent) leaves the Customer row visible in admin as unverified, but never creates a visible Company.
-- [ ] Setting a PIN of `123456` or `000000` is rejected.
-- [ ] 5 wrong PIN attempts locks login for 15 minutes; a correct PIN attempt during the lock is still rejected.
-- [ ] 3 separate lockouts in 24h forces that mobile into OTP-only login, confirmed by attempting a correct PIN during the forced window and having it rejected.
-- [ ] Logging in on a second, unrecognized device with a valid PIN succeeds without requiring OTP (confirms the "either/or" nature of Req #12).
-- [ ] Forgot PIN flow requires OTP and cannot be completed with only the old PIN.
-- [ ] Submitting an order with 11 total thali units is rejected; 10 succeeds.
-- [ ] Submitting an order with 31 total add-on units is rejected; 30 succeeds.
-- [ ] Each thali line in a multi-thali order can carry a different sabji selection independently.
-- [ ] An unverified customer hitting `POST /api/orders` directly (e.g., via curl, bypassing the UI) is rejected server-side.
-- [ ] A stolen/replayed (already-rotated) refresh token triggers full session-family revocation, confirmed by the legitimate device also being logged out.
-- [ ] Lat/long fields never appear in any customer-facing API response payload, confirmed by inspecting the raw JSON, not just the rendered UI.
+| Field | Rule |
+|---|---|
+| `name` | 2–60 chars, letters/spaces only |
+| `mobile` | exactly 10 digits, Indian mobile number pattern |
+| `pin` | exactly 6 digits, reject sequential/repeated denylist (`123456`, `000000`, `111111`, `654321`, etc.) |
+| `otp` | exactly 6 digits, expires 5 min, max 5 wrong guesses |
+| `workAddress.line1` | required, 5–200 chars |
+| `homeAddress` | optional at registration; addable anytime after |
+| `companyNameManual` | 2–100 chars if used instead of dropdown |
+| thali count | 1–10 per order |
+| add-on total quantity | 0–30 per order |
+| `cutoffTime` / `menuVisibleFrom` | `HH:mm` 24h format, server validates parse-ability |
 
 ---
 
-## 18. Open Questions Before You Start Coding
+## 18. Security Checklist
 
-1. **Thali limit scope** — confirmed as per-order-submission in this plan (§12); flag if you meant a daily cumulative cap instead.
-2. **Existing customer model name** — this plan uses `Customer` throughout; tell me the real model name (or upload `schema.prisma`) if you want an exact-diff version instead of a parallel plan.
-3. **Message Central account status** — confirm you've already completed the signup/Customer ID/auth token steps from your OTP research doc, since §3's env vars depend on those existing.
-4. **Sabji source** — this plan assumes `dailyMenuSabjiId` already exists from your daily-menu-creation work; if that schema differs, §2's `OrderThaliItem` foreign key needs adjusting to match.
+- [ ] PINs hashed with `bcrypt` (cost 10+) or `argon2id` — never stored/logged in plaintext. Since 6-digit PINs have low entropy (~1M combinations), **the rate limiter is the real defense**, not the hash strength alone.
+- [ ] OTPs hashed at rest, 5-min expiry, single-use (`consumedAt` set atomically).
+- [ ] Session JWT in `httpOnly`, `Secure`, `SameSite=Lax` cookie — never in `localStorage`.
+- [ ] `otpVerifiedToken` / `resetToken` are purpose-scoped JWTs (can't be replayed for a different action) with short expiry (10 min).
+- [ ] Every mutating route runs Zod validation on input before touching the DB.
+- [ ] Admin routes check role **server-side** on every request — UI hiding a button is not access control.
+- [ ] Forgot-PIN and resume-verify endpoints return generic responses regardless of whether the mobile exists (enumeration protection), while still being rate-limited.
+- [ ] All admin actions (ban, unban, company verify/flag/delete, meal-settings change) write to an audit table with `actedByStaffId` + timestamp.
+- [ ] Rate limiters fail closed (Postgres fallback), never open, if Redis is unreachable (§4.3).
+- [ ] Device cookie is set via a `Set-Cookie` response header from a first-party API route, never client-`document.cookie`, to reduce tampering surface.
+- [ ] CSRF protection on all state-changing routes (same-site cookie + origin check is sufficient for a same-origin Next.js app; add a CSRF token if the API is ever split to a separate domain).
 
 ---
 
-*End of plan. All 13 stated requirements are addressed per the mapping table at the top — flag anything that still feels underspecified and I'll expand that specific section further.*
+## 19. Error Codes Reference
+
+All API errors share this shape:
+
+```json
+{ "error": { "code": "OTP_RATE_LIMITED", "message": "Human-readable message", "retryAfterSeconds": 45 } }
+```
+
+| Code | HTTP | Meaning |
+|---|---|---|
+| `DEVICE_BLOCKED` | 403 | Device is blocked, regardless of mobile tried |
+| `USER_BLOCKED` | 403 | Account soft-restricted |
+| `USER_BANNED` | 403 | Account hard-restricted, admin-only reversal |
+| `MOBILE_ALREADY_REGISTERED` | 409 | Mobile already has a further-along account; suggest login |
+| `OTP_RATE_LIMITED` | 429 | Too many OTP sends in window |
+| `OTP_INVALID` | 400 | Wrong code entered |
+| `OTP_EXPIRED` | 410 | Code past 5-min expiry |
+| `OTP_MAX_ATTEMPTS` | 400 | 5 wrong guesses on this OTP, must resend |
+| `PIN_INVALID` | 400 | Wrong PIN on login |
+| `PIN_LOCKED` | 423 | Too many wrong PIN attempts, temporary lock |
+| `PIN_WEAK` | 400 | PIN matched denylist (sequential/repeated) |
+| `ALREADY_VERIFIED` | 409 | Resume-verify called on a fully onboarded account |
+| `COMPANY_NAME_REQUIRED` | 400 | Neither `companyId` nor `companyNameManual` given |
+| `THALI_LIMIT_EXCEEDED` | 422 | >10 thalis in order |
+| `ADDON_LIMIT_EXCEEDED` | 422 | >30 add-on quantity in order |
+| `ADDRESS_REQUIRED` | 422 | No address selected at order confirm |
+| `CUTOFF_PASSED` | 423 | Ordering window closed for this meal/date |
+| `ADMIN_ONLY_ACTION` | 403 | Non-ADMIN staff attempted ban/unban |
+
+---
+
+## 20. Day-wise Implementation Plan
+
+**Day 1 — Foundations**
+Prisma schema additions + migration (§3), Redis/Upstash setup, `rate-limit.ts` + `guard-request.ts` (§4), device fingerprinting client util + cookie route (§5).
+
+**Day 2 — Auth backend**
+All `/api/auth/*` routes (§6), OTP send via MessageCentral, PIN hashing, session JWT issuance, audit logging to `OtpAttempt`/`LoginAttempt`.
+
+**Day 3 — Auth frontend**
+`AuthOrderFlowProvider` + `AuthOverlay` + `OtpInputBoxes` + `PinPad` components (§15, §16), wired to Day 2 endpoints, mobile bottom-sheet + desktop modal variants.
+
+**Day 4 — Ordering**
+`ThaliBuilderCard` + `AddOnGrid` + `StickyOrderBar` + `AddressSheet` (§9, §16), `POST /api/orders` with full server-side re-validation, `OrderStatusTimeline` (§10).
+
+**Day 5 — Admin panel**
+User management (block/ban with role gating, §11), company moderation tabs (§12), meal-settings page (§13), `AdminAuditLog` wiring throughout.
+
+**Day 6 — Cutoff/visibility polish + QA**
+`MealSettings` gating logic on the public menu page (§8.2), full responsive pass on mobile (safe-area insets, tap targets), rate-limit load testing (simulate rapid OTP/login abuse to confirm 429s trigger correctly), end-to-end walk of every flow in §6's state diagram including edge cases (closed tab mid-registration, wrong PIN lockout, cutoff mid-session).
+
+---
+
+## 21. Open Questions Log
+
+These are places where this plan made a reasonable default — confirm or adjust before/while implementing:
+
+1. **Add-on limit interpretation**: "maximum 30 per number" — implemented as total quantity ≤30 per order. If it should instead mean 30 *distinct* add-on SKUs, it's a one-line change in the validator (§9.2, §17).
+2. **Existing Order/Sabji schema**: this plan assumes an existing catalog/Sabji model from the V2 work and only adds order-management models around it. Reconcile field names against the actual current schema before running the migration.
+3. **Public menu URL pattern**: assumed `/menu/[date]/[mealType]`; confirm against whatever the current live pattern actually is post-change, and re-point §8.3/§15 accordingly (the gating logic itself doesn't care about the exact pattern).
+4. **Resume-verify → PIN setup**: recommended requiring a fresh OTP even when `registrationStep === OTP_VERIFIED` already, rather than letting anyone who knows the mobile number jump straight to setting a PIN. Flagged as a deliberate stricter-than-literal-spec choice in §6.8 — worth a conscious yes/no.
+5. **Shared-device collateral blocking**: when banning a user, devices linked to more than one account are flagged for manual review instead of auto-blocked, to avoid locking out an office's shared kiosk/PC. Confirm this trade-off is acceptable versus stricter auto-blocking.
+6. **Staff/admin auth model**: assumed to already exist separately from customer `User`; `actedByStaffId` is a plain string FK. Point it at the actual model/table name once confirmed.
+7. **Block vs. Ban as two tiers**: the source doc uses "blocking" (point A, general abuse/fake-company response, device+number cascade) and "banning...permanently, admin-only revert" (point 5) somewhat interchangeably in places. This plan treats them as two distinct severities — `BLOCKED` (any staff with permission, reversible by staff) and `BANNED` (ADMIN role only, reversible only by ADMIN) — which is an engineering interpretation to satisfy point 5's "admin only" clause without making *every* block require an admin. Confirm this two-tier split matches intent, or whether "blocked" and "banned" should collapse into a single status.
+8. **"Cutoff time set by default on the profile"**: read as "a default cutoff time configured on the admin's settings/profile page," implemented as one global `MealSettings` row per meal type (not per-user, not per-day-of-week). If a per-day-of-week or per-user override was meant, `MealSettings` needs a `dayOfWeek` or scoping column added.

@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 export async function GET(_req: NextRequest) {
   try {
     const companies = await prisma.company.findMany({
-      where: { status: "CONFIRMED", isActive: true },
+      where: { isVerifiedByAdmin: true, isFlaggedFake: false, isActive: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     });

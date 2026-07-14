@@ -5,15 +5,21 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
-    const statusFilter = searchParams.get("status"); // "CONFIRMED" | "PENDING" | null (all)
+    const tab = searchParams.get("tab") ?? ""; // "verified" | "pending" | "flagged" | ""
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "50");
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
 
-    if (statusFilter === "CONFIRMED" || statusFilter === "PENDING") {
-      where.status = statusFilter;
+    if (tab === "verified") {
+      where.isVerifiedByAdmin = true;
+      where.isFlaggedFake = false;
+    } else if (tab === "pending") {
+      where.isVerifiedByAdmin = false;
+      where.isFlaggedFake = false;
+    } else if (tab === "flagged") {
+      where.isFlaggedFake = true;
     }
 
     if (search) {
@@ -29,8 +35,10 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        include: { _count: { select: { users: true } } },
-        // Include status fields so the admin dashboard can show pending/confirmed badges
+        include: {
+          _count: { select: { users: true } },
+          addedByUser: { select: { id: true, name: true, number: true } },
+        },
       }),
       prisma.company.count({ where }),
     ]);

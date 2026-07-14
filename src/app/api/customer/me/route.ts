@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyCustomerAccessToken, CUSTOMER_ACCESS_COOKIE } from "@/lib/customer-auth";
+import { verifyCustomerAccessToken, CUSTOMER_ACCESS_COOKIE, checkUserAndDeviceStatus } from "@/lib/customer-auth";
 
 /**
  * GET /api/customer/me
@@ -18,6 +18,11 @@ export async function GET(req: NextRequest) {
     const claims = verifyCustomerAccessToken(token);
     if (!claims) {
       return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+    }
+
+    const statusCheck = await checkUserAndDeviceStatus(claims.sub, claims.fph);
+    if (!statusCheck.allowed) {
+      return NextResponse.json({ error: statusCheck.message, code: statusCheck.code }, { status: 403 });
     }
 
     const user = await prisma.user.findUnique({

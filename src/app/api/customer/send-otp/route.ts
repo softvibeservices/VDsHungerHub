@@ -50,6 +50,18 @@ export async function POST(req: NextRequest) {
     const userAgent = req.headers.get("user-agent") ?? "";
     const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
 
+    // Device fingerprint blocking check
+    const blockedDevice = await prisma.deviceFingerprint.findFirst({
+      where: { fingerprintHash, isBlocked: true },
+      select: { blockedReason: true },
+    });
+    if (blockedDevice) {
+      return NextResponse.json(
+        { error: blockedDevice.blockedReason ?? "This device has been restricted.", code: "DEVICE_BLOCKED" },
+        { status: 403 }
+      );
+    }
+
     // Map purpose to rate limit action
     const rlAction =
       purpose === "REGISTER"
@@ -101,13 +113,20 @@ export async function POST(req: NextRequest) {
 
       const draft = await prisma.user.findUnique({
         where: { id: draftId, isVerified: false },
-        select: { id: true },
+        select: { id: true, status: true, statusReason: true },
       });
 
       if (!draft) {
         return NextResponse.json(
           { error: "Registration draft not found or already verified" },
           { status: 404 }
+        );
+      }
+
+      if (draft.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: draft.statusReason ?? `Account is ${draft.status.toLowerCase()}.`, code: `USER_${draft.status}` },
+          { status: 403 }
         );
       }
 
@@ -122,7 +141,7 @@ export async function POST(req: NextRequest) {
       // User must already be verified
       const user = await prisma.user.findFirst({
         where: { number: mobile, isVerified: true },
-        select: { id: true },
+        select: { id: true, status: true, statusReason: true },
       });
       if (!user) {
         return NextResponse.json(
@@ -130,17 +149,29 @@ export async function POST(req: NextRequest) {
           { status: 404 }
         );
       }
+      if (user.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: user.statusReason ?? `Account is ${user.status.toLowerCase()}.`, code: `USER_${user.status}` },
+          { status: 403 }
+        );
+      }
     }
 
     if (purpose === "FORGOT_PIN") {
       const user = await prisma.user.findFirst({
         where: { number: mobile, isVerified: true },
-        select: { id: true },
+        select: { id: true, status: true, statusReason: true },
       });
       if (!user) {
         return NextResponse.json(
           { error: "No verified account found for this number." },
           { status: 404 }
+        );
+      }
+      if (user.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: user.statusReason ?? `Account is ${user.status.toLowerCase()}.`, code: `USER_${user.status}` },
+          { status: 403 }
         );
       }
     }

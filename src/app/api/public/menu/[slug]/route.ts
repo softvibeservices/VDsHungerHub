@@ -39,6 +39,17 @@ export async function GET(
       return NextResponse.json({ error: "Menu not found" }, { status: 404 });
     }
 
+    // Fetch MealSettings for this menu's mealType — used by the public page
+    // to evaluate the isOrderingOpen kill-switch and menuVisibleFrom window
+    const mealSettings = await prisma.mealSettings.findUnique({
+      where: { mealType: menu.mealType },
+      select: {
+        cutoffTime: true,
+        menuVisibleFrom: true,
+        isOrderingOpen: true,
+      },
+    });
+
     // Fetch all active add-on products (available for all menus)
     const addOns = await prisma.product.findMany({
       where: { isActive: true, isAddOnAvailable: true },
@@ -52,7 +63,7 @@ export async function GET(
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ menu, addOns });
+    return NextResponse.json({ menu, addOns, mealSettings });
   } catch (error) {
     console.error("[PUBLIC MENU GET]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

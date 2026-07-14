@@ -77,6 +77,22 @@ export default async function MenuPage() {
 
   if (authState.state === "VERIFIED_SESSION") {
     const todayMenu = await getTodayMenu();
+
+    // §8.2: menu not yet in its visibility window — show holding page
+    if (todayMenu && (todayMenu as any).menuNotYetVisible === true) {
+      const visibleFrom = (todayMenu as any).menuVisibleFrom as string;
+      return (
+        <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6 text-center gap-4">
+          <div className="text-4xl">🕐</div>
+          <h1 className="text-xl font-bold text-gray-800">Menu not available yet</h1>
+          <p className="text-gray-500 max-w-sm text-sm leading-relaxed">
+            The {(todayMenu as any).mealType === "DINNER" ? "dinner" : "lunch"} menu will be available
+            from <strong>{visibleFrom} IST</strong> today. Check back soon!
+          </p>
+        </div>
+      );
+    }
+
     return <OrderingExperience userId={authState.userId} menu={todayMenu} />;
   }
 
@@ -100,13 +116,41 @@ async function getTodayMenu() {
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
   const ist = new Date(now.getTime() + istOffset);
+  const istHour = ist.getUTCHours();
+  const istMinute = ist.getUTCMinutes();
   const dateStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
 
   // Determine meal type by IST hour (before 3pm IST → LUNCH)
-  const istHour = ist.getUTCHours();
   const mealType = istHour < 15 ? "LUNCH" : "DINNER";
 
-  return prisma.dailyMenu.findFirst({
+  // Retrieve global settings first — needed for visibility window check
+  const settings = await prisma.mealSettings.findUnique({
+    where: { mealType },
+  });
+
+  // §8.2 menuVisibleFrom check: if current time is BEFORE the visibility window,
+  // the menu for this cycle is not yet available. Return a sentinel object.
+  if (settings?.menuVisibleFrom) {
+    const [visibleHour, visibleMin] = settings.menuVisibleFrom.split(":").map(Number);
+    const currentMinutesFromMidnight = istHour * 60 + istMinute;
+    const visibleFromMinutes = visibleHour * 60 + visibleMin;
+
+    // For LUNCH: menu becomes visible at menuVisibleFrom the PREVIOUS evening (e.g. 18:00)
+    // For DINNER: menu becomes visible at menuVisibleFrom the SAME day (e.g. after lunch cutoff)
+    // Simple rule: if current time < visibleFrom AND it's the *same* meal type,
+    // the menu for today's cycle is not yet browsable
+    if (mealType === "DINNER" && currentMinutesFromMidnight < visibleFromMinutes) {
+      return {
+        menuNotYetVisible: true as const,
+        mealType,
+        menuVisibleFrom: settings.menuVisibleFrom,
+        isOrderingOpen: false,
+        cutoffTime: null,
+      };
+    }
+  }
+
+  const menu = await prisma.dailyMenu.findFirst({
     where: {
       date: {
         gte: new Date(dateStr + "T00:00:00.000Z"),
@@ -132,4 +176,23 @@ async function getTodayMenu() {
       },
     },
   });
+
+  if (!menu) return null;
+
+  let cutoffTime = menu.cutoffTime;
+  if (!cutoffTime && settings?.cutoffTime) {
+    const [hours, minutes] = settings.cutoffTime.split(":").map(Number);
+    const combined = new Date(menu.date);
+    combined.setHours(hours, minutes, 0, 0);
+    cutoffTime = combined;
+  }
+
+  return {
+    ...menu,
+    cutoffTime,
+    isOrderingOpen: settings ? settings.isOrderingOpen : true,
+    menuVisibleFrom: settings?.menuVisibleFrom ?? null,
+    menuNotYetVisible: false as const,
+  };
 }
+

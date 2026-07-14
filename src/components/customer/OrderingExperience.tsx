@@ -148,6 +148,8 @@ export default function OrderingExperience({ userId, menu }: Props) {
     ? new Date() > new Date(menu.cutoffTime)
     : false;
 
+  const isOrderingClosed = isCutoffPassed || !(menu as any).isOrderingOpen;
+
   // ── Add thali line ──────────────────────────────────────────────────────────
   const addThaliLine = (thali: Thali) => {
     if (totalThaliQty >= MAX_THALI) {
@@ -345,12 +347,17 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
       <div className="max-w-2xl mx-auto p-4 space-y-5 pb-40">
         {/* Cutoff warning */}
-        {isCutoffPassed && (
+        {!(menu as any).isOrderingOpen ? (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-2xl p-3 text-sm text-red-600">
+            <AlertCircle size={16} />
+            Ordering is temporarily closed by the administrator.
+          </div>
+        ) : isCutoffPassed ? (
           <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-2xl p-3 text-sm text-red-600">
             <AlertCircle size={16} />
             Ordering cutoff has passed. Please contact admin.
           </div>
-        )}
+        ) : null}
 
         {/* Thali selector */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -388,7 +395,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
                     </div>
                     <button
                       onClick={() => addThaliLine(thali)}
-                      disabled={isCutoffPassed || totalThaliQty >= MAX_THALI}
+                      disabled={isOrderingClosed || totalThaliQty >= MAX_THALI}
                       className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-orange-500 text-white text-xs font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <Plus size={13} /> Add
@@ -510,7 +517,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
                         </button>
                         <span className="text-sm font-bold w-5 text-center">{line?.quantity ?? 0}</span>
                         <button onClick={() => updateAddon(product, 1)}
-                          disabled={isCutoffPassed}
+                          disabled={isOrderingClosed}
                           className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-100 hover:text-orange-600 disabled:opacity-40 transition-colors">
                           <Plus size={12} />
                         </button>
@@ -549,7 +556,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
             <button
               id="place-order-btn"
               onClick={handleSubmit}
-              disabled={submitting || isCutoffPassed || thaliLines.length === 0}
+              disabled={submitting || isOrderingClosed || thaliLines.length === 0}
               className="flex-shrink-0 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-500/30 text-sm flex items-center gap-2"
             >
               {submitting ? "Placing..." : "Place Order"}
