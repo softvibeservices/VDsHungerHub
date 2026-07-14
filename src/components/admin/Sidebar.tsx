@@ -12,6 +12,7 @@ import {
   LogOut,
   X,
   Settings,
+  UserCheck,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -21,6 +22,7 @@ const allNavItems = [
   { href: "/orders", icon: ShoppingBag, label: "Orders", roles: ["ADMIN", "STAFF"] },
   { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN"] },
   { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
+  { href: "/staff", icon: UserCheck, label: "Staff", roles: ["ADMIN"] },
   { href: "/catalog", icon: ShoppingBasket, label: "Catalog", roles: ["ADMIN", "STAFF"] },
   { href: "/daily-menu", icon: CalendarDays, label: "Daily Menu", roles: ["ADMIN", "STAFF"] },
   { href: "/settings/meal-cutoff", icon: Settings, label: "Cutoff Settings", roles: ["ADMIN", "STAFF"] },

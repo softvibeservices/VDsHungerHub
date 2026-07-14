@@ -5,6 +5,8 @@ import type { TokenPayload } from "@/lib/auth";
 const PUBLIC_PATHS = [
   "/",
   "/login",
+  "/staff-login",
+  "/api/staff/otp",
   "/api/auth/login",
   "/api/auth/logout",
   "/menu",          // CUSTOMER ordering page (/menu and /menu/[slug] public share links)
@@ -15,7 +17,7 @@ const PUBLIC_PATHS = [
 ];
 
 // Pages only ADMIN can access
-const ADMIN_ONLY_PREFIXES = ["/companies", "/users", "/api/companies", "/api/users"];
+const ADMIN_ONLY_PREFIXES = ["/companies", "/users", "/api/companies", "/api/users", "/api/admin/staff"];
 
 // Pages both ADMIN and STAFF can access (require authentication)
 const PROTECTED_PREFIXES = [
@@ -44,22 +46,25 @@ export function proxy(request: NextRequest) {
   const isProtectedApi =
     pathname.startsWith("/api") &&
     !pathname.startsWith("/api/auth") &&
-    !pathname.startsWith("/api/public");
+    !pathname.startsWith("/api/public") &&
+    !pathname.startsWith("/api/customer") &&
+    !pathname.startsWith("/api/staff/otp");
 
   if (isProtectedPage || isProtectedApi) {
     const token =
+      request.cookies.get("tos_staff_session")?.value ??
       request.cookies.get("vdh_token")?.value ??
       request.cookies.get("vd_admin_token")?.value; // legacy cookie support
 
     if (!token) {
       if (isProtectedApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/staff-login", request.url));
     }
 
     const payload: TokenPayload | null = verifyToken(token);
     if (!payload) {
       if (isProtectedApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/staff-login", request.url));
     }
 
     // Role check: STAFF cannot access admin-only pages/routes

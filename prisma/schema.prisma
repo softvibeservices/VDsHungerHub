@@ -353,6 +353,7 @@ enum OtpPurpose {
   REGISTER
   LOGIN
   FORGOT_PIN
+  STAFF_LOGIN
 }
 
 model OtpVerification {
@@ -399,6 +400,7 @@ enum RateLimitAction {
   SEND_OTP_REGISTER
   SEND_OTP_LOGIN
   SEND_OTP_FORGOT_PIN
+  SEND_OTP_STAFF_LOGIN
   VERIFY_OTP
   LOGIN_PIN_ATTEMPT
   ADD_COMPANY
@@ -564,3 +566,37 @@ model MealSettings {
   isOrderingOpen   Boolean   @default(true)
   updatedAt        DateTime  @updatedAt
 }
+
+// -----------------------------------------
+// STAFF USER (OTP authenticated Admin/Staff -- new)
+// -----------------------------------------
+enum StaffRole {
+  ADMIN
+  STAFF
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model StaffUser {
+  id                String        @id @default(cuid())
+  name              String
+  mobile            String        @unique
+  role              StaffRole     @default(STAFF)
+  permissions       String[]      @default([]) // Flat permission catalog
+  status            StaffStatus   @default(ACTIVE)
+
+  createdByAdminId  String?
+  createdBy         StaffUser?    @relation("StaffCreatedBy", fields: [createdByAdminId], references: [id])
+  staffCreated      StaffUser[]   @relation("StaffCreatedBy")
+
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([role])
+  @@index([status])
+}
+

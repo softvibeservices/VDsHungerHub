@@ -28,7 +28,16 @@ export function signToken(payload: TokenPayload): string {
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    if (decoded.staffId) {
+      return {
+        id: decoded.staffId,
+        number: decoded.mobile || "",
+        name: decoded.name || "",
+        role: decoded.role,
+      };
+    }
+    return decoded as TokenPayload;
   } catch {
     return null;
   }
@@ -59,14 +68,14 @@ export async function setAuthCookie(token: string) {
 export async function clearAuthCookie() {
   const cookieStore = await cookies();
   cookieStore.delete(COOKIE_NAME);
-  // Also clear legacy cookie if present
+  cookieStore.delete("tos_staff_session");
   cookieStore.delete("vd_admin_token");
 }
 
 export async function getAuthToken(): Promise<string | undefined> {
   const cookieStore = await cookies();
-  // Support new cookie name first, then fall back to legacy
   return (
+    cookieStore.get("tos_staff_session")?.value ??
     cookieStore.get(COOKIE_NAME)?.value ??
     cookieStore.get("vd_admin_token")?.value
   );
