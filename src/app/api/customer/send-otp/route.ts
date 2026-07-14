@@ -130,6 +130,23 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // If there is an existing unverified user with this number (stale draft),
+      // delete it to avoid unique constraint violations when we update this draft
+      const existingUnverified = await prisma.user.findFirst({
+        where: { number: mobile, isVerified: false, NOT: { id: draftId } },
+        select: { id: true },
+      });
+      if (existingUnverified) {
+        await prisma.$transaction([
+          prisma.customerSession.deleteMany({ where: { userId: existingUnverified.id } }),
+          prisma.deviceFingerprint.deleteMany({ where: { userId: existingUnverified.id } }),
+          prisma.userDevice.deleteMany({ where: { userId: existingUnverified.id } }),
+          prisma.order.deleteMany({ where: { userId: existingUnverified.id } }),
+          prisma.address.deleteMany({ where: { userId: existingUnverified.id } }),
+          prisma.user.delete({ where: { id: existingUnverified.id } }),
+        ]);
+      }
+
       // Update the draft's number placeholder with the real mobile
       await prisma.user.update({
         where: { id: draftId },
