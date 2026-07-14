@@ -35,6 +35,13 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
     </Link>
   );
 
+  const guestLinkClass = (href: string) =>
+    `text-sm font-semibold transition-colors cursor-pointer ${
+      pathname === href
+        ? "text-orange-600"
+        : "text-gray-600 hover:text-orange-600"
+    }`;
+
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-sm border-b border-gray-200">
       <div className="max-w-5xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
@@ -54,22 +61,13 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
           </nav>
         ) : (
           <nav className="hidden md:flex items-center gap-4">
-            <Link
-              href="/register"
-              className="text-sm font-semibold text-gray-600 hover:text-orange-600 transition-colors"
-            >
+            <Link href="/register" className={guestLinkClass("/register")}>
               Register
             </Link>
-            <Link
-              href="/login"
-              className="text-sm font-semibold text-orange-600 hover:text-orange-700 transition-colors"
-            >
+            <Link href="/login" className={guestLinkClass("/login")}>
               Login
             </Link>
-            <Link
-              href="/verify"
-              className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors"
-            >
+            <Link href="/verify" className={guestLinkClass("/verify")}>
               Verify Mobile
             </Link>
           </nav>
@@ -128,21 +126,33 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
               <Link
                 href="/register"
                 onClick={() => setMobileOpen(false)}
-                className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-center text-sm"
+                className={`w-full py-2.5 text-center text-sm font-bold rounded-xl ${
+                  pathname === "/register"
+                    ? "bg-orange-600 text-white shadow-md shadow-orange-600/10"
+                    : "bg-orange-500 hover:bg-orange-600 text-white"
+                }`}
               >
                 Register
               </Link>
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="w-full py-2.5 border border-orange-200 text-orange-600 hover:bg-orange-50 font-bold rounded-xl text-center text-sm"
+                className={`w-full py-2.5 text-center text-sm font-bold rounded-xl border ${
+                  pathname === "/login"
+                    ? "bg-orange-50 border-orange-400 text-orange-600"
+                    : "border-orange-200 text-orange-600 hover:bg-orange-50"
+                }`}
               >
                 Login
               </Link>
               <Link
                 href="/verify"
                 onClick={() => setMobileOpen(false)}
-                className="w-full py-2 text-gray-400 hover:text-gray-600 text-center text-xs font-semibold mt-1"
+                className={`w-full py-2 text-center text-xs font-semibold mt-1 ${
+                  pathname === "/verify"
+                    ? "text-orange-600 underline font-bold"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
               >
                 Verify Mobile / Resume
               </Link>

@@ -307,7 +307,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   return (
     <div>
       {/* Step indicator */}
-      <div className="flex items-center mb-6">
+      <div className="flex items-center mb-5">
         {steps.map((s, i) => (
           <div key={s} className="flex items-center flex-1">
             <div
@@ -346,9 +346,9 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
       {/* ── STEP 1: DETAILS ──────────────────────────────────────────────────── */}
       {step === "DETAILS" && (
-        <form onSubmit={handleDetailsSubmit} className="space-y-4">
+        <form onSubmit={handleDetailsSubmit} className="space-y-3">
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
               Full Name *
             </label>
             <input
@@ -360,12 +360,12 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               minLength={2}
               maxLength={80}
               placeholder="Your full name"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
               Mobile Number *
             </label>
             <div className="flex gap-2">
@@ -380,13 +380,13 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 required
                 maxLength={10}
                 placeholder="10-digit mobile number"
-                className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
               Work / Delivery Address *
             </label>
             <textarea
@@ -398,12 +398,12 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               maxLength={300}
               rows={2}
               placeholder="Office / delivery location"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
               Home Address <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <textarea
@@ -413,12 +413,12 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               maxLength={300}
               rows={2}
               placeholder="Residential address"
-              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all resize-none"
+              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5 flex items-center gap-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
               <Building2 size={13} /> Company *
             </label>
 
@@ -428,7 +428,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                   id="register-company-select"
                   value={companyId}
                   onChange={(e) => setCompanyId(e.target.value)}
-                  className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white transition-all"
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white transition-all"
                 >
                   <option value="">Select company...</option>
                   {companies.map((c) => (
@@ -440,7 +440,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 <button
                   type="button"
                   onClick={() => setNewCompany(true)}
-                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold px-2 py-2 border border-orange-200 rounded-xl hover:bg-orange-50 transition-colors"
+                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold px-2.5 py-2 border border-orange-200 rounded-xl hover:bg-orange-50 transition-colors shrink-0"
                 >
                   <Plus size={14} /> New
                 </button>
@@ -454,12 +454,12 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                   onChange={(e) => setNewCompanyName(e.target.value)}
                   placeholder="Enter company name"
                   maxLength={120}
-                  className="flex-1 px-3.5 py-2.5 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                  className="flex-1 px-3 py-2 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
                 />
                 <button
                   type="button"
                   onClick={() => { setNewCompany(false); setNewCompanyName(""); }}
-                  className="text-xs text-gray-500 hover:text-gray-700 px-2 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                  className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shrink-0"
                 >
                   Cancel
                 </button>
@@ -467,7 +467,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
             )}
 
             {!newCompany && !companyId && (
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-[10px] text-gray-400 mt-1">
                 Don&apos;t see your company? Click &quot;New&quot; to add it.
               </p>
             )}
@@ -484,16 +484,16 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               (!newCompany && !companyId) ||
               (newCompany && !newCompanyName.trim())
             }
-            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 mt-2"
+            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 mt-2 cursor-pointer"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             Continue
             {!loading && <ChevronRight size={16} />}
           </button>
 
-          <p className="text-center text-xs text-gray-500">
+          <p className="text-center text-xs text-gray-500 mt-1">
             Already registered?{" "}
-            <button type="button" onClick={onSwitchToLogin} className="text-orange-600 font-semibold hover:underline">
+            <button type="button" onClick={onSwitchToLogin} className="text-orange-600 font-semibold hover:underline cursor-pointer">
               Login
             </button>
           </p>
@@ -502,19 +502,19 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
       {/* ── STEP 2: OTP ──────────────────────────────────────────────────────── */}
       {step === "OTP" && (
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <div className="text-center mb-6">
+        <form onSubmit={handleVerifyOtp} className="space-y-3">
+          <div className="text-center mb-5">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3 border border-orange-100">
               <Phone size={22} className="text-orange-500" />
             </div>
-            <h3 className="font-bold text-gray-900">Verify Mobile</h3>
-            <p className="text-xs text-gray-500 mt-1">
+            <h3 className="font-bold text-gray-900 text-sm">Verify Mobile</h3>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
               Enter the 6-digit OTP code sent to <strong className="text-gray-800">+91 {mobile}</strong>
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
               Enter 6-digit OTP
             </label>
             <input
@@ -526,7 +526,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               required
               maxLength={6}
               placeholder="••••••"
-              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
           </div>
 
@@ -534,18 +534,18 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
             id="register-verify-otp"
             type="submit"
             disabled={loading || otp.length !== 6}
-            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 cursor-pointer"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             Verify OTP
           </button>
 
-          <div className="flex flex-col items-center gap-2 mt-4">
+          <div className="flex flex-col items-center gap-1.5 mt-3">
             <button
               type="button"
               onClick={handleSendOtp}
               disabled={loading || otpCooldown > 0}
-              className="text-xs text-orange-600 hover:text-orange-700 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed"
+              className="text-xs text-orange-600 hover:text-orange-700 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer"
             >
               {otpCooldown > 0 ? `Resend OTP in ${otpCooldown}s` : "Resend OTP"}
             </button>
@@ -553,7 +553,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
             <button
               type="button"
               onClick={() => { setStep("DETAILS"); setOtpSent(false); }}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium hover:underline mt-1"
+              className="text-xs text-gray-500 hover:text-gray-700 font-medium hover:underline mt-1 cursor-pointer"
             >
               Change Mobile Number
             </button>
@@ -563,19 +563,19 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
       {/* ── STEP 3: PIN ──────────────────────────────────────────────────────── */}
       {step === "PIN" && (
-        <form onSubmit={handleSetPin} className="space-y-4">
+        <form onSubmit={handleSetPin} className="space-y-3">
           <div className="text-center mb-2">
             <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3 border border-orange-100">
               <KeyRound size={22} className="text-orange-500" />
             </div>
-            <h3 className="font-bold text-gray-900">Create your PIN</h3>
-            <p className="text-xs text-gray-500 mt-1">
+            <h3 className="font-bold text-gray-900 text-sm">Create your PIN</h3>
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
               6-digit PIN you&apos;ll use to log in on any device
             </p>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">PIN *</label>
+            <label className="block text-xs font-semibold text-gray-700 mb-1">PIN *</label>
             <div className="relative">
               <input
                 id="register-pin"
@@ -586,7 +586,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 required
                 maxLength={6}
                 placeholder="••••••"
-                className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all pr-10"
+                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all pr-10"
               />
               <button
                 type="button"
@@ -599,7 +599,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+            <label className="block text-xs font-semibold text-gray-700 mb-1">
               Confirm PIN *
             </label>
             <input
@@ -611,11 +611,11 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               required
               maxLength={6}
               placeholder="••••••"
-              className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
           </div>
 
-          <p className="text-xs text-gray-400">
+          <p className="text-[10px] text-gray-400">
             Avoid simple PINs like 123456 or 000000.
           </p>
 
@@ -623,7 +623,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
             id="register-set-pin"
             type="submit"
             disabled={loading || pin.length !== 6 || confirmPin.length !== 6}
-            className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20"
+            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 cursor-pointer"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             Complete Registration
