@@ -27,7 +27,7 @@ export function useKeyboard() {
           break;
         case "m":
           e.preventDefault();
-          router.push("/menu");
+          router.push("/daily-menu");
           break;
         case "d":
           e.preventDefault();

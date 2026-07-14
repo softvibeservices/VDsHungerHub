@@ -8,7 +8,10 @@ const pageTitles: Record<string, string> = {
   "/companies": "Companies",
   "/users": "Users",
   "/catalog": "Catalog",
-  "/menu": "Daily Menu",
+  "/orders": "Orders",
+  "/daily-menu": "Daily Menu",
+  // /menu is the customer ordering page — shown if admin accidentally navigates there
+  "/menu": "Customer Menu",
 };
 
 interface HeaderProps {

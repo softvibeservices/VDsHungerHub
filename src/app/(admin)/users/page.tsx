@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Upload, Pencil, Trash2, ShieldCheck, ShieldOff } from "lucide-react";
+import { Plus, Upload, Pencil, Trash2, ShieldCheck, ShieldOff, MapPin } from "lucide-react";
 import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
@@ -17,11 +17,18 @@ import { formatDateTimeIST } from "@/lib/time";
 
 interface Company { id: string; name: string }
 interface User {
-  id: string; name: string; number: string; isActive: boolean; companyId: string;
+  id: string;
+  name: string;
+  number: string;
+  isActive: boolean;
+  companyId: string;
   company: Company;
   isVerified: boolean;
   verifiedAt?: string | null;
   workAddress?: string | null;
+  homeAddress?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   _count?: { deviceFingerprints: number };
 }
 
@@ -91,38 +98,89 @@ export default function UsersPage() {
   };
 
   const columns: Column<User>[] = [
-    { key: "name", header: "Name", render: (row) => <span className="font-medium text-gray-900">{row.name}</span> },
-    { key: "number", header: "Mobile", render: (row) => <span className="text-gray-600 font-mono text-xs">{formatMobileNumber(row.number)}</span> },
-    { key: "company", header: "Company", render: (row) => <span className="text-gray-600">{row.company?.name ?? "—"}</span> },
-    { key: "verified", header: "Verified", render: (row) => (
-      <div className="flex flex-col gap-0.5">
-        {row.isVerified ? (
-          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 font-medium">
-            <ShieldCheck size={11} /> Verified
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 font-medium">
-            <ShieldOff size={11} /> Pending
-          </span>
-        )}
-        {row.verifiedAt && (
-          <span className="text-[10px] text-gray-400">{formatDateTimeIST(row.verifiedAt)}</span>
-        )}
-      </div>
-    )},
-    { key: "status", header: "Active", render: (row) => <ActiveBadge isActive={row.isActive} /> },
-    { key: "actions", header: "Actions", width: "w-24", render: (row) => (
-      <div className="flex gap-1">
-        <button onClick={() => { setEditUser(row); setModalOpen(true); }}
-          className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors">
-          <Pencil size={15} />
-        </button>
-        <button onClick={() => setDeleteId(row.id)}
-          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-          <Trash2 size={15} />
-        </button>
-      </div>
-    )},
+    {
+      key: "name",
+      header: "Name",
+      render: (row) => <span className="font-medium text-gray-900">{row.name}</span>,
+    },
+    {
+      key: "number",
+      header: "Mobile",
+      render: (row) => (
+        <span className="text-gray-600 font-mono text-xs">{formatMobileNumber(row.number)}</span>
+      ),
+    },
+    {
+      key: "company",
+      header: "Company",
+      render: (row) => <span className="text-gray-600">{row.company?.name ?? "—"}</span>,
+    },
+    {
+      key: "workAddress",
+      header: "Work Address",
+      render: (row) => (
+        <div className="flex items-start gap-1 max-w-[200px]">
+          {row.workAddress ? (
+            <>
+              {(row.latitude || row.longitude) && (
+                <MapPin size={11} className="text-orange-400 flex-shrink-0 mt-0.5" aria-label="GPS coordinates set" />
+              )}
+              <span className="text-xs text-gray-500 line-clamp-2">{row.workAddress}</span>
+            </>
+          ) : (
+            <span className="text-xs text-gray-300 italic">Not set</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "verified",
+      header: "Verified",
+      render: (row) => (
+        <div className="flex flex-col gap-0.5">
+          {row.isVerified ? (
+            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 font-medium">
+              <ShieldCheck size={11} /> Verified
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 font-medium">
+              <ShieldOff size={11} /> Pending
+            </span>
+          )}
+          {row.verifiedAt && (
+            <span className="text-[10px] text-gray-400">{formatDateTimeIST(row.verifiedAt)}</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      header: "Active",
+      render: (row) => <ActiveBadge isActive={row.isActive} />,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      width: "w-24",
+      render: (row) => (
+        <div className="flex gap-1">
+          <button
+            onClick={() => { setEditUser(row); setModalOpen(true); }}
+            className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+            title="Edit user"
+          >
+            <Pencil size={15} />
+          </button>
+          <button
+            onClick={() => setDeleteId(row.id)}
+            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete user"
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   const companyOptions = [
@@ -137,7 +195,7 @@ export default function UsersPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="max-w-6xl mx-auto space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Users</h2>
@@ -147,8 +205,11 @@ export default function UsersPage() {
           <Button variant="secondary" size="sm" leftIcon={<Upload size={15} />} onClick={() => setBulkOpen(true)}>
             Bulk Import
           </Button>
-          <Button variant="primary" leftIcon={<Plus size={16} />}
-            onClick={() => { setEditUser(null); setModalOpen(true); }}>
+          <Button
+            variant="primary"
+            leftIcon={<Plus size={16} />}
+            onClick={() => { setEditUser(null); setModalOpen(true); }}
+          >
             Add User
           </Button>
         </div>
@@ -160,19 +221,33 @@ export default function UsersPage() {
         <Select options={verifiedOptions} value={verifiedFilter} onChange={(e) => setVerifiedFilter(e.target.value)} className="w-48" />
       </div>
 
-      <Table columns={columns} data={users} isLoading={isLoading}
+      <Table
+        columns={columns}
+        data={users}
+        isLoading={isLoading}
         emptyMessage="No users found"
-        emptySubMessage={search ? "Try a different search" : "Add users or bulk import via CSV"} />
+        emptySubMessage={search ? "Try a different search" : "Add users or bulk import via CSV"}
+      />
 
       {!isLoading && total > 0 && (
         <p className="text-xs text-gray-400">Showing {users.length} of {total} users</p>
       )}
 
-      <UserModal isOpen={modalOpen} onClose={() => { setModalOpen(false); setEditUser(null); }}
-        onSuccess={fetchUsers} user={editUser} companies={companies} />
+      <UserModal
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setEditUser(null); }}
+        onSuccess={fetchUsers}
+        user={editUser}
+        companies={companies}
+      />
       <BulkUserModal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={fetchUsers} />
-      <ConfirmDialog isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete}
-        isLoading={isDeleting} message="Delete this user? This cannot be undone." />
+      <ConfirmDialog
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        isLoading={isDeleting}
+        message="Delete this user? This cannot be undone."
+      />
     </div>
   );
 }

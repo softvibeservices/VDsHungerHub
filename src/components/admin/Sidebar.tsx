@@ -21,7 +21,7 @@ const allNavItems = [
   { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN"] },
   { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
   { href: "/catalog", icon: ShoppingBasket, label: "Catalog", roles: ["ADMIN", "STAFF"] },
-  { href: "/menu", icon: CalendarDays, label: "Daily Menu", roles: ["ADMIN", "STAFF"] },
+  { href: "/daily-menu", icon: CalendarDays, label: "Daily Menu", roles: ["ADMIN", "STAFF"] },
 ];
 
 interface SidebarProps {

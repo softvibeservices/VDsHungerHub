@@ -27,11 +27,23 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
-        include: {
+        select: {
+          id: true,
+          name: true,
+          number: true,
+          isActive: true,
+          isVerified: true,
+          verifiedAt: true,
+          workAddress: true,
+          homeAddress: true,
+          // lat/long: NEVER sent to customer-facing APIs, but admin GET is fine
+          latitude: true,
+          longitude: true,
+          companyId: true,
+          createdAt: true,
           company: { select: { id: true, name: true } },
           _count: { select: { deviceFingerprints: true } },
         },
-        // Select verifiedAt, workAddress (not lat/long)
       }),
       prisma.user.count({ where }),
     ]);
@@ -45,7 +57,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, number, companyId } = await req.json();
+    const { name, number, companyId, workAddress, homeAddress } = await req.json();
     const cleanNumber = number?.replace(/\s+/g, "").replace(/^\+91/, "").replace(/^0/, "");
 
     if (!name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -54,7 +66,16 @@ export async function POST(req: NextRequest) {
     if (!companyId) return NextResponse.json({ error: "Company is required" }, { status: 400 });
 
     const user = await prisma.user.create({
-      data: { name: name.trim(), number: cleanNumber, companyId },
+      data: {
+        name: name.trim(),
+        number: cleanNumber,
+        companyId,
+        workAddress: workAddress?.trim() || null,
+        homeAddress: homeAddress?.trim() || null,
+        // Admin-created users are set as verified since admin manually adds them
+        isVerified: true,
+        verifiedAt: new Date(),
+      },
       include: { company: { select: { id: true, name: true } } },
     });
 

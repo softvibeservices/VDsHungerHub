@@ -7,10 +7,11 @@ const PUBLIC_PATHS = [
   "/login",
   "/api/auth/login",
   "/api/auth/logout",
-  "/menu",          // public menu pages (/menu/[slug], /menu/orders)
+  "/menu",          // CUSTOMER ordering page (/menu and /menu/[slug] public share links)
   "/api/public",    // public menu data API
   "/api/user-auth", // user OTP auth — uses Bearer JWT, not admin cookie
   "/api/orders",    // user order placement/history — uses Bearer JWT
+  "/api/customer",  // customer-facing API routes
 ];
 
 // Pages only ADMIN can access
@@ -22,7 +23,7 @@ const PROTECTED_PREFIXES = [
   "/companies",
   "/users",
   "/catalog",
-  "/menu",
+  "/daily-menu",   // Admin menu management page (NOT the customer /menu page)
   "/orders",
 ];
 

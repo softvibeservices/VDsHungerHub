@@ -5,18 +5,23 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
+    const statusFilter = searchParams.get("status"); // "CONFIRMED" | "PENDING" | null (all)
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "50");
     const skip = (page - 1) * limit;
 
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { location: { contains: search, mode: "insensitive" as const } },
-          ],
-        }
-      : {};
+    const where: Record<string, unknown> = {};
+
+    if (statusFilter === "CONFIRMED" || statusFilter === "PENDING") {
+      where.status = statusFilter;
+    }
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: "insensitive" as const } },
+        { location: { contains: search, mode: "insensitive" as const } },
+      ];
+    }
 
     const [companies, total] = await Promise.all([
       prisma.company.findMany({
@@ -25,6 +30,7 @@ export async function GET(req: NextRequest) {
         skip,
         take: limit,
         include: { _count: { select: { users: true } } },
+        // Include status fields so the admin dashboard can show pending/confirmed badges
       }),
       prisma.company.count({ where }),
     ]);
@@ -35,6 +41,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
 
 export async function POST(req: NextRequest) {
   try {

@@ -102,7 +102,7 @@ export default function DashboardPage() {
     { label: "Active Products", value: stats?.products ?? 0, icon: ShoppingBasket, color: "bg-emerald-500", href: "/catalog" },
     { label: "Active Thalis", value: stats?.thalis ?? 0, icon: UtensilsCrossed, color: "bg-orange-500", href: "/catalog" },
     { label: "Active Staff", value: stats?.staff ?? 0, icon: UserCheck, color: "bg-rose-500", href: "/catalog" },
-    { label: "Today's Menus", value: todayMenus.length, icon: CalendarDays, color: "bg-amber-500", href: "/menu" },
+    { label: "Today's Menus", value: todayMenus.length, icon: CalendarDays, color: "bg-amber-500", href: "/daily-menu" },
   ];
 
   const lunch = todayMenus.find((m) => m.mealType === "LUNCH");
@@ -126,7 +126,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <Link
-            href="/menu"
+            href="/daily-menu"
             className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer flex-shrink-0"
           >
             Configure Menu
@@ -138,7 +138,7 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Today&apos;s Menu</h2>
-          <Link href="/menu" className="text-sm text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1">
+          <Link href="/daily-menu" className="text-sm text-orange-500 hover:text-orange-600 font-medium flex items-center gap-1">
             Manage <ArrowRight size={14} />
           </Link>
         </div>
@@ -157,7 +157,7 @@ export default function DashboardPage() {
                     Set ✓
                   </span>
                 ) : (
-                  <Link href="/menu" className="text-xs px-2.5 py-1 rounded-lg bg-orange-500 text-white font-medium flex items-center gap-1 hover:bg-orange-600 transition-colors">
+                  <Link href="/daily-menu" className="text-xs px-2.5 py-1 rounded-lg bg-orange-500 text-white font-medium flex items-center gap-1 hover:bg-orange-600 transition-colors">
                     <Plus size={12} /> Set Menu
                   </Link>
                 )}
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                     </p>
                   </div>
                   <Link
-                    href="/menu"
+                    href="/daily-menu"
                     className="text-xs text-orange-500 hover:text-orange-600 font-semibold"
                   >
                     View Menu →
@@ -250,7 +250,7 @@ export default function DashboardPage() {
             { href: "/companies", label: "+ Add Company", icon: Building2 },
             { href: "/users", label: "+ Add User", icon: Users },
             { href: "/catalog", label: "📦 Go to Catalog", icon: ShoppingBasket },
-            { href: "/menu", label: "📅 Set Menu", icon: CalendarDays },
+            { href: "/daily-menu", label: "📅 Set Menu", icon: CalendarDays },
           ].map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
