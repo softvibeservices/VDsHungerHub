@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import {
   UtensilsCrossed, Plus, Minus, PackagePlus, CheckCircle2,
-  ShoppingCart, LogOut, Clock, AlertCircle, ChevronDown, ChevronUp
+  ShoppingCart, Clock, AlertCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "react-hot-toast";
+import { useAuthModal } from "@/context/AuthModalContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ interface AddonLine {
 }
 
 interface Props {
-  userId: string;
+  userId: string | null;
   menu: DailyMenu | null;
 }
 
@@ -96,18 +97,8 @@ export default function OrderingExperience({ userId, menu }: Props) {
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
-  const [userInfo, setUserInfo] = useState<{ name: string; number: string } | null>(null);
   const [addonProducts, setAddonProducts] = useState<Product[]>([]);
-
-  // Fetch user profile
-  useEffect(() => {
-    fetch("/api/customer/me")
-      .then((r) => r.json())
-      .then((d) => {
-        if (d.user) setUserInfo({ name: d.user.name, number: d.user.number });
-      })
-      .catch(() => {});
-  }, []);
+  const { openAuth } = useAuthModal();
 
   // Fetch add-on products (those marked isAddOnAvailable)
   useEffect(() => {
@@ -152,6 +143,10 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // ── Add thali line ──────────────────────────────────────────────────────────
   const addThaliLine = (thali: Thali) => {
+    if (!userId) {
+      openAuth("register");
+      return;
+    }
     if (totalThaliQty >= MAX_THALI) {
       toast.error(`Maximum ${MAX_THALI} thali per order`);
       return;
@@ -202,6 +197,10 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // ── Add-on helpers ──────────────────────────────────────────────────────────
   const updateAddon = (product: Product, delta: number) => {
+    if (!userId) {
+      openAuth("register");
+      return;
+    }
     setAddonLines((prev) => {
       const existing = prev.find((l) => l.productId === product.id);
       const newTotal = totalAddonQty + delta;
@@ -229,6 +228,10 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
+    if (!userId) {
+      openAuth("register");
+      return;
+    }
     if (thaliLines.length === 0) {
       toast.error("Add at least one thali");
       return;
@@ -278,10 +281,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
     }
   };
 
-  const handleLogout = async () => {
-    await fetch("/api/customer/logout", { method: "POST" });
-    window.location.reload();
-  };
+
 
   // ── Order placed state ──────────────────────────────────────────────────────
   if (orderPlaced) {
@@ -323,29 +323,8 @@ export default function OrderingExperience({ userId, menu }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50">
-      {/* Header */}
-      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-        <div>
-          <span className="text-sm font-bold text-gray-900">
-            {menu.mealType === "LUNCH" ? "🌞 Lunch" : "🌙 Dinner"} Menu
-          </span>
-          {menu.cutoffTime && (
-            <div className={`flex items-center gap-1 text-xs mt-0.5 ${isCutoffPassed ? "text-red-500" : "text-gray-400"}`}>
-              <Clock size={11} />
-              {isCutoffPassed ? "Cutoff passed" : `Cutoff: ${new Date(menu.cutoffTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone: "Asia/Kolkata" })}`}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {userInfo && <span className="text-xs text-gray-500 hidden sm:block">{userInfo.name}</span>}
-          <button onClick={handleLogout} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
-            <LogOut size={16} />
-          </button>
-        </div>
-      </div>
-
-      <div className="max-w-2xl mx-auto p-4 space-y-5 pb-40">
+    <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 lg:grid lg:grid-cols-[1fr_360px] lg:gap-6 lg:items-start pb-40">
+      <div className="space-y-5">
         {/* Cutoff warning */}
         {!(menu as any).isOrderingOpen ? (
           <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-2xl p-3 text-sm text-red-600">
@@ -370,10 +349,6 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
           <div className="divide-y divide-gray-50">
             {menu.thalis.map(({ thali, minSabjiRequired }) => {
-              const sabjiForCategory = menu.sabjiOptions.filter(
-                (s) => s.categoryId === thali.categoryId
-              );
-
               return (
                 <div key={thali.id} className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -407,9 +382,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
           </div>
         </div>
 
-        {/* Cart lines */}
+        {/* Cart lines (visible on mobile/tablet) */}
         {thaliLines.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden lg:hidden">
             <div className="p-4 border-b border-gray-50">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <ShoppingCart size={16} className="text-orange-500" />
@@ -530,9 +505,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
           </div>
         )}
 
-        {/* Note */}
+        {/* Note (visible on mobile/tablet) */}
         {thaliLines.length > 0 && (
-          <div>
+          <div className="lg:hidden">
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -545,9 +520,79 @@ export default function OrderingExperience({ userId, menu }: Props) {
         )}
       </div>
 
-      {/* Sticky order summary footer */}
+      {/* Desktop Order Summary Sidebar */}
+      <div className="hidden lg:block sticky top-24 bg-white rounded-3xl shadow-sm border border-gray-100 p-6 space-y-6">
+        <h3 className="font-bold text-gray-900 text-base border-b border-gray-50 pb-3">Order Summary</h3>
+        {thaliLines.length === 0 ? (
+          <div className="text-center py-6 text-gray-400 text-sm">
+            <ShoppingCart className="mx-auto mb-2 opacity-35" size={28} />
+            Your cart is empty
+          </div>
+        ) : (
+          <>
+            <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1">
+              {thaliLines.map((l) => (
+                <div key={l.lineId} className="flex justify-between items-start text-sm">
+                  <div className="min-w-0 pr-2">
+                    <p className="font-semibold text-gray-800 truncate">{l.quantity}× {l.thali.name}</p>
+                    {menu.sabjiOptions.length > 0 && l.sabjiProductId && (
+                      <p className="text-[11px] text-orange-600 mt-0.5">
+                        Sabji: {menu.sabjiOptions.find((s) => s.productId === l.sabjiProductId)?.product.name}
+                      </p>
+                    )}
+                  </div>
+                  <span className="font-bold text-gray-900 flex-shrink-0">
+                    {formatCurrency(l.thali.price * l.quantity)}
+                  </span>
+                </div>
+              ))}
+              {addonLines.map((l) => (
+                <div key={l.productId} className="flex justify-between items-start text-sm">
+                  <span className="text-gray-600">{l.quantity}× {l.name}</span>
+                  <span className="font-semibold text-gray-800">
+                    {formatCurrency(l.price * l.quantity)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Note inside summary */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] text-gray-400 font-semibold uppercase tracking-wide">
+                Special Instructions
+              </label>
+              <textarea
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                maxLength={200}
+                rows={2}
+                placeholder="Special instructions (optional)..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none text-gray-600 placeholder-gray-300"
+              />
+            </div>
+
+            <div className="border-t border-gray-100 pt-4 space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-500 font-medium">Total Amount</span>
+                <span className="text-xl font-extrabold text-orange-600">{formatCurrency(grandTotal)}</span>
+              </div>
+
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || isOrderingClosed || thaliLines.length === 0}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-500/20 text-sm flex items-center justify-center gap-2"
+              >
+                {submitting ? "Placing..." : "Place Order"}
+                {!submitting && <CheckCircle2 size={16} />}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Sticky order summary footer (visible on mobile/tablet) */}
       {thaliLines.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-100 px-4 py-4 shadow-2xl shadow-black/5">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-100 px-4 py-4 shadow-2xl shadow-black/5 lg:hidden">
           <div className="max-w-2xl mx-auto flex items-center gap-4">
             <div className="flex-1">
               <div className="text-xs text-gray-500">{totalThaliQty} thali{totalThaliQty > 1 ? "s" : ""}{totalAddonQty > 0 ? ` + ${totalAddonQty} add-on` : ""}</div>

@@ -74,40 +74,40 @@ async function resolveAuthState(): Promise<AuthState> {
 
 export default async function MenuPage() {
   const authState = await resolveAuthState();
+  const todayMenu = await getTodayMenu();
 
-  if (authState.state === "VERIFIED_SESSION") {
-    const todayMenu = await getTodayMenu();
+  const userId = authState.state === "VERIFIED_SESSION" ? authState.userId : null;
 
-    // §8.2: menu not yet in its visibility window — show holding page
-    if (todayMenu && (todayMenu as any).menuNotYetVisible === true) {
-      const visibleFrom = (todayMenu as any).menuVisibleFrom as string;
-      return (
-        <div className="min-h-screen bg-orange-50 flex flex-col items-center justify-center p-6 text-center gap-4">
-          <div className="text-4xl">🕐</div>
-          <h1 className="text-xl font-bold text-gray-800">Menu not available yet</h1>
-          <p className="text-gray-500 max-w-sm text-sm leading-relaxed">
-            The {(todayMenu as any).mealType === "DINNER" ? "dinner" : "lunch"} menu will be available
-            from <strong>{visibleFrom} IST</strong> today. Check back soon!
-          </p>
-        </div>
-      );
-    }
-
-    return <OrderingExperience userId={authState.userId} menu={todayMenu} />;
+  // 1. If menu is not set (i.e. null), render a "No Menu Today" message
+  if (!todayMenu) {
+    return (
+      <div className="min-h-screen bg-orange-50/50 flex flex-col items-center justify-center p-6 text-center gap-4">
+        <div className="text-4xl">🍱</div>
+        <h1 className="text-xl font-bold text-gray-800">No Menu Today</h1>
+        <p className="text-gray-500 max-w-sm text-sm leading-relaxed">
+          Today&apos;s menu has not been published yet. Please check back later or contact the administrator.
+        </p>
+      </div>
+    );
   }
 
-  return (
-    <AuthTabs
-      defaultTab={
-        authState.state === "DRAFT_PENDING_VERIFICATION" ? "verify" : "register"
-      }
-      draftId={
-        authState.state === "DRAFT_PENDING_VERIFICATION"
-          ? authState.draftId
-          : undefined
-      }
-    />
-  );
+  // 2. If the menu is not yet visible, render the visibility window holding page
+  if ((todayMenu as any).menuNotYetVisible === true) {
+    const visibleFrom = (todayMenu as any).menuVisibleFrom as string;
+    return (
+      <div className="min-h-screen bg-orange-50/50 flex flex-col items-center justify-center p-6 text-center gap-4">
+        <div className="text-4xl">🕐</div>
+        <h1 className="text-xl font-bold text-gray-800">Menu not available yet</h1>
+        <p className="text-gray-500 max-w-sm text-sm leading-relaxed">
+          The {(todayMenu as any).mealType === "DINNER" ? "dinner" : "lunch"} menu will be available
+          from <strong>{visibleFrom} IST</strong> today. Check back soon!
+        </p>
+      </div>
+    );
+  }
+
+  // 3. Render the menu directly for everyone (with userId optionally null for guests)
+  return <OrderingExperience userId={userId} menu={todayMenu as any} />;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
