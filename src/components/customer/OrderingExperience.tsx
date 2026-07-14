@@ -7,7 +7,6 @@ import {
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "react-hot-toast";
-import { useAuthModal } from "@/context/AuthModalContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,7 +97,6 @@ export default function OrderingExperience({ userId, menu }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [addonProducts, setAddonProducts] = useState<Product[]>([]);
-  const { openAuth } = useAuthModal();
 
   // Fetch add-on products (those marked isAddOnAvailable)
   useEffect(() => {
@@ -144,7 +142,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ── Add thali line ──────────────────────────────────────────────────────────
   const addThaliLine = (thali: Thali) => {
     if (!userId) {
-      openAuth("register");
+      window.location.href = "/register";
       return;
     }
     if (totalThaliQty >= MAX_THALI) {
@@ -198,7 +196,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ── Add-on helpers ──────────────────────────────────────────────────────────
   const updateAddon = (product: Product, delta: number) => {
     if (!userId) {
-      openAuth("register");
+      window.location.href = "/register";
       return;
     }
     setAddonLines((prev) => {
@@ -229,7 +227,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!userId) {
-      openAuth("register");
+      window.location.href = "/register";
       return;
     }
     if (thaliLines.length === 0) {

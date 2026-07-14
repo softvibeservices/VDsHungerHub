@@ -3,11 +3,11 @@ import { resolveAuthState } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
 
 export const metadata = {
-  title: "Login | VD's Hunger Hub",
-  description: "Sign in to place your daily thali order.",
+  title: "Register | VD's Hunger Hub",
+  description: "Create an account to start ordering delicious home-style thalis.",
 };
 
-export default async function LoginPage() {
+export default async function RegisterPage() {
   const authState = await resolveAuthState();
 
   // If already logged in, redirect to menu
@@ -17,7 +17,7 @@ export default async function LoginPage() {
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center">
-      <AuthTabs activeTab="login" />
+      <AuthTabs activeTab="register" />
     </div>
   );
 }

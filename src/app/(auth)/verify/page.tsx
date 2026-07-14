@@ -3,11 +3,11 @@ import { resolveAuthState } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
 
 export const metadata = {
-  title: "Login | VD's Hunger Hub",
-  description: "Sign in to place your daily thali order.",
+  title: "Verify Mobile | VD's Hunger Hub",
+  description: "Verify your mobile number to complete registration.",
 };
 
-export default async function LoginPage() {
+export default async function VerifyPage() {
   const authState = await resolveAuthState();
 
   // If already logged in, redirect to menu
@@ -15,9 +15,11 @@ export default async function LoginPage() {
     redirect("/menu");
   }
 
+  const draftId = authState.state === "DRAFT_PENDING_VERIFICATION" ? authState.draftId : undefined;
+
   return (
     <div className="min-h-[80vh] flex flex-col justify-center">
-      <AuthTabs activeTab="login" />
+      <AuthTabs activeTab="verify" draftId={draftId} />
     </div>
   );
 }

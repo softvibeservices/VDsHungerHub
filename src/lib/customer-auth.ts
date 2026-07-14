@@ -513,3 +513,47 @@ export async function checkUserAndDeviceStatus(
 
   return { allowed: true };
 }
+
+export async function resolveAuthState(): Promise<CustomerAuthState> {
+  const cookieStore = await cookies();
+
+  // 1. Try access token (fast path)
+  const accessToken = cookieStore.get(CUSTOMER_ACCESS_COOKIE)?.value;
+  if (accessToken) {
+    const claims = verifyCustomerAccessToken(accessToken);
+    if (claims) {
+      return { state: "VERIFIED_SESSION", userId: claims.sub, fph: claims.fph };
+    }
+  }
+
+  // 2. Try refresh token (if access token expired)
+  const refreshToken = cookieStore.get(CUSTOMER_REFRESH_COOKIE)?.value;
+  if (refreshToken) {
+    const tokenHash = hashRefreshToken(refreshToken);
+    const session = await prisma.customerSession.findUnique({
+      where: { refreshTokenHash: tokenHash },
+      select: { userId: true, revokedAtUtc: true, expiresAtUtc: true, deviceFingerprintHash: true },
+    });
+    if (
+      session &&
+      !session.revokedAtUtc &&
+      session.expiresAtUtc > new Date()
+    ) {
+      return { state: "VERIFIED_SESSION", userId: session.userId, fph: session.deviceFingerprintHash };
+    }
+  }
+
+  // 3. Check for a pending registration draft
+  const draftId = cookieStore.get(REG_DRAFT_COOKIE)?.value;
+  if (draftId) {
+    const draft = await prisma.user.findUnique({
+      where: { id: draftId, isVerified: false },
+      select: { id: true },
+    });
+    if (draft) {
+      return { state: "DRAFT_PENDING_VERIFICATION", draftId: draft.id };
+    }
+  }
+
+  return { state: "ANONYMOUS" };
+}

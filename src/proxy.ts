@@ -5,6 +5,8 @@ import type { TokenPayload } from "@/lib/auth";
 const PUBLIC_PATHS = [
   "/",
   "/login",
+  "/register",
+  "/verify",
   "/staff-login",
   "/api/staff/otp",
   "/api/auth/login",

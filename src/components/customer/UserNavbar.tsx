@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UtensilsCrossed, Menu, X, LogOut, ClipboardList, ShoppingBag } from "lucide-react";
-import { useAuthModal } from "@/context/AuthModalContext";
 
 interface Props {
   loggedIn: boolean;
@@ -14,7 +13,6 @@ interface Props {
 export default function UserNavbar({ loggedIn, userName }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
-  const { openAuth } = useAuthModal();
 
   const handleLogout = async () => {
     await fetch("/api/customer/logout", { method: "POST" });
@@ -56,24 +54,24 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
           </nav>
         ) : (
           <nav className="hidden md:flex items-center gap-4">
-            <button
-              onClick={() => openAuth("register")}
-              className="text-sm font-semibold text-gray-600 hover:text-orange-600 transition-colors cursor-pointer"
+            <Link
+              href="/register"
+              className="text-sm font-semibold text-gray-600 hover:text-orange-600 transition-colors"
             >
               Register
-            </button>
-            <button
-              onClick={() => openAuth("login")}
-              className="text-sm font-semibold text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+            </Link>
+            <Link
+              href="/login"
+              className="text-sm font-semibold text-orange-600 hover:text-orange-700 transition-colors"
             >
               Login
-            </button>
-            <button
-              onClick={() => openAuth("verify")}
-              className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+            </Link>
+            <Link
+              href="/verify"
+              className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors"
             >
               Verify Mobile
-            </button>
+            </Link>
           </nav>
         )}
 
@@ -127,33 +125,27 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
             </>
           ) : (
             <div className="flex flex-col gap-2 p-2">
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  openAuth("register");
-                }}
-                className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-center text-sm cursor-pointer"
+              <Link
+                href="/register"
+                onClick={() => setMobileOpen(false)}
+                className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl text-center text-sm"
               >
                 Register
-              </button>
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  openAuth("login");
-                }}
-                className="w-full py-2.5 border border-orange-200 text-orange-600 hover:bg-orange-50 font-bold rounded-xl text-center text-sm cursor-pointer"
+              </Link>
+              <Link
+                href="/login"
+                onClick={() => setMobileOpen(false)}
+                className="w-full py-2.5 border border-orange-200 text-orange-600 hover:bg-orange-50 font-bold rounded-xl text-center text-sm"
               >
                 Login
-              </button>
-              <button
-                onClick={() => {
-                  setMobileOpen(false);
-                  openAuth("verify");
-                }}
-                className="w-full py-2 text-gray-400 hover:text-gray-600 text-center text-xs font-semibold mt-1 cursor-pointer"
+              </Link>
+              <Link
+                href="/verify"
+                onClick={() => setMobileOpen(false)}
+                className="w-full py-2 text-gray-400 hover:text-gray-600 text-center text-xs font-semibold mt-1"
               >
                 Verify Mobile / Resume
-              </button>
+              </Link>
             </div>
           )}
         </div>

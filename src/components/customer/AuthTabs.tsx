@@ -1,25 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
 import RegisterForm from "./RegisterForm";
 import LoginForm from "./LoginForm";
 import VerifyForm from "./VerifyForm";
 
 interface Props {
-  defaultTab?: "register" | "login" | "verify";
+  activeTab: "register" | "login" | "verify";
   draftId?: string;
 }
 
 const TABS = [
-  { key: "register", label: "Register" },
-  { key: "login", label: "Login" },
-  { key: "verify", label: "Verify" },
+  { key: "register", label: "Register", path: "/register" },
+  { key: "login", label: "Login", path: "/login" },
+  { key: "verify", label: "Verify", path: "/verify" },
 ] as const;
 
-type Tab = (typeof TABS)[number]["key"];
+export default function AuthTabs({ activeTab, draftId }: Props) {
+  const router = useRouter();
 
-export default function AuthTabs({ defaultTab = "register", draftId }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>(defaultTab);
+  const handleSuccess = () => {
+    // Force a full reload to menu so that cookie state is reread server-side
+    window.location.href = "/menu";
+  };
 
   return (
     <div className="max-w-5xl mx-auto px-4 md:px-6 py-12 flex justify-center">
@@ -33,8 +36,8 @@ export default function AuthTabs({ defaultTab = "register", draftId }: Props) {
               <button
                 key={tab.key}
                 id={`auth-tab-${tab.key}`}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 py-3.5 text-sm font-semibold transition-all duration-200 ${
+                onClick={() => router.push(tab.path)}
+                className={`flex-1 py-3.5 text-sm font-semibold transition-all duration-200 cursor-pointer ${
                   activeTab === tab.key
                     ? "text-orange-600 border-b-2 border-orange-500 bg-white -mb-px"
                     : "text-gray-500 hover:text-gray-700"
@@ -49,27 +52,24 @@ export default function AuthTabs({ defaultTab = "register", draftId }: Props) {
           <div className="p-6">
             {activeTab === "register" && (
               <RegisterForm
-                onSuccess={() => {
-                  // After login, router will redirect to /menu which re-renders
-                  window.location.reload();
-                }}
-                onSwitchToLogin={() => setActiveTab("login")}
+                onSuccess={handleSuccess}
+                onSwitchToLogin={() => router.push("/login")}
               />
             )}
 
             {activeTab === "login" && (
               <LoginForm
-                onSuccess={() => window.location.reload()}
-                onSwitchToRegister={() => setActiveTab("register")}
-                onSwitchToVerify={() => setActiveTab("verify")}
+                onSuccess={handleSuccess}
+                onSwitchToRegister={() => router.push("/register")}
+                onSwitchToVerify={() => router.push("/verify")}
               />
             )}
 
             {activeTab === "verify" && (
               <VerifyForm
                 initialDraftId={draftId}
-                onSuccess={() => window.location.reload()}
-                onSwitchToRegister={() => setActiveTab("register")}
+                onSuccess={handleSuccess}
+                onSwitchToRegister={() => router.push("/register")}
               />
             )}
           </div>

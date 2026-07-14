@@ -8,8 +8,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import UserNavbar from "@/components/customer/UserNavbar";
 
-import { AuthModalProvider } from "@/context/AuthModalContext";
-
 async function resolveNavAuthState() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get(CUSTOMER_ACCESS_COOKIE)?.value;
@@ -33,11 +31,9 @@ async function resolveNavAuthState() {
 export default async function CustomerLayout({ children }: { children: React.ReactNode }) {
   const nav = await resolveNavAuthState();
   return (
-    <AuthModalProvider>
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50">
-        <UserNavbar loggedIn={nav.loggedIn} userName={nav.name} />
-        <main>{children}</main>
-      </div>
-    </AuthModalProvider>
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50">
+      <UserNavbar loggedIn={nav.loggedIn} userName={nav.name} />
+      <main>{children}</main>
+    </div>
   );
 }
