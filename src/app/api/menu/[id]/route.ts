@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { cutoffTime, thaliIds, sabjiOptions } = await req.json();
+    const { cutoffTime, thaliIds, thaliConfig, sabjiOptions } = await req.json();
 
     const existingMenu = await prisma.dailyMenu.findUnique({ where: { id } });
     if (!existingMenu) return NextResponse.json({ error: "Menu not found" }, { status: 404 });
@@ -20,11 +20,22 @@ export async function PUT(
       return NextResponse.json({ error: "Cannot edit a menu for a past date" }, { status: 400 });
     }
 
+    // Resolve configuration (backward compatible with raw thaliIds array)
+    interface MenuThaliInput {
+      thaliId: string;
+      minSabjiRequired?: number;
+    }
+    const resolvedConfig: MenuThaliInput[] = thaliConfig
+      ? thaliConfig
+      : (thaliIds || []).map((thaliId: string) => ({ thaliId }));
+
     // Fetch the thalis to get their maxSabjiCount
     const thalisFromDb = await prisma.thali.findMany({
-      where: { id: { in: thaliIds } },
+      where: { id: { in: resolvedConfig.map((t) => t.thaliId) } },
     });
-    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.sabjiCount]));
+    const sabjiCountMap = new Map<string, number>(
+      thalisFromDb.map((t: any) => [t.id, t.sabjiCount])
+    );
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     let cutoffTimeUTC: Date | null = null;
@@ -43,10 +54,13 @@ export async function PUT(
       data: {
         cutoffTime: cutoffTimeUTC,
         thalis: {
-          create: (thaliIds as string[]).map((thaliId) => ({
-            thaliId,
-            minSabjiRequired: thaliMap.get(thaliId) ?? 1,
-          })),
+          create: resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
+            const cap = (sabjiCountMap.get(thaliId) as number) ?? 1;
+            return {
+              thaliId,
+              minSabjiRequired: Math.min((minSabjiRequired as number) ?? cap, cap),
+            };
+          }),
         },
         sabjiOptions: {
           create: (sabjiOptions as { categoryId: string; productIds: string[] }[]).flatMap(

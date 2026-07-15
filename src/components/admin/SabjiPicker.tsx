@@ -99,13 +99,13 @@ export default function SabjiPicker({
 
       {/* Search input */}
       <div className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search sabji by name or Gujarati..."
-          className="w-full pl-8 pr-8 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
+          className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
         />
         {query && (
           <button
@@ -113,13 +113,13 @@ export default function SabjiPicker({
             onClick={() => setQuery("")}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650 cursor-pointer"
           >
-            <X size={14} />
+            <X size={15} />
           </button>
         )}
       </div>
 
       {/* Product list */}
-      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
         {sorted.map((product) => {
           const isSelected = selected.includes(product.id);
           const isDisabled = isAtCap && !isSelected;
@@ -132,9 +132,9 @@ export default function SabjiPicker({
                 toggle(product.id);
               }}
               disabled={isDisabled}
-              className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer ${
                 isSelected
-                  ? "border-orange-400 bg-orange-50/50 text-orange-700"
+                  ? "border-orange-400 bg-orange-50/50 text-orange-700 font-medium"
                   : isDisabled
                   ? "border-gray-100 bg-gray-50 opacity-40 cursor-not-allowed"
                   : "border-gray-100 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
@@ -158,16 +158,16 @@ export default function SabjiPicker({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-800 truncate text-[11px]">{product.name}</p>
+                <p className="font-semibold text-gray-800 truncate text-xs">{product.name}</p>
                 {product.nameGu && (
-                  <p className="text-[10px] text-gray-400 truncate">{product.nameGu}</p>
+                  <p className="text-[11px] text-gray-400 truncate mt-0.5">{product.nameGu}</p>
                 )}
               </div>
             </button>
           );
         })}
         {sorted.length === 0 && (
-          <p className="text-[10px] text-gray-400 text-center py-2.5 italic">
+          <p className="text-xs text-gray-400 text-center py-4 italic">
             No matching products found
           </p>
         )}

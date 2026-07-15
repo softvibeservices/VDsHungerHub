@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { date, mealType, cutoffTime, thaliIds, sabjiOptions } = await req.json();
+    const { date, mealType, cutoffTime, thaliIds, thaliConfig, sabjiOptions } = await req.json();
 
     if (!date) return NextResponse.json({ error: "Date is required" }, { status: 400 });
     if (!mealType) return NextResponse.json({ error: "Meal type is required" }, { status: 400 });
@@ -46,14 +46,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cannot create a menu for a past date" }, { status: 400 });
     }
 
-    if (!Array.isArray(thaliIds) || thaliIds.length === 0)
+    // Resolve configuration (backward compatible with raw thaliIds array)
+    interface MenuThaliInput {
+      thaliId: string;
+      minSabjiRequired?: number;
+    }
+    const resolvedConfig: MenuThaliInput[] = thaliConfig
+      ? thaliConfig
+      : (thaliIds || []).map((thaliId: string) => ({ thaliId }));
+
+    if (resolvedConfig.length === 0) {
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
+    }
 
     // Fetch the thalis to get their sabjiCount
     const thalisFromDb = await prisma.thali.findMany({
-      where: { id: { in: thaliIds } },
+      where: { id: { in: resolvedConfig.map((t) => t.thaliId) } },
     });
-    const thaliMap = new Map(thalisFromDb.map((t: any) => [t.id, t.sabjiCount]));
+    const sabjiCountMap = new Map<string, number>(
+      thalisFromDb.map((t: any) => [t.id, t.sabjiCount])
+    );
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
@@ -67,10 +79,13 @@ export async function POST(req: NextRequest) {
         mealType,
         cutoffTime: cutoffTimeUTC,
         thalis: {
-          create: thaliIds.map((thaliId: string) => ({
-            thaliId,
-            minSabjiRequired: thaliMap.get(thaliId) ?? 1,
-          })),
+          create: resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
+            const cap = (sabjiCountMap.get(thaliId) as number) ?? 1;
+            return {
+              thaliId,
+              minSabjiRequired: Math.min((minSabjiRequired as number) ?? cap, cap),
+            };
+          }),
         },
         sabjiOptions: {
           create: (sabjiOptions as { categoryId: string; productIds: string[] }[]).flatMap(
