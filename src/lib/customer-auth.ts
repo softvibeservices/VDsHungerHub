@@ -385,6 +385,7 @@ export async function checkRateLimit(
     | "SEND_OTP_REGISTER"
     | "SEND_OTP_LOGIN"
     | "SEND_OTP_FORGOT_PIN"
+    | "SEND_OTP_STAFF_LOGIN"
     | "VERIFY_OTP"
     | "LOGIN_PIN_ATTEMPT"
     | "ADD_COMPANY",
@@ -415,7 +416,7 @@ export async function checkRateLimit(
 }
 
 /** Check resend cooldown (60 seconds between OTP requests for same mobile) */
-export async function checkResendCooldown(mobile: string, action: "SEND_OTP_REGISTER" | "SEND_OTP_LOGIN" | "SEND_OTP_FORGOT_PIN"): Promise<void> {
+export async function checkResendCooldown(mobile: string, action: "SEND_OTP_REGISTER" | "SEND_OTP_LOGIN" | "SEND_OTP_FORGOT_PIN" | "SEND_OTP_STAFF_LOGIN"): Promise<void> {
   const since = new Date(Date.now() - 60 * 1000);
   const recentEvent = await prisma.rateLimitEvent.findFirst({
     where: { scopeType: "MOBILE", scopeKey: mobile, action, createdAtUtc: { gte: since } },
