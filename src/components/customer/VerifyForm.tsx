@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { Loader2, Phone } from "lucide-react";
+import { getDeviceVisitorId } from "@/lib/fingerprint-client";
+
 
 interface Props {
   initialDraftId?: string;
@@ -9,11 +11,7 @@ interface Props {
   onSwitchToRegister: () => void;
 }
 
-async function getDeviceVisitorId(): Promise<string> {
-  const raw = [navigator.userAgent, screen.width.toString(), Intl.DateTimeFormat().resolvedOptions().timeZone].join("|");
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(raw));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+
 
 export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegister }: Props) {
   const [mobile, setMobile] = useState("");

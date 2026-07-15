@@ -23,18 +23,9 @@ export default function Footer() {
         <div>
           <p className="text-white font-semibold text-sm mb-3">Quick Links</p>
           <ul className="space-y-2 text-sm">
-            <li>
-              <a href="#how-it-works" className="hover:text-orange-400 transition-colors">How It Works</a>
-            </li>
-            <li>
-              <a href="#offerings" className="hover:text-orange-400 transition-colors">Our Thalis</a>
-            </li>
-            <li>
-              <a href="#why-us" className="hover:text-orange-400 transition-colors">Why Us</a>
-            </li>
-            <li>
-              <Link href="/login" className="hover:text-orange-400 transition-colors">Admin Login</Link>
-            </li>
+            <li><a href="#how-it-works" className="hover:text-orange-400 transition-colors">How It Works</a></li>
+            <li><a href="#offerings" className="hover:text-orange-400 transition-colors">Our Thalis</a></li>
+            <li><a href="#why-us" className="hover:text-orange-400 transition-colors">Why Us</a></li>
           </ul>
         </div>
 
@@ -53,8 +44,18 @@ export default function Footer() {
         </div>
       </div>
 
-      <div className="border-t border-gray-800 py-4 text-center text-xs">
-        &copy; {new Date().getFullYear()} VD&apos;s Hunger Hub. All rights reserved.
+      {/* Bottom bar: copyright + de-emphasized staff/admin access */}
+      <div className="border-t border-gray-800 py-4 px-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+          <p>&copy; {new Date().getFullYear()} VD&apos;s Hunger Hub. All rights reserved.</p>
+          {/* Muted, non-promotional — staff/admin access should not compete with customer CTAs */}
+          <Link
+            href="/staff-login"
+            className="text-gray-600 hover:text-gray-400 transition-colors"
+          >
+            Staff &amp; Admin Login
+          </Link>
+        </div>
       </div>
     </footer>
   );

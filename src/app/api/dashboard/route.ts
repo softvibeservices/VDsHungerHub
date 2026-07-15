@@ -18,7 +18,7 @@ export async function GET() {
         where: { date: today },
         include: {
           thalis: { include: { thali: { select: { name: true, price: true } } } },
-          sabjiOptions: { include: { product: { select: { name: true } }, thali: { select: { name: true } } } },
+          sabjiOptions: { include: { product: { select: { name: true } }, category: { select: { name: true } } } },
         },
       }),
       prisma.dailyMenu.findMany({

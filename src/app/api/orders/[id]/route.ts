@@ -12,6 +12,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
   // Admin/Staff auth only
   const token =
+    req.cookies.get("tos_staff_session")?.value ??
     req.cookies.get("vdh_token")?.value ??
     req.cookies.get("vd_admin_token")?.value;
   if (!token) {
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
   const token =
+    req.cookies.get("tos_staff_session")?.value ??
     req.cookies.get("vdh_token")?.value ??
     req.cookies.get("vd_admin_token")?.value;
   if (!token) {

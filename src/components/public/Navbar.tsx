@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { UtensilsCrossed, MessageCircle, LogIn, Menu, X } from "lucide-react";
+import { UtensilsCrossed, Menu, X } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { WHATSAPP_LINK } from "@/lib/constants";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -29,19 +28,14 @@ export default function Navbar() {
           <a href="#why-us" className="hover:text-orange-600 transition-colors">Why Us</a>
         </nav>
 
-        {/* Action Buttons */}
+        {/* Action Buttons — customer ordering only, no admin link here */}
         <div className="flex items-center gap-2">
-          <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="hidden sm:block">
-            <Button variant="primary" size="md" leftIcon={<MessageCircle size={16} />}>
-              Order on WhatsApp
-            </Button>
-          </a>
-          <Link href="/login">
-            <Button variant="secondary" size="md" leftIcon={<LogIn size={16} />}>
-              Admin Login
+          <Link href="/menu">
+            <Button variant="primary" size="md">
+              Order Now
             </Button>
           </Link>
-          
+
           {/* Mobile hamburger menu */}
           <button
             className="md:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
@@ -56,36 +50,19 @@ export default function Navbar() {
       {/* Mobile Dropdown Panel */}
       {mobileOpen && (
         <div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-3 shadow-inner">
-          <a
-            href="#how-it-works"
-            onClick={() => setMobileOpen(false)}
-            className="block text-sm font-medium text-gray-700 hover:text-orange-600 py-1 transition-colors"
-          >
+          <a href="#how-it-works" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-orange-600 py-1 transition-colors">
             How It Works
           </a>
-          <a
-            href="#offerings"
-            onClick={() => setMobileOpen(false)}
-            className="block text-sm font-medium text-gray-700 hover:text-orange-600 py-1 transition-colors"
-          >
+          <a href="#offerings" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-orange-600 py-1 transition-colors">
             Our Thalis
           </a>
-          <a
-            href="#why-us"
-            onClick={() => setMobileOpen(false)}
-            className="block text-sm font-medium text-gray-700 hover:text-orange-600 py-1 transition-colors"
-          >
+          <a href="#why-us" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-orange-600 py-1 transition-colors">
             Why Us
           </a>
-          <div className="pt-2 border-t border-gray-100 space-y-2">
-            <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="block">
-              <Button variant="primary" size="md" className="w-full" leftIcon={<MessageCircle size={16} />}>
-                Order on WhatsApp
-              </Button>
-            </a>
-            <Link href="/login" className="block" onClick={() => setMobileOpen(false)}>
-              <Button variant="secondary" size="md" className="w-full" leftIcon={<LogIn size={16} />}>
-                Admin Login
+          <div className="pt-2 border-t border-gray-100">
+            <Link href="/menu" className="block" onClick={() => setMobileOpen(false)}>
+              <Button variant="primary" size="md" className="w-full">
+                Order Now
               </Button>
             </Link>
           </div>

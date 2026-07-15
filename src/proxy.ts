@@ -9,6 +9,8 @@ const PUBLIC_PATHS = [
   "/verify",
   "/staff-login",
   "/api/staff/otp",
+  "/api/staff/me",      // must be callable pre-auth to check session state
+  "/api/staff/logout",  // must be callable to clear a stale/invalid cookie
   "/api/auth/login",
   "/api/auth/logout",
   "/menu",          // CUSTOMER ordering page (/menu and /menu/[slug] public share links)

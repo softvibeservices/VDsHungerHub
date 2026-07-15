@@ -340,6 +340,7 @@ model DeviceFingerprint {
   isTrusted       Boolean  @default(false) // true after first successful full login
   isBlocked       Boolean  @default(false)
   blockedReason   String?
+  adminNote       String?  // free-text note added by an admin during manual review
 
   @@unique([userId, fingerprintHash])
   @@index([fingerprintHash])
@@ -598,5 +599,27 @@ model StaffUser {
 
   @@index([role])
   @@index([status])
+}
+
+// -----------------------------------------
+// STAFF OTP ATTEMPT (for /api/staff/otp/* routes)
+// -----------------------------------------
+enum StaffOtpPurpose {
+  STAFF_LOGIN
+}
+
+model StaffOtpAttempt {
+  id             String          @id @default(cuid())
+  mobile         String
+  purpose        StaffOtpPurpose @default(STAFF_LOGIN)
+  verificationId String          // returned by Message Central's send call
+  ip             String
+  userAgent      String
+  attempts       Int             @default(0)
+  expiresAtUtc   DateTime
+  consumedAtUtc  DateTime?
+  createdAtUtc   DateTime        @default(now())
+
+  @@index([mobile, purpose])
 }
 

@@ -12,6 +12,7 @@ import { getTodayIST } from "@/lib/utils";
 export async function GET(req: NextRequest) {
   // Admin/Staff auth
   const token =
+    req.cookies.get("tos_staff_session")?.value ??
     req.cookies.get("vdh_token")?.value ??
     req.cookies.get("vd_admin_token")?.value;
   if (!token) {
@@ -90,6 +91,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   // Admin/Staff auth
   const token =
+    req.cookies.get("tos_staff_session")?.value ??
     req.cookies.get("vdh_token")?.value ??
     req.cookies.get("vd_admin_token")?.value;
   if (!token) {
