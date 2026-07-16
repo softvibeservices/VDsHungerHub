@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getTodayIST, istTimeToUTC } from "@/lib/time";
+import { validateSabjiCoverage } from "@/lib/menu-validation";
 
 export async function GET(req: NextRequest) {
   try {
@@ -46,7 +47,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Cannot create a menu for a past date" }, { status: 400 });
     }
 
-    // Resolve configuration (backward compatible with raw thaliIds array)
     interface MenuThaliInput {
       thaliId: string;
       minSabjiRequired?: number;
@@ -59,13 +59,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
     }
 
-    // Fetch the thalis to get their sabjiCount
+    // Fetch full thali records (incl. category) — needed for both the
+    // sabjiCount cap AND the new dish-coverage validation below.
     const thalisFromDb = await prisma.thali.findMany({
       where: { id: { in: resolvedConfig.map((t) => t.thaliId) } },
+      include: { category: true },
     });
-    const sabjiCountMap = new Map<string, number>(
-      thalisFromDb.map((t: any) => [t.id, t.sabjiCount])
-    );
+    const sabjiCountMap = new Map<string, number>(thalisFromDb.map((t: { id: string; sabjiCount: number }) => [t.id, t.sabjiCount]));
+
+    // Clamp minSabjiRequired to each thali's sabjiCount cap (existing behaviour, unchanged)
+    const clampedThaliConfig = resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
+      const cap = sabjiCountMap.get(thaliId) ?? 1;
+      return { thaliId, minSabjiRequired: Math.min(minSabjiRequired ?? cap, cap) };
+    });
+
+    const sabjiOptionsInput = (sabjiOptions ?? []) as { categoryId: string; productIds: string[] }[];
+
+    // ── NEW: server-side dish-coverage validation (safety net, mirrors the client) ──
+    const validation = validateSabjiCoverage(thalisFromDb, clampedThaliConfig, sabjiOptionsInput);
+    if (!validation.isValid) {
+      return NextResponse.json(
+        {
+          error: "This menu can't be published yet — some dishes are missing.",
+          issues: validation.issues,
+        },
+        { status: 400 }
+      );
+    }
+    // ── end validation block ──
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
@@ -78,19 +99,10 @@ export async function POST(req: NextRequest) {
         date: menuDate,
         mealType,
         cutoffTime: cutoffTimeUTC,
-        thalis: {
-          create: resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
-            const cap = (sabjiCountMap.get(thaliId) as number) ?? 1;
-            return {
-              thaliId,
-              minSabjiRequired: Math.min((minSabjiRequired as number) ?? cap, cap),
-            };
-          }),
-        },
+        thalis: { create: clampedThaliConfig },
         sabjiOptions: {
-          create: (sabjiOptions as { categoryId: string; productIds: string[] }[]).flatMap(
-            ({ categoryId, productIds }) =>
-              productIds.map((productId) => ({ categoryId, productId }))
+          create: sabjiOptionsInput.flatMap(({ categoryId, productIds }) =>
+            productIds.map((productId) => ({ categoryId, productId }))
           ),
         },
       },
@@ -103,10 +115,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ menu }, { status: 201 });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2002") {
-      return NextResponse.json(
-        { error: "A menu for this date and meal type already exists" },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "A menu for this date and meal type already exists" }, { status: 409 });
     }
     console.error("[MENU POST]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

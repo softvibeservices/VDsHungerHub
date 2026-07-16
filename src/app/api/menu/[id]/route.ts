@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { validateSabjiCoverage } from "@/lib/menu-validation";
 
-export async function PUT(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { cutoffTime, thaliIds, thaliConfig, sabjiOptions } = await req.json();
@@ -15,12 +13,13 @@ export async function PUT(
     const menuDateStr = existingMenu.date.toISOString().split("T")[0];
     const now = new Date();
     const ist = new Date(now.getTime() + 330 * 60 * 1000);
-    const todayStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
+    const todayStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(
+      ist.getUTCDate()
+    ).padStart(2, "0")}`;
     if (menuDateStr < todayStr) {
       return NextResponse.json({ error: "Cannot edit a menu for a past date" }, { status: 400 });
     }
 
-    // Resolve configuration (backward compatible with raw thaliIds array)
     interface MenuThaliInput {
       thaliId: string;
       minSabjiRequired?: number;
@@ -29,13 +28,33 @@ export async function PUT(
       ? thaliConfig
       : (thaliIds || []).map((thaliId: string) => ({ thaliId }));
 
-    // Fetch the thalis to get their maxSabjiCount
+    // Fetch full thali records (incl. category) — needed for both the
+    // sabjiCount cap AND the new dish-coverage validation below.
     const thalisFromDb = await prisma.thali.findMany({
       where: { id: { in: resolvedConfig.map((t) => t.thaliId) } },
+      include: { category: true },
     });
-    const sabjiCountMap = new Map<string, number>(
-      thalisFromDb.map((t: any) => [t.id, t.sabjiCount])
-    );
+    const sabjiCountMap = new Map<string, number>(thalisFromDb.map((t: { id: string; sabjiCount: number }) => [t.id, t.sabjiCount]));
+
+    const clampedThaliConfig = resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
+      const cap = sabjiCountMap.get(thaliId) ?? 1;
+      return { thaliId, minSabjiRequired: Math.min(minSabjiRequired ?? cap, cap) };
+    });
+
+    const sabjiOptionsInput = (sabjiOptions ?? []) as { categoryId: string; productIds: string[] }[];
+
+    // ── NEW: server-side dish-coverage validation (safety net, mirrors the client) ──
+    const validation = validateSabjiCoverage(thalisFromDb, clampedThaliConfig, sabjiOptionsInput);
+    if (!validation.isValid) {
+      return NextResponse.json(
+        {
+          error: "This menu can't be published yet — some dishes are missing.",
+          issues: validation.issues,
+        },
+        { status: 400 }
+      );
+    }
+    // ── end validation block ──
 
     // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     let cutoffTimeUTC: Date | null = null;
@@ -53,19 +72,10 @@ export async function PUT(
       where: { id },
       data: {
         cutoffTime: cutoffTimeUTC,
-        thalis: {
-          create: resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
-            const cap = (sabjiCountMap.get(thaliId) as number) ?? 1;
-            return {
-              thaliId,
-              minSabjiRequired: Math.min((minSabjiRequired as number) ?? cap, cap),
-            };
-          }),
-        },
+        thalis: { create: clampedThaliConfig },
         sabjiOptions: {
-          create: (sabjiOptions as { categoryId: string; productIds: string[] }[]).flatMap(
-            ({ categoryId, productIds }) =>
-              productIds.map((productId) => ({ categoryId, productId }))
+          create: sabjiOptionsInput.flatMap(({ categoryId, productIds }) =>
+            productIds.map((productId) => ({ categoryId, productId }))
           ),
         },
       },

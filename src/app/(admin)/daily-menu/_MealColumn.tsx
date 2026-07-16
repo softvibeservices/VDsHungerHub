@@ -1,24 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Sun,
-  Moon,
-  Zap,
-  Copy,
-  Trash2,
-  BookmarkPlus,
-  Link2,
-  Check,
-  X,
-  AlertTriangle,
-} from "lucide-react";
+import { Sun, Moon, Zap, Copy, Trash2, BookmarkPlus, Link2, Check, X, AlertTriangle } from "lucide-react";
 import TimeField from "@/components/ui/TimeField";
 import Button from "@/components/ui/Button";
-import SabjiPicker from "@/components/admin/SabjiPicker";
+import SabjiPickerModal from "./_SabjiPickerModal";
 import ThaliSelector from "./_ThaliSelector";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { validateSabjiCoverage } from "@/lib/menu-validation";
 
 interface ThaliCategory {
   id: string;
@@ -85,7 +75,7 @@ interface MealColumnProps {
   onOpenCopyFrom: () => void;
 }
 
-// Groups selected thalis by category for sabji pickers.
+// Groups selected thalis by category for sabji pickers. (unchanged from original)
 function groupThalisByCategory(selectedThaliIds: string[], allThalis: Thali[]) {
   const groups: { key: string; label: string; thalis: Thali[]; sabjiCount: number }[] = [];
   const byCategory = new Map<string, Thali[]>();
@@ -124,7 +114,9 @@ export default function MealColumn({
   onOpenCopyFrom,
 }: MealColumnProps) {
   const [copiedSlug, setCopiedSlug] = useState(false);
+  const [activeDishGroupKey, setActiveDishGroupKey] = useState<string | null>(null);
   const isLunch = mealType === "LUNCH";
+  const isPast = selectedDate < todayStr;
 
   const toggleThali = (thaliId: string) => {
     const next = draft.selectedThaliIds.includes(thaliId)
@@ -152,10 +144,7 @@ export default function MealColumn({
       const thali = thalis.find((t) => t.id === thaliId);
       onUpdateDraft({
         selectedThaliIds: next,
-        minSabjiMap: {
-          ...draft.minSabjiMap,
-          [thaliId]: thali?.sabjiCount ?? 1,
-        },
+        minSabjiMap: { ...draft.minSabjiMap, [thaliId]: thali?.sabjiCount ?? 1 },
       });
     }
   };
@@ -166,7 +155,6 @@ export default function MealColumn({
     const newSabjiMap = { ...draft.sabjiMap };
 
     if (select) {
-      // Add all category thalis that aren't already selected
       categoryThaliIds.forEach((id) => {
         if (!next.includes(id)) {
           next.push(id);
@@ -175,13 +163,11 @@ export default function MealColumn({
         }
       });
     } else {
-      // Remove all category thalis from selection
       next = next.filter((id) => !categoryThaliIds.includes(id));
       categoryThaliIds.forEach((id) => {
         delete newMinMap[id];
       });
 
-      // Clear the sabji selection for this category group if no thalis remain
       const sampleThali = thalis.find((t) => t.id === categoryThaliIds[0]);
       if (sampleThali?.categoryId) {
         const hasRemaining = next.some((id) => {
@@ -194,11 +180,7 @@ export default function MealColumn({
       }
     }
 
-    onUpdateDraft({
-      selectedThaliIds: next,
-      minSabjiMap: newMinMap,
-      sabjiMap: newSabjiMap,
-    });
+    onUpdateDraft({ selectedThaliIds: next, minSabjiMap: newMinMap, sabjiMap: newSabjiMap });
   };
 
   const copyPublicUrl = () => {
@@ -209,7 +191,36 @@ export default function MealColumn({
     toast.success("Public URL copied!");
   };
 
-  const isPast = selectedDate < todayStr;
+  const dishGroups = groupThalisByCategory(draft.selectedThaliIds, thalis).filter((g) => g.sabjiCount > 0);
+
+  // Build the exact same shaped payload saveMenu() will send, so the on-screen
+  // readiness indicator is always 100% consistent with what the server accepts.
+  const thaliConfigForValidation = draft.selectedThaliIds.map((tid) => ({
+    thaliId: tid,
+    minSabjiRequired: draft.minSabjiMap[tid] ?? 1,
+  }));
+  const sabjiOptionsForValidation = dishGroups
+    .filter((g) => g.thalis[0].categoryId)
+    .map((g) => ({ categoryId: g.thalis[0].categoryId!, productIds: draft.sabjiMap[g.key] ?? [] }));
+  const validation = validateSabjiCoverage(thalis, thaliConfigForValidation, sabjiOptionsForValidation);
+
+  const activeGroup = dishGroups.find((g) => g.key === activeDishGroupKey) ?? null;
+  const activeGroupPool = activeGroup
+    ? (() => {
+        const groupThalisWithPool = activeGroup.thalis.filter((t) => t.sabjiPool && t.sabjiPool.length > 0);
+        return (
+          groupThalisWithPool.length > 0
+            ? Array.from(
+                new Map(groupThalisWithPool.flatMap((t) => t.sabjiPool ?? []).map((sp) => [sp.product.id, sp.product])).values()
+              )
+            : products
+        ).filter((p) => !p.isAddOnAvailable);
+      })()
+    : [];
+
+  const activeGroupMinRequired = activeGroup
+    ? Math.max(...activeGroup.thalis.map((t) => draft.minSabjiMap[t.id] ?? t.sabjiCount))
+    : 0;
 
   return (
     <div
@@ -218,7 +229,7 @@ export default function MealColumn({
         isPast && "opacity-75"
       )}
     >
-      {/* Column Header */}
+      {/* Column Header (unchanged) */}
       <div
         className={cn(
           "bg-gradient-to-r px-4 py-3.5 flex items-center justify-between flex-shrink-0 border-b border-gray-100",
@@ -231,8 +242,6 @@ export default function MealColumn({
             <h3 className="font-extrabold text-sm">{isLunch ? "Lunch" : "Dinner"} Menu</h3>
           </div>
         </div>
-
-        {/* Dirty State Indicator */}
         <div className="flex items-center gap-1.5">
           {isDirty ? (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-200 border border-amber-400/20 animate-pulse">
@@ -248,9 +257,9 @@ export default function MealColumn({
         </div>
       </div>
 
-      {/* Column Content */}
-      <div className="p-4 space-y-4 flex-1 overflow-y-auto min-h-[400px]">
-        {/* Templates section (always visible, horizontal row) */}
+      {/* SCROLLABLE MIDDLE ZONE — the only scroll region while browsing this column */}
+      <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+        {/* Templates section (unchanged) */}
         {templates.length > 0 && (
           <div className="space-y-1.5 bg-gray-50/50 border border-gray-100 p-3 rounded-xl">
             <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider flex items-center gap-1">
@@ -283,7 +292,7 @@ export default function MealColumn({
           </div>
         )}
 
-        {/* Copy From / Cutoff Actions */}
+        {/* Copy From / Cutoff Actions (unchanged) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/30 border border-gray-100 p-3 rounded-xl">
           <TimeField
             label="Cutoff Time"
@@ -292,23 +301,16 @@ export default function MealColumn({
             disabled={isPast}
           />
           <div className="flex flex-col justify-end">
-            <Button
-              variant="secondary"
-              onClick={onOpenCopyFrom}
-              disabled={isPast}
-              leftIcon={<Copy size={13} />}
-              size="md"
-              className="h-[38px] w-full"
-            >
+            <Button variant="secondary" onClick={onOpenCopyFrom} disabled={isPast} leftIcon={<Copy size={13} />} size="md" className="h-[38px] w-full">
               Copy From...
             </Button>
           </div>
         </div>
 
-        {/* Thali selector */}
+        {/* Step 1 — Thali selector (unchanged) */}
         <div className="space-y-2">
           <div className="flex justify-between items-baseline">
-            <p className="text-xs font-bold text-gray-600">Select Thalis</p>
+            <p className="text-xs font-bold text-gray-600">Step 1 — Select Thalis</p>
             <div className="flex gap-2">
               <button
                 type="button"
@@ -316,9 +318,7 @@ export default function MealColumn({
                   const allIds = thalis.map((t) => t.id);
                   const minSabjiMap = { ...draft.minSabjiMap };
                   thalis.forEach((t) => {
-                    if (minSabjiMap[t.id] === undefined) {
-                      minSabjiMap[t.id] = t.sabjiCount ?? 1;
-                    }
+                    if (minSabjiMap[t.id] === undefined) minSabjiMap[t.id] = t.sabjiCount ?? 1;
                   });
                   onUpdateDraft({ selectedThaliIds: allIds, minSabjiMap });
                 }}
@@ -329,9 +329,7 @@ export default function MealColumn({
               <span className="text-[10px] text-gray-300">|</span>
               <button
                 type="button"
-                onClick={() => {
-                  onUpdateDraft({ selectedThaliIds: [], sabjiMap: {}, minSabjiMap: {} });
-                }}
+                onClick={() => onUpdateDraft({ selectedThaliIds: [], sabjiMap: {}, minSabjiMap: {} })}
                 className="text-[10px] text-gray-450 hover:underline font-bold cursor-pointer"
               >
                 Clear All
@@ -344,93 +342,16 @@ export default function MealColumn({
             selectedThaliIds={draft.selectedThaliIds}
             onToggle={toggleThali}
             onSelectCategory={handleSelectCategory}
+            sabjiMap={draft.sabjiMap}
+            minSabjiMap={draft.minSabjiMap}
+            onManageSabji={setActiveDishGroupKey}
           />
         </div>
+      </div>
 
-        {/* Category-grouped sabji pickers */}
-        {draft.selectedThaliIds.length > 0 && (
-          <div className="space-y-4 pt-2 border-t border-gray-100">
-            <h4 className="text-xs font-bold text-gray-600">Sabji Options Configuration</h4>
-            {groupThalisByCategory(draft.selectedThaliIds, thalis)
-              .filter((g) => g.sabjiCount > 0)
-              .map((group) => {
-                const groupThalisWithPool = group.thalis.filter(
-                  (t) => t.sabjiPool && t.sabjiPool.length > 0
-                );
-                const pool = (
-                  groupThalisWithPool.length > 0
-                    ? Array.from(
-                        new Map(
-                          groupThalisWithPool
-                            .flatMap((t) => t.sabjiPool ?? [])
-                            .map((sp) => [sp.product.id, sp.product])
-                        ).values()
-                      )
-                    : products
-                ).filter((p) => !p.isAddOnAvailable);
-
-                const primaryThaliId = group.thalis[0].id;
-                const minRequired = draft.minSabjiMap[primaryThaliId] ?? group.sabjiCount;
-
-                return (
-                  <SabjiPicker
-                    key={group.key}
-                    label={`Sabji for category: ${group.label}`}
-                    products={pool}
-                    selected={draft.sabjiMap[group.key] ?? []}
-                    maxCount={group.sabjiCount}
-                    minRequired={minRequired}
-                    adminMode={true}
-                    onMinChange={(n) => {
-                      const updatedMinMap = { ...draft.minSabjiMap };
-                      group.thalis.forEach((t) => {
-                        updatedMinMap[t.id] = n;
-                      });
-                      onUpdateDraft({ minSabjiMap: updatedMinMap });
-                    }}
-                    onChange={(ids) =>
-                      onUpdateDraft({
-                        sabjiMap: { ...draft.sabjiMap, [group.key]: ids },
-                      })
-                    }
-                  />
-                );
-              })}
-          </div>
-        )}
-
-        {/* Public URL (after save) */}
-        {draft.existingId && draft.publicSlug && (
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
-            <Link2 size={14} className="text-gray-400 flex-shrink-0" />
-            <code className="text-xs text-orange-600 font-mono flex-1 truncate">
-              /menu/{draft.publicSlug}
-            </code>
-            <button
-              onClick={copyPublicUrl}
-              className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer flex-shrink-0 flex items-center gap-1 font-semibold"
-            >
-              {copiedSlug ? (
-                <>
-                  <Check size={12} className="text-emerald-500" /> Copied
-                </>
-              ) : (
-                "Copy"
-              )}
-            </button>
-            <a
-              href={`/menu/${draft.publicSlug}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs font-bold text-orange-500 hover:text-orange-600 flex-shrink-0"
-            >
-              Open &rarr;
-            </a>
-          </div>
-        )}
-
-        {/* Action buttons */}
-        <div className="flex gap-2 pt-3 border-t border-gray-100 flex-shrink-0">
+      {/* STICKY BOTTOM ZONE — always visible, never scrolls away */}
+      <div className="flex-shrink-0 border-t border-gray-100 bg-white p-4 space-y-3">
+        <div className="flex gap-2">
           <Button
             variant="primary"
             className={cn("flex-1", isDirty && !isPast && "animate-pulse")}
@@ -470,6 +391,29 @@ export default function MealColumn({
           </div>
         )}
       </div>
+
+      {/* Full-screen Dish Picker Modal — the ONLY place a long dish list is ever shown */}
+      {activeGroup && (
+        <SabjiPickerModal
+          isOpen={true}
+          onClose={() => setActiveDishGroupKey(null)}
+          categoryLabel={activeGroup.label}
+          thaliNames={activeGroup.thalis.map((t) => t.name)}
+          products={activeGroupPool}
+          selected={draft.sabjiMap[activeGroup.key] ?? []}
+          maxCount={activeGroup.sabjiCount}
+          minRequired={activeGroupMinRequired}
+          readOnly={isPast}
+          onMinChange={(n) => {
+            const updatedMinMap = { ...draft.minSabjiMap };
+            activeGroup.thalis.forEach((t) => {
+              updatedMinMap[t.id] = Math.min(n, t.sabjiCount);
+            });
+            onUpdateDraft({ minSabjiMap: updatedMinMap });
+          }}
+          onChange={(ids) => onUpdateDraft({ sabjiMap: { ...draft.sabjiMap, [activeGroup.key]: ids } })}
+        />
+      )}
     </div>
   );
 }

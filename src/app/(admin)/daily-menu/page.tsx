@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import toast from "react-hot-toast";
 import Button from "@/components/ui/Button";
@@ -12,6 +12,7 @@ import CopyFromDialog from "./_CopyFromDialog";
 import SaveTemplateModal from "./_SaveTemplateModal";
 import useDirtyState from "@/hooks/useDirtyState";
 import { cn } from "@/lib/utils";
+import { validateSabjiCoverage } from "@/lib/menu-validation";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface ThaliItem {
@@ -159,6 +160,20 @@ export default function MenuPage() {
   };
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
+
+  // Deep-link support: /daily-menu?date=YYYY-MM-DD (used by the "Past
+  // Menus & Links" page's "View / Edit" button). Reads window.location
+  // directly instead of useSearchParams() so no Suspense boundary is
+  // required for this fully client-rendered page.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("date");
+    if (fromQuery && /^\d{4}-\d{2}-\d{2}$/.test(fromQuery)) {
+      setSelectedDate(fromQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [thalis, setThalis] = useState<Thali[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [templates, setTemplates] = useState<MenuTemplate[]>([]);
@@ -197,20 +212,23 @@ export default function MenuPage() {
     sourceDate: string;
   } | null>(null);
 
-  // Fetch summaries for WeekStrip (2 weeks range)
-  const fetchSummaries = useCallback(async () => {
+  // Fetch summaries for the WeekStrip + "Copy From" dialog.
+  // The window is centered on `centerDate` (not hardcoded to today) so
+  // browsing into the past always shows real history instead of empty dots,
+  // and "Copy From" can always see up to 45 days of past configured menus.
+  const fetchSummaries = useCallback(async (centerDate: string) => {
     try {
-      const from = todayStr;
-      const to = dateAddDays(todayStr, 13);
+      const from = dateAddDays(centerDate, -45);
+      const to = dateAddDays(centerDate, 13);
       const res = await fetch(`/api/menu/summary?from=${from}&to=${to}`);
       if (res.ok) {
         const json = await res.json();
         const map = new Map<string, { hasLunch: boolean; hasDinner: boolean }>();
 
-        // Prepopulate dates in range so they appear on list
-        for (let i = 0; i < 14; i++) {
-          const dateStr = dateAddDays(todayStr, i);
-          map.set(dateStr, { hasLunch: false, hasDinner: false });
+        let cursor = from;
+        while (cursor <= to) {
+          map.set(cursor, { hasLunch: false, hasDinner: false });
+          cursor = dateAddDays(cursor, 1);
         }
 
         json.days.forEach((day: { date: string; mealType: "LUNCH" | "DINNER" }) => {
@@ -230,7 +248,7 @@ export default function MenuPage() {
     } catch {
       /* ignore */
     }
-  }, [todayStr]);
+  }, []);
 
   // Fetch catalog master data
   useEffect(() => {
@@ -243,11 +261,10 @@ export default function MenuPage() {
         setThalis(thaliData.thalis ?? []);
         setProducts(productData.products ?? []);
         setTemplates(templateData.templates ?? []);
-        fetchSummaries();
       })
       .catch(() => toast.error("Failed to load catalog data"))
       .finally(() => setIsLoading(false));
-  }, [fetchSummaries]);
+  }, []);
 
   // Fetch menus for selected date
   const fetchMenusForDate = useCallback(async (date: string) => {
@@ -310,7 +327,8 @@ export default function MenuPage() {
 
   useEffect(() => {
     fetchMenusForDate(selectedDate);
-  }, [selectedDate, fetchMenusForDate]);
+    fetchSummaries(selectedDate);
+  }, [selectedDate, fetchMenusForDate, fetchSummaries]);
 
   // ── Date Navigation dirty warnings ──────────────────────────────────────────
   const handleSelectDate = (date: string) => {
@@ -383,9 +401,6 @@ export default function MenuPage() {
       return;
     }
 
-    updateDraft(mealType, { isSaving: true });
-    saveLastCutoff(mealType, draft.cutoffTime);
-
     const sabjiOptions = groups
       .filter((g) => g.sabjiCount > 0 && g.thalis[0].categoryId)
       .map((g) => ({
@@ -398,6 +413,23 @@ export default function MenuPage() {
       thaliId: tid,
       minSabjiRequired: draft.minSabjiMap[tid] ?? 1,
     }));
+
+    // ── NEW: refuse to save until every dish category has enough dishes ──
+    const validation = validateSabjiCoverage(thalis, thaliConfig, sabjiOptions);
+    if (!validation.isValid) {
+      validation.issues.forEach((issue) => {
+        toast.error(
+          `"${issue.label}" needs at least ${issue.required} dish${
+            issue.required === 1 ? "" : "es"
+          } — only ${issue.configured} added.`
+        );
+      });
+      return;
+    }
+    // ── end validation block ──
+
+    updateDraft(mealType, { isSaving: true });
+    saveLastCutoff(mealType, draft.cutoffTime);
 
     try {
       const url = draft.existingId ? `/api/menu/${draft.existingId}` : "/api/menu";
@@ -439,7 +471,7 @@ export default function MenuPage() {
       else setDinnerSnapshot(updatedDraft);
 
       // Refresh week strip summaries
-      fetchSummaries();
+      fetchSummaries(selectedDate);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Save failed");
       updateDraft(mealType, { isSaving: false });
@@ -465,7 +497,7 @@ export default function MenuPage() {
       if (mealType === "LUNCH") setLunchSnapshot(null);
       else setDinnerSnapshot(null);
 
-      fetchSummaries();
+      fetchSummaries(selectedDate);
     } catch {
       toast.error("Delete failed");
       updateDraft(mealType, { isDeleting: false });
@@ -619,12 +651,14 @@ export default function MenuPage() {
         onOpenDatePicker={handleOpenDatePicker}
       />
 
-      {/* Hidden Native Date Picker for jump navigations */}
+      {/* Hidden Native Date Picker for jump navigations.
+          NOTE: no `min` here on purpose — staff must be able to jump back
+          to any past date to review what was served (view-only; the API
+          still blocks editing/creating menus for past dates). */}
       <input
         type="date"
         ref={dateInputRef}
         value={selectedDate}
-        min={todayStr}
         onChange={(e) => e.target.value && handleSelectDate(e.target.value)}
         className="sr-only absolute pointer-events-none"
       />
@@ -645,8 +679,7 @@ export default function MenuPage() {
         <div className="flex gap-1.5">
           <button
             onClick={() => handleSelectDate(dateAddDays(selectedDate, -1))}
-            disabled={selectedDate <= todayStr}
-            className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+            className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 cursor-pointer"
           >
             <ChevronLeft size={16} />
           </button>
