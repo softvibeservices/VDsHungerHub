@@ -24,7 +24,7 @@ export class MessageCentralError extends Error {
  * Send an OTP to an Indian mobile number via Message Central VerifyNow.
  * Returns the verificationId which must be stored and passed back to verifyOtp().
  */
-export async function sendOtp(mobile: string): Promise<string> {
+export async function sendOtp(mobile: string, otpLength: number = 6): Promise<string> {
   if (!CUSTOMER_ID || !AUTH_TOKEN) {
     throw new MessageCentralError(
       "Message Central credentials not configured. Set MESSAGECENTRAL_CUSTOMER_ID and MESSAGECENTRAL_AUTH_TOKEN in .env"
@@ -36,6 +36,7 @@ export async function sendOtp(mobile: string): Promise<string> {
   url.searchParams.set("customerId", CUSTOMER_ID);
   url.searchParams.set("flowType", "SMS");
   url.searchParams.set("mobileNumber", mobile);
+  url.searchParams.set("otpLength", String(otpLength));
 
   const res = await fetch(url.toString(), {
     method: "POST",

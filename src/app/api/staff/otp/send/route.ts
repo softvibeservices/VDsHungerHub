@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Send actual OTP
-    const verificationId = await sendOtp(mobile);
+    const verificationId = await sendOtp(mobile, 6);
 
     await prisma.staffOtpAttempt.create({
       data: {

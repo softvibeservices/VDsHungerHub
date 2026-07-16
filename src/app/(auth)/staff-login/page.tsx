@@ -76,8 +76,8 @@ export default function StaffLoginPage() {
     e.preventDefault();
     setError("");
 
-    if (!otp.trim() || otp.length !== 4) {
-      setError("Please enter a valid 4-digit OTP code.");
+    if (!otp.trim() || otp.length !== 6) {
+      setError("Please enter a valid 6-digit OTP code.");
       return;
     }
 
@@ -190,16 +190,16 @@ export default function StaffLoginPage() {
                   </button>
                 </div>
                 <p className="text-xs text-gray-500">
-                  Enter the 4-digit OTP code sent to <span className="font-semibold text-gray-700">+91 {mobile}</span>
+                  Enter the 6-digit OTP code sent to <span className="font-semibold text-gray-700">+91 {mobile}</span>
                 </p>
                 <input
                   id="otp"
                   type="text"
                   inputMode="numeric"
-                  maxLength={4}
-                  placeholder="••••"
+                  maxLength={6}
+                  placeholder="••••••"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="w-full py-3 border border-gray-200 rounded-xl text-lg font-bold font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
                   required
                 />
@@ -207,7 +207,7 @@ export default function StaffLoginPage() {
 
               <button
                 type="submit"
-                disabled={isLoading || otp.length !== 4}
+                disabled={isLoading || otp.length !== 6}
                 className="w-full py-3 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow shadow-orange-500/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isLoading ? (

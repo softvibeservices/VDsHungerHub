@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid mobile number." }, { status: 400 });
     }
 
-    if (!otpCode || String(otpCode).length !== 4) {
-      return NextResponse.json({ error: "Enter the 4-digit code." }, { status: 400 });
+    if (!otpCode || String(otpCode).length !== 6) {
+      return NextResponse.json({ error: "Enter the 6-digit code." }, { status: 400 });
     }
 
     // Most recent, unconsumed, unexpired attempt for this mobile
