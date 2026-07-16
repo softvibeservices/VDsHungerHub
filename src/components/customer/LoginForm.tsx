@@ -256,6 +256,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
             <div className="flex gap-2">
               <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">+91</span>
               <input id="fp-mobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} placeholder="10-digit number"
+                autoComplete="tel"
                 className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all" />
             </div>
             <button id="fp-send-otp" type="button" onClick={handleForgotPinSendOtp} disabled={loading || mobile.length !== 10}
@@ -269,7 +270,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
           <form onSubmit={handleForgotPinVerifyOtp} className="space-y-3">
             <p className="text-xs text-gray-500">Enter the OTP sent to +91 {mobile}</p>
             <input id="fp-otp" type="text" inputMode="numeric" value={fpOtp} onChange={(e) => setFpOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              maxLength={6} placeholder="••••••"
+              maxLength={6} placeholder="••••••" autoComplete="one-time-code"
               className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all" />
             <button id="fp-verify-otp" type="submit" disabled={loading || fpOtp.length !== 6}
               className="w-full py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-xl hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
@@ -317,7 +318,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
         <div className="flex gap-2">
           <span className="flex items-center px-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-500">+91</span>
           <input id="login-mobile" type="tel" value={mobile} onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            maxLength={10} placeholder="10-digit number"
+            maxLength={10} placeholder="10-digit number" autoComplete="tel"
             className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all" />
         </div>
       </div>
@@ -373,7 +374,7 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
                 <label className="block text-xs font-semibold text-gray-700 mb-1">Enter OTP</label>
                 <input id="login-otp-input" type="text" inputMode="numeric" value={otp}
                   onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  maxLength={6} placeholder="••••••"
+                  maxLength={6} placeholder="••••••" autoComplete="one-time-code"
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all" />
               </div>
               <button id="login-otp-verify" type="submit" disabled={loading || otp.length !== 6}

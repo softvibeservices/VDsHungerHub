@@ -137,6 +137,7 @@ export default function PublicMenuPage({ params }: PageProps) {
   const [selectedSabjis, setSelectedSabjis] = useState<Record<string, string[]>>({});
   const [selectedAddons, setSelectedAddons] = useState<Record<string, number>>({});
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [selectedAddressText, setSelectedAddressText] = useState<string>("");
 
   // Auth overlay state
   const [showAuth, setShowAuth] = useState(false);
@@ -284,8 +285,9 @@ export default function PublicMenuPage({ params }: PageProps) {
   };
 
   // Called when address is confirmed
-  const handleAddressConfirmed = (addressId: string) => {
+  const handleAddressConfirmed = (addressId: string, addressText: string) => {
     setSelectedAddressId(addressId);
+    setSelectedAddressText(addressText);
     setPageState("confirming");
   };
 
@@ -899,6 +901,7 @@ export default function PublicMenuPage({ params }: PageProps) {
             })
             .filter(Boolean) as { id: string; name: string; nameGu?: string | null; price: number; quantity: number }[]}
           totalAmount={computeTotal()}
+          deliveryAddress={selectedAddressText}
           onConfirm={handleConfirmOrder}
           onBack={() => setPageState("menu")}
           isLoading={placingOrder}

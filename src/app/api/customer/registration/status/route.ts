@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const mobile = searchParams.get("mobile")?.trim() ?? "";
+    const draftId = searchParams.get("draftId")?.trim() ?? "";
 
     // Basic mobile validation
     if (!mobile || !/^[6-9]\d{9}$/.test(mobile)) {
@@ -32,9 +33,18 @@ export async function GET(req: NextRequest) {
     const ip = getClientIp(req);
     await checkRateLimit("IP", ip, "VERIFY_OTP", 15 * 60 * 1000, 10);
 
-    // Look up user by mobile
-    const user = await prisma.user.findUnique({
-      where: { number: mobile },
+    // If no draftId is provided, do not query the DB. Return a generic response (enumeration protection)
+    if (!draftId) {
+      return NextResponse.json({
+        registrationStep: null,
+        nextAction: "REGISTER",
+        message: "No active registration draft found.",
+      });
+    }
+
+    // Look up user by mobile and draftId (proves intent/ownership)
+    const user = await prisma.user.findFirst({
+      where: { number: mobile, id: draftId },
       select: {
         id: true,
         isVerified: true,

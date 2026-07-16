@@ -4,7 +4,9 @@ import {
   verifyCustomerAccessToken,
   CUSTOMER_ACCESS_COOKIE,
   checkUserAndDeviceStatus,
-  normalizeAndValidateMobile,
+  checkRateLimit,
+  getClientIp,
+  formatRateLimitWaitTime,
 } from "@/lib/customer-auth";
 
 /**
@@ -75,6 +77,21 @@ export async function POST(req: NextRequest) {
         { error: statusCheck.message, code: statusCheck.code },
         { status: 403 }
       );
+    }
+
+    // Rate limit per IP to prevent spamming address creation
+    const ip = getClientIp(req);
+    try {
+      await checkRateLimit("IP", ip, "ADD_ADDRESS", 10 * 60 * 1000, 10);
+    } catch (error: any) {
+      if (error?.name === "RateLimitExceededError") {
+        const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
+        return NextResponse.json(
+          { error: `Too many attempts. Please try again after ${waitTime}.` },
+          { status: 429 }
+        );
+      }
+      throw error;
     }
 
     const body = await req.json();

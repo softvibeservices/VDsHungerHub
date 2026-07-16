@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
     // ── Parse body ────────────────────────────────────────────────────────────
     const body = await req.json();
-    const { menuId, thaliItems = [], addonItems = [], note } = body;
+    const { menuId, thaliItems = [], addonItems = [], note, addressId } = body;
 
     if (!menuId) {
       return NextResponse.json({ error: "menuId is required" }, { status: 400 });
@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
     const menu = await prisma.dailyMenu.findUnique({
       where: { id: menuId },
       include: {
-        thalis: { include: { thali: { select: { id: true, price: true, categoryId: true } } } },
+        thalis: { include: { thali: { select: { id: true, price: true, categoryId: true, isActive: true } } } },
         sabjiOptions: true,
       },
     });
@@ -143,12 +143,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Validate delivery address ─────────────────────────────────────────────
+    let verifiedAddressId: string | null = null;
+    if (addressId) {
+      const address = await prisma.address.findFirst({
+        where: { id: addressId, userId },
+        select: { id: true },
+      });
+      if (!address) {
+        return NextResponse.json({ error: "Selected address not found" }, { status: 400 });
+      }
+      verifiedAddressId = address.id;
+    }
+
     // ── Validate each thali item ──────────────────────────────────────────────
-    const validThaliIds = new Set(menu.thalis.map((t: { thaliId: string }) => t.thaliId));
     const thaliPriceMap: Record<string, number> = {};
     const thaliCategoryMap: Record<string, string | null> = {};
+    const validThaliIds = new Set<string>();
 
     for (const mt of menu.thalis) {
+      if (!mt.thali.isActive) continue; // skip inactive thalis
+      validThaliIds.add(mt.thaliId);
       thaliPriceMap[mt.thaliId] = mt.thali.price;
       thaliCategoryMap[mt.thaliId] = mt.thali.categoryId;
     }
@@ -241,10 +256,11 @@ export async function POST(req: NextRequest) {
         menuId,
         thaliId: primaryThaliId,
         totalAmount,
+        addressId: verifiedAddressId,
         status: "PENDING",
-        note: note?.trim() || null,
+        note: note ? note.trim().slice(0, 200) || null : null,
         thaliItems: {
-          create: (thaliItems as any[]).map((t) => ({
+          create: (thaliItems as any[]).map((t: { thaliId: string; sabjiProductId: string; quantity: number }) => ({
             thaliId: t.thaliId,
             sabjiProductId: t.sabjiProductId,
             quantity: Math.max(1, Number(t.quantity) || 1),

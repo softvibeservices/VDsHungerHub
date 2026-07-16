@@ -379,6 +379,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 required
                 maxLength={10}
                 placeholder="10-digit mobile number"
+                autoComplete="tel"
                 className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
               />
             </div>
@@ -525,6 +526,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               required
               maxLength={6}
               placeholder="••••••"
+              autoComplete="one-time-code"
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
             />
           </div>

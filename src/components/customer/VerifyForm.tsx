@@ -149,6 +149,7 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
             onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
             maxLength={10}
             placeholder="10-digit number"
+            autoComplete="tel"
             className="flex-1 px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all"
           />
           <button
@@ -177,6 +178,7 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
               maxLength={6}
               placeholder="••••••"
+              autoComplete="one-time-code"
               className="w-full px-3.5 py-3 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 transition-all"
             />
           </div>

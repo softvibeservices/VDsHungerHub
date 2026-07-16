@@ -388,7 +388,8 @@ export async function checkRateLimit(
     | "SEND_OTP_STAFF_LOGIN"
     | "VERIFY_OTP"
     | "LOGIN_PIN_ATTEMPT"
-    | "ADD_COMPANY",
+    | "ADD_COMPANY"
+    | "ADD_ADDRESS",
   windowMs: number,
   maxEvents: number
 ): Promise<void> {

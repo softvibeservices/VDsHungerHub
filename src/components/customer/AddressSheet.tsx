@@ -17,8 +17,8 @@ export interface Address {
 }
 
 interface Props {
-  /** Called when user confirms an address — passes the selected address id */
-  onConfirm: (addressId: string) => void;
+  /** Called when user confirms an address — passes the selected address id and text */
+  onConfirm: (addressId: string, addressText: string) => void;
   onClose: () => void;
 }
 
@@ -292,7 +292,13 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
                 id="confirm-address"
                 type="button"
                 disabled={!selected}
-                onClick={() => selected && onConfirm(selected)}
+                onClick={() => {
+                  if (selected) {
+                    const addr = addresses.find((a) => a.id === selected);
+                    const addrText = addr ? formatAddress(addr) : "";
+                    onConfirm(selected, addrText);
+                  }
+                }}
                 className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 transition-all shadow-md shadow-orange-500/25"
               >
                 Deliver Here

@@ -15,10 +15,42 @@ const PUBLIC_PATHS = [
   "/api/auth/logout",
   "/menu",          // CUSTOMER ordering page (/menu and /menu/[slug] public share links)
   "/api/public",    // public menu data API
-  "/api/user-auth", // user OTP auth — uses Bearer JWT, not admin cookie
-  "/api/orders",    // user order placement/history — uses Bearer JWT
-  "/api/customer",  // customer-facing API routes
 ];
+
+// Routes under /api/customer that are allowed to run with NO session
+// (they are the auth flows themselves — everything else must be logged in)
+const CUSTOMER_PUBLIC_SUBROUTES = [
+  "/api/customer/register",
+  "/api/customer/send-otp",
+  "/api/customer/verify-otp",
+  "/api/customer/login-pin",
+  "/api/customer/login-otp/verify",
+  "/api/customer/forgot-pin",
+  "/api/customer/companies",
+  "/api/customer/registration/status",
+  "/api/customer/products",
+];
+
+function isPublicCustomerRoute(pathname: string) {
+  return CUSTOMER_PUBLIC_SUBROUTES.some((p) => pathname.startsWith(p));
+}
+
+function isJwtSyntacticallyValid(token: string): boolean {
+  const parts = token.split(".");
+  if (parts.length !== 3) return false;
+  try {
+    const payload = JSON.parse(atob(parts[1]));
+    if (payload.exp && typeof payload.exp === "number") {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      if (payload.exp < nowSeconds) {
+        return false; // expired
+      }
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // Pages only ADMIN can access
 const ADMIN_ONLY_PREFIXES = ["/companies", "/users", "/api/companies", "/api/users", "/api/admin/staff"];
@@ -43,6 +75,17 @@ export function proxy(request: NextRequest) {
 
   // Allow static assets
   if (pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
+    return NextResponse.next();
+  }
+
+  // Check customer routes
+  if (pathname.startsWith("/api/customer")) {
+    if (!isPublicCustomerRoute(pathname)) {
+      const cookie = request.cookies.get("customer_access")?.value;
+      if (!cookie || !isJwtSyntacticallyValid(cookie)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
     return NextResponse.next();
   }
 

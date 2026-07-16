@@ -26,6 +26,7 @@ interface OrderConfirmModalProps {
   selectedSabjiNames: string[];
   selectedAddons: AddonProduct[];
   totalAmount: number;
+  deliveryAddress?: string;
   onConfirm: () => void;
   onBack: () => void;
   isLoading: boolean;
@@ -39,6 +40,7 @@ export default function OrderConfirmModal({
   selectedSabjiNames,
   selectedAddons,
   totalAmount,
+  deliveryAddress,
   onConfirm,
   onBack,
   isLoading,
@@ -64,11 +66,17 @@ export default function OrderConfirmModal({
           {/* User details */}
           <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 space-y-1.5">
             <p className="text-xs font-semibold text-orange-600 uppercase tracking-wide mb-2">
-              Ordering As
+              Ordering As & Delivery Address
             </p>
             <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{user.name}</p>
             <p className="text-xs sm:text-sm text-gray-600 truncate">{user.companyName}</p>
-            <p className="text-xs sm:text-sm text-gray-400">+91 {user.number}</p>
+            <p className="text-xs sm:text-sm text-gray-450">+91 {user.number}</p>
+            {deliveryAddress && (
+              <div className="border-t border-orange-200/60 pt-2 mt-2">
+                <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">Delivery To:</p>
+                <p className="text-xs text-gray-700 leading-normal line-clamp-2">{deliveryAddress}</p>
+              </div>
+            )}
           </div>
 
           {/* Order summary */}

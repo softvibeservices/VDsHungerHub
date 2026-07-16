@@ -101,7 +101,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // Fetch add-on products (those marked isAddOnAvailable)
   useEffect(() => {
     if (!menu) return;
-    fetch("/api/products?addonsOnly=true")
+    fetch("/api/customer/products?addonsOnly=true")
       .then((r) => r.json())
       .then((d) => setAddonProducts(d.products ?? []))
       .catch(() => {});
