@@ -271,12 +271,22 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       const res = await fetch("/api/customer/set-pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draftId, preAuthToken, pin }),
+        body: JSON.stringify({ draftId, preAuthToken, pin, confirmPin }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
+        // Pre-auth token expired (10-min window) → bounce back to OTP step for re-verification
+        if (res.status === 401) {
+          setPreAuthToken("");
+          setOtp("");
+          setOtpSent(false);
+          setOtpCooldown(0);
+          setStep("OTP");
+          setError("Your verification session expired. Please re-verify your mobile number to continue.");
+          return;
+        }
         setError(data.error ?? "Failed to set PIN");
         return;
       }
