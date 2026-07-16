@@ -19,7 +19,7 @@ import { prisma } from "@/lib/prisma";
 const ACCESS_SECRET = process.env.CUSTOMER_JWT_ACCESS_SECRET!;
 const REFRESH_SECRET = process.env.CUSTOMER_JWT_REFRESH_SECRET!;
 const ACCESS_TTL_MIN = parseInt(process.env.CUSTOMER_ACCESS_TOKEN_TTL_MIN ?? "15", 10);
-const REFRESH_TTL_DAYS = parseInt(process.env.CUSTOMER_REFRESH_TOKEN_TTL_DAYS ?? "100", 10);
+const REFRESH_TTL_DAYS = parseInt(process.env.CUSTOMER_REFRESH_TOKEN_TTL_DAYS ?? "180", 10);
 const FP_SALT = process.env.DEVICE_FINGERPRINT_SERVER_SALT ?? "default_salt";
 const PIN_ROUNDS = parseInt(process.env.PIN_HASH_ROUNDS ?? "12", 10);
 
