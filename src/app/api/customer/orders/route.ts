@@ -223,16 +223,50 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Check duplicate (same user + same menu) ───────────────────────────────
-    const existing = await prisma.order.findFirst({
-      where: { userId, menuId },
-      select: { id: true },
+    // ── Check Cumulative Limits for this Meal Cycle (non-cancelled orders) ──
+    const existingOrders = await prisma.order.findMany({
+      where: {
+        userId,
+        menuId,
+        status: { not: "CANCELLED" },
+      },
+      select: {
+        id: true,
+        thaliItems: { select: { quantity: true } },
+        addonItems: { select: { quantity: true } },
+      },
     });
-    if (existing) {
-      return NextResponse.json(
-        { error: "You have already ordered for this meal.", orderId: existing.id },
-        { status: 409 }
-      );
+
+    const existingThaliCount = existingOrders.reduce((acc: number, o: any) => {
+      if (o.thaliItems && o.thaliItems.length > 0) {
+        return acc + o.thaliItems.reduce((s: number, item: { quantity: number }) => s + (item.quantity || 1), 0);
+      }
+      return acc + 1; // fallback for legacy single-thali orders
+    }, 0);
+
+    const existingAddonCount = existingOrders.reduce((acc: number, o: any) => {
+      if (o.addonItems && o.addonItems.length > 0) {
+        return acc + o.addonItems.reduce((s: number, item: { quantity: number }) => s + (item.quantity || 1), 0);
+      }
+      return acc;
+    }, 0);
+
+    if (existingThaliCount + totalThaliQty > maxThali) {
+      const remainingAllowed = Math.max(0, maxThali - existingThaliCount);
+      const errorMsg =
+        existingThaliCount > 0
+          ? `Maximum ${maxThali} Thalis allowed per meal cycle. You have already ordered ${existingThaliCount} Thali(s). You can order at most ${remainingAllowed} more.`
+          : `Maximum ${maxThali} Thalis allowed per order. You submitted ${totalThaliQty}.`;
+      return NextResponse.json({ error: errorMsg }, { status: 400 });
+    }
+
+    if (existingAddonCount + totalAddonQty > maxAddon) {
+      const remainingAddonsAllowed = Math.max(0, maxAddon - existingAddonCount);
+      const errorMsg =
+        existingAddonCount > 0
+          ? `Maximum ${maxAddon} Add-ons allowed per meal cycle. You have already ordered ${existingAddonCount} Add-on(s). You can order at most ${remainingAddonsAllowed} more.`
+          : `Maximum ${maxAddon} Add-on items allowed per order. You submitted ${totalAddonQty}.`;
+      return NextResponse.json({ error: errorMsg }, { status: 400 });
     }
 
     // ── Calculate total ───────────────────────────────────────────────────────

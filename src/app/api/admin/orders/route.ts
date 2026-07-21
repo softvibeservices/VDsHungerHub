@@ -51,6 +51,17 @@ export async function GET(req: NextRequest) {
           publicSlug: true,
         },
       },
+      thaliItems: {
+        include: {
+          thali: { select: { id: true, name: true, nameGu: true, price: true } },
+          sabjiProduct: { select: { id: true, name: true, nameGu: true } },
+        },
+      },
+      addonItems: {
+        include: {
+          addonProduct: { select: { id: true, name: true, nameGu: true, price: true } },
+        },
+      },
       selectedSabji: {
         include: { product: { select: { id: true, name: true } } },
       },

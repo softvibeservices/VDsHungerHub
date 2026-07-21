@@ -28,6 +28,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     include: {
       user: { select: { id: true, name: true, number: true } },
       thali: { select: { id: true, name: true } },
+      thaliItems: {
+        include: {
+          thali: { select: { id: true, name: true, nameGu: true, price: true } },
+          sabjiProduct: { select: { id: true, name: true, nameGu: true } },
+        },
+      },
+      addonItems: {
+        include: {
+          addonProduct: { select: { id: true, name: true, nameGu: true, price: true } },
+        },
+      },
       selectedSabji: {
         include: { product: { select: { id: true, name: true } } },
       },
@@ -57,6 +68,17 @@ export async function GET(req: NextRequest, { params }: Params) {
       user: { include: { company: { select: { id: true, name: true } } } },
       thali: true,
       menu: { select: { id: true, date: true, mealType: true } },
+      thaliItems: {
+        include: {
+          thali: { select: { id: true, name: true, nameGu: true, price: true } },
+          sabjiProduct: { select: { id: true, name: true, nameGu: true } },
+        },
+      },
+      addonItems: {
+        include: {
+          addonProduct: { select: { id: true, name: true, nameGu: true, price: true } },
+        },
+      },
       selectedSabji: {
         include: { product: { select: { id: true, name: true } } },
       },

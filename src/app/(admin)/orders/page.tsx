@@ -21,6 +21,20 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 type OrderStatus = "PENDING" | "CONFIRMED" | "DELIVERED" | "CANCELLED";
 
+interface OrderThaliItem {
+  id: string;
+  quantity: number;
+  thali: { id: string; name: string; nameGu?: string | null; price: number };
+  sabjiProduct?: { id: string; name: string; nameGu?: string | null } | null;
+}
+
+interface OrderAddonItem {
+  id: string;
+  quantity: number;
+  priceSnapshot: number;
+  addonProduct: { id: string; name: string; nameGu?: string | null };
+}
+
 interface AdminOrder {
   id: string;
   status: OrderStatus;
@@ -33,6 +47,8 @@ interface AdminOrder {
     company: { id: string; name: string };
   };
   thali: { id: string; name: string; nameGu: string | null; price: number };
+  thaliItems?: OrderThaliItem[];
+  addonItems?: OrderAddonItem[];
   menu: {
     id: string;
     date: string;
@@ -590,33 +606,65 @@ export default function AdminOrdersPage() {
 
                       {/* Order Detail */}
                       <td className="px-4 py-2">
-                        <div className="space-y-0.5">
-                          <p className="font-bold text-gray-800 text-xs">
-                            {order.thali.name}
-                            {order.thali.nameGu && (
-                              <span className="text-gray-450 font-normal text-[10px] ml-1">
-                                ({order.thali.nameGu})
-                              </span>
-                            )}
-                          </p>
-                          {(order.selectedSabji.length > 0 || order.selectedAddons.length > 0) && (
-                            <div className="flex flex-wrap gap-1 items-center">
-                              {order.selectedSabji.map(({ product }) => (
-                                <span
-                                  key={product.id}
-                                  className="text-[9px] bg-orange-50/70 text-orange-700 border border-orange-100/60 px-1.5 py-0.2 rounded font-bold"
-                                >
-                                  {product.name}
-                                </span>
+                        <div className="space-y-1">
+                          {order.thaliItems && order.thaliItems.length > 0 ? (
+                            <div className="space-y-1">
+                              {order.thaliItems.map((ti) => (
+                                <div key={ti.id} className="text-xs">
+                                  <span className="font-bold text-gray-900">
+                                    {ti.quantity}× {ti.thali.name}
+                                  </span>
+                                  {ti.sabjiProduct && (
+                                    <span className="ml-1.5 text-[10px] bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.2 rounded font-bold">
+                                      Sabji: {ti.sabjiProduct.name}
+                                    </span>
+                                  )}
+                                </div>
                               ))}
-                              {order.selectedAddons.map(({ product, price, quantity }) => (
-                                <span
-                                  key={product.id}
-                                  className="text-[9px] bg-purple-50/70 text-purple-700 border border-purple-100/60 px-1.5 py-0.2 rounded font-bold"
-                                >
-                                  +{product.name} {quantity > 1 ? `x${quantity}` : ""} ({formatCurrency(price * (quantity || 1))})
-                                </span>
-                              ))}
+                              {order.addonItems && order.addonItems.length > 0 && (
+                                <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                                  {order.addonItems.map((ai) => (
+                                    <span
+                                      key={ai.id}
+                                      className="text-[9px] bg-purple-50 text-purple-700 border border-purple-100 px-1.5 py-0.2 rounded font-bold"
+                                    >
+                                      +{ai.addonProduct.name} x{ai.quantity} ({formatCurrency(ai.priceSnapshot * ai.quantity)})
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* Fallback for legacy single-thali orders */
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-gray-800 text-xs">
+                                {order.thali.name}
+                                {order.thali.nameGu && (
+                                  <span className="text-gray-450 font-normal text-[10px] ml-1">
+                                    ({order.thali.nameGu})
+                                  </span>
+                                )}
+                              </p>
+                              {(order.selectedSabji.length > 0 || order.selectedAddons.length > 0) && (
+                                <div className="flex flex-wrap gap-1 items-center">
+                                  {order.selectedSabji.map(({ product }) => (
+                                    <span
+                                      key={product.id}
+                                      className="text-[9px] bg-orange-50/70 text-orange-700 border border-orange-100/60 px-1.5 py-0.2 rounded font-bold"
+                                    >
+                                      {product.name}
+                                    </span>
+                                  ))}
+                                  {order.selectedAddons.map(({ product, price, quantity }) => (
+                                    <span
+                                      key={product.id}
+                                      className="text-[9px] bg-purple-50/70 text-purple-700 border border-purple-100/60 px-1.5 py-0.2 rounded font-bold"
+                                    >
+                                      +{product.name} {quantity > 1 ? `x${quantity}` : ""} ({formatCurrency(price * (quantity || 1))})
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
