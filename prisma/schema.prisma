@@ -95,6 +95,7 @@ model User {
   deviceFingerprints DeviceFingerprint[]
   sessions           CustomerSession[]
   orders             Order[]
+  payments           Payment[]
   addresses          Address[]
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -586,5 +587,34 @@ model StaffOtpAttempt {
   createdAtUtc   DateTime        @default(now())
 
   @@index([mobile, purpose])
+}
+
+// -----------------------------------------
+// PAYMENT METHOD ENUM
+// -----------------------------------------
+enum PaymentMethod {
+  CASH
+  UPI
+  BANK_TRANSFER
+  OTHER
+}
+
+// -----------------------------------------
+// PAYMENT (credit ledger — money received against a user's debt)
+// -----------------------------------------
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  amount            Float
+  method            PaymentMethod @default(CASH)
+  note              String?
+  recordedByStaffId String        // StaffUser.id who recorded this payment
+  paidAtUtc         DateTime      @default(now()) // when the payment actually happened
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([paidAtUtc])
 }
 

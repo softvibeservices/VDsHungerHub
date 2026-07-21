@@ -254,3 +254,56 @@ export interface PaginatedResponse<T> {
   page: number;
   limit: number;
 }
+
+// ─────────────────────────────────────────
+// CREDIT / DEBIT LEDGER
+// ─────────────────────────────────────────
+export type PaymentMethod = "CASH" | "UPI" | "BANK_TRANSFER" | "OTHER";
+
+export interface Payment {
+  id: string;
+  userId: string;
+  amount: number;
+  method: PaymentMethod;
+  note?: string | null;
+  recordedByStaffId: string;
+  paidAtUtc: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserLedgerRow {
+  id: string;
+  name: string;
+  number: string;
+  company: { id: string; name: string } | null;
+  totalDebit: number;
+  totalPaid: number;
+  balance: number;
+  lastOrderAt: string | null;
+  lastPaymentAt: string | null;
+}
+
+export interface LedgerTimelineItem {
+  type: "DEBIT" | "CREDIT";
+  id: string;
+  date: string;
+  amount: number;
+  label: string;
+  status: string | null;
+}
+
+export interface UserLedgerDetail {
+  user: {
+    id: string;
+    name: string;
+    number: string;
+    company: { id: string; name: string } | null;
+  };
+  totalDebit: number;
+  totalPaid: number;
+  balance: number;
+  timeline: LedgerTimelineItem[];
+  payments: Payment[];
+}
+

@@ -13,6 +13,7 @@ import {
   X,
   Settings,
   UserCheck,
+  Wallet,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -20,6 +21,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 const allNavItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard", roles: ["ADMIN", "STAFF"] },
   { href: "/orders", icon: ShoppingBag, label: "Orders", roles: ["ADMIN", "STAFF"] },
+  { href: "/credit", icon: Wallet, label: "Credit", roles: ["ADMIN"] },
   { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN"] },
   { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
   { href: "/staff", icon: UserCheck, label: "Staff", roles: ["ADMIN"] },
