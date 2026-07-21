@@ -12,26 +12,35 @@ export const prisma = basePrisma.$extends({
   query: {
     async $allOperations({ model, operation, args, query }: any) {
       let attempts = 0;
-      const maxAttempts = 3;
+      const maxAttempts = 4;
       while (attempts < maxAttempts) {
         try {
           return await query(args);
         } catch (error: any) {
           attempts++;
-          const errorMessage = error?.message || "";
+          const errorMessage = String(error?.message || "");
+          const errorCode = error?.code;
+
           const isConnectionError =
+            errorCode === "P1001" ||
+            errorCode === "P1002" ||
+            errorCode === "P1017" ||
+            errorMessage.includes("Can't reach database server") ||
+            errorMessage.includes("PrismaClientInitializationError") ||
             errorMessage.includes("terminating connection due to administrator command") ||
             errorMessage.includes("SqlState(E57P01)") ||
             errorMessage.includes("connection pool") ||
             errorMessage.includes("closed connection") ||
+            errorMessage.includes("connect ETIMEDOUT") ||
+            errorMessage.includes("ECONNRESET") ||
             errorMessage.includes("socket");
 
           if (isConnectionError && attempts < maxAttempts) {
             console.warn(
-              `⚠️ Prisma connection lost (E57P01 / Neon idle). Retrying query (attempt ${attempts}/${maxAttempts})...`
+              `⚠️ Database connection retry (attempt ${attempts}/${maxAttempts}): ${errorMessage.split("\n")[0]}`
             );
-            // Exponential backoff: 500ms, 1000ms
-            await new Promise((resolve) => setTimeout(resolve, attempts * 500));
+            // Exponential backoff: 500ms, 1200ms, 2500ms
+            await new Promise((resolve) => setTimeout(resolve, attempts * 700));
             continue;
           }
           throw error;
@@ -40,4 +49,3 @@ export const prisma = basePrisma.$extends({
     },
   },
 });
-
