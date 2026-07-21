@@ -11,12 +11,12 @@ import Button from "@/components/ui/Button";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import { WHATSAPP_LINK } from "@/lib/constants";
-import { getCurrentUser } from "@/lib/auth";
+import { verifyStaffSession } from "@/lib/staff-auth";
 import { redirect } from "next/navigation";
 
 export default async function RootPage() {
-  const user = await getCurrentUser();
-  if (user && (user.role === "ADMIN" || user.role === "STAFF")) {
+  const staff = await verifyStaffSession();
+  if (staff && (staff.role === "ADMIN" || staff.role === "STAFF")) {
     redirect("/dashboard");
   }
 

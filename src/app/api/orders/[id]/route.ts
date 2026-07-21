@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { verifyStaffSession } from "@/lib/staff-auth";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -11,15 +11,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
   // Admin/Staff auth only
-  const token =
-    req.cookies.get("tos_staff_session")?.value ??
-    req.cookies.get("vdh_token")?.value ??
-    req.cookies.get("vd_admin_token")?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
+  const session = await verifyStaffSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -53,15 +46,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
-  const token =
-    req.cookies.get("tos_staff_session")?.value ??
-    req.cookies.get("vdh_token")?.value ??
-    req.cookies.get("vd_admin_token")?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
+  const session = await verifyStaffSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

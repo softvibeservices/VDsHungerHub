@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyToken } from "@/lib/auth";
-import type { TokenPayload } from "@/lib/auth";
+import { verifyStaffToken, STAFF_SESSION_COOKIE } from "@/lib/staff-auth";
 
 const PUBLIC_PATHS = [
   "/",
@@ -9,6 +8,8 @@ const PUBLIC_PATHS = [
   "/verify",
   "/staff-login",
   "/api/staff/otp",
+  "/api/staff/login-password",
+  "/api/staff/set-password",
   "/api/staff/me",      // must be callable pre-auth to check session state
   "/api/staff/logout",  // must be callable to clear a stale/invalid cookie
   "/api/auth/login",
@@ -60,6 +61,7 @@ const PROTECTED_PREFIXES = [
   "/dashboard",
   "/companies",
   "/users",
+  "/staff",
   "/catalog",
   "/daily-menu",   // Admin menu management page (NOT the customer /menu page)
   "/orders",
@@ -95,20 +97,19 @@ export function proxy(request: NextRequest) {
     !pathname.startsWith("/api/auth") &&
     !pathname.startsWith("/api/public") &&
     !pathname.startsWith("/api/customer") &&
-    !pathname.startsWith("/api/staff/otp");
+    !pathname.startsWith("/api/staff/otp") &&
+    !pathname.startsWith("/api/staff/login-password") &&
+    !pathname.startsWith("/api/staff/set-password");
 
   if (isProtectedPage || isProtectedApi) {
-    const token =
-      request.cookies.get("tos_staff_session")?.value ??
-      request.cookies.get("vdh_token")?.value ??
-      request.cookies.get("vd_admin_token")?.value; // legacy cookie support
+    const token = request.cookies.get(STAFF_SESSION_COOKIE)?.value;
 
     if (!token) {
       if (isProtectedApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       return NextResponse.redirect(new URL("/staff-login", request.url));
     }
 
-    const payload: TokenPayload | null = verifyToken(token);
+    const payload = verifyStaffToken(token);
     if (!payload) {
       if (isProtectedApi) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       return NextResponse.redirect(new URL("/staff-login", request.url));

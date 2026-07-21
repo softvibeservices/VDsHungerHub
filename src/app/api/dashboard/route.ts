@@ -1,8 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { verifyStaffSession } from "@/lib/staff-auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const session = await verifyStaffSession(req);
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     // Get today's date in Indian Standard Time (IST, UTC+5:30) where the service operates
     const now = new Date();
     const istTime = new Date(now.getTime() + (330 * 60 * 1000));
@@ -13,7 +19,7 @@ export async function GET() {
       prisma.user.count({ where: { isActive: true } }),
       prisma.product.count({ where: { isActive: true } }),
       prisma.thali.count({ where: { isActive: true } }),
-      prisma.staff.count({ where: { isActive: true } }),
+      prisma.staffUser.count({ where: { status: "ACTIVE" } }),
       prisma.dailyMenu.findMany({
         where: { date: today },
         include: {

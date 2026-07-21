@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { verifyStaffSession } from "@/lib/staff-auth";
 
 // Helper to seed defaults if settings do not exist
 async function getOrCreateSettings() {
@@ -21,15 +21,8 @@ async function getOrCreateSettings() {
 export async function GET(req: NextRequest) {
   try {
     // Staff/Admin Authentication
-    const token =
-      req.cookies.get("tos_staff_session")?.value ??
-      req.cookies.get("vdh_token")?.value ??
-      req.cookies.get("vd_admin_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const payload = verifyToken(token);
-    if (!payload || (payload.role !== "ADMIN" && payload.role !== "STAFF")) {
+    const session = await verifyStaffSession(req);
+    if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -44,15 +37,8 @@ export async function GET(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     // Staff/Admin Authentication
-    const token =
-      req.cookies.get("tos_staff_session")?.value ??
-      req.cookies.get("vdh_token")?.value ??
-      req.cookies.get("vd_admin_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const payload = verifyToken(token);
-    if (!payload || (payload.role !== "ADMIN" && payload.role !== "STAFF")) {
+    const session = await verifyStaffSession(req);
+    if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -88,7 +74,7 @@ export async function PUT(req: NextRequest) {
       }),
       prisma.adminAuditLog.create({
         data: {
-          actedByStaffId: payload.id,
+          actedByStaffId: session.staffId,
           action: "MEAL_SETTINGS_UPDATED",
           targetType: "MealSettings",
           targetId: mealType,

@@ -53,8 +53,7 @@ export async function POST(req: NextRequest) {
       throw err;
     }
 
-    // OTP verified — re-check the staff account is still active (it
-    // could have been deactivated in the seconds between send and verify)
+    // OTP verified — re-check the staff account is still active
     const staff = await prisma.staffUser.findUnique({ where: { mobile } });
     if (!staff || staff.status !== "ACTIVE") {
       return NextResponse.json({ error: "This account is not active. Contact an administrator." }, { status: 403 });
@@ -80,9 +79,13 @@ export async function POST(req: NextRequest) {
     });
     await setStaffSessionCookie(token);
 
+    const mustSetPassword = !staff.passwordHash || staff.mustChangePassword;
+
     return NextResponse.json({
       redirectTo: "/dashboard",
       role: staff.role,
+      mustSetPassword,
+      hasPassword: Boolean(staff.passwordHash),
     });
   } catch (error) {
     console.error("[STAFF OTP VERIFY]", error);

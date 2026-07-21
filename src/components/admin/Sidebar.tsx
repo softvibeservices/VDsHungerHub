@@ -43,9 +43,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       return;
     }
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/staff/logout", { method: "POST" });
       toast.success("Logged out successfully");
-      router.push("/login");
+      router.push("/staff-login");
     } catch {
       toast.error("Logout failed");
     }

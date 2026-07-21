@@ -89,7 +89,7 @@ export default function UsersPage() {
 
   const fetchCurrentUser = async () => {
     try {
-      const res = await fetch("/api/auth/me");
+      const res = await fetch("/api/staff/me");
       if (res.ok) {
         const json = await res.json();
         setCurrentUser(json.user);

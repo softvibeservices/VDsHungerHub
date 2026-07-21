@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/auth";
+import { checkPasswordStrength } from "@/lib/password";
 import { verifyStaffSession } from "@/lib/staff-auth";
 
 export async function PATCH(
@@ -15,7 +17,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, permissions, status } = body;
+    const { name, permissions, status, tempPassword } = body;
 
     // Build update object
     const updateData: any = {};
@@ -39,6 +41,16 @@ export async function PATCH(
         return NextResponse.json({ error: "Status must be ACTIVE or INACTIVE" }, { status: 400 });
       }
       updateData.status = status;
+    }
+
+    if (tempPassword !== undefined) {
+      const check = checkPasswordStrength(tempPassword);
+      if (!check.valid) {
+        return NextResponse.json({ error: check.errors.join(". ") }, { status: 400 });
+      }
+      updateData.passwordHash = await hashPassword(tempPassword);
+      updateData.passwordSetAt = new Date();
+      updateData.mustChangePassword = true;
     }
 
     // Enforce that role cannot be updated via HTTP request

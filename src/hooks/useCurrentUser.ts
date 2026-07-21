@@ -6,7 +6,7 @@ export function useCurrentUser(): TokenPayload | null {
   const [user, setUser] = useState<TokenPayload | null>(null);
 
   useEffect(() => {
-    fetch("/api/auth/me")
+    fetch("/api/staff/me")
       .then((r) => r.json())
       .then((data) => setUser(data.user ?? null))
       .catch(() => setUser(null));

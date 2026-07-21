@@ -6,31 +6,27 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // ── Admin ──────────────────────────────────
-  const hashedPassword = await bcrypt.hash("VDAdmin@2024", 12);
-  const admin = await prisma.admin.upsert({
-    where: { number: "6356350086" },
-    update: {},
-    create: {
-      name: "VD Admin",
-      number: "6356350086",
-      password: hashedPassword,
-    },
-  });
-  console.log("✅ Admin seeded");
+  // ── Admin (StaffUser) ────────────────────────
+  const adminMobiles = [
+    { name: "VD Admin", mobile: "6356350086" },
+    { name: "Admin (7016625488)", mobile: "7016625488" },
+    { name: "Admin (9925832329)", mobile: "9925832329" },
+  ];
 
-  // ── AppUser for Admin ────────────────────────
-  await prisma.appUser.upsert({
-    where: { number: "6356350086" },
-    update: { name: admin.name, role: "ADMIN" },
-    create: {
-      name: admin.name,
-      number: admin.number,
-      password: admin.password, // already bcrypt hashed
-      role: "ADMIN",
-    },
-  });
-  console.log("✅ Admin AppUser seeded");
+  for (const a of adminMobiles) {
+    await prisma.staffUser.upsert({
+      where: { mobile: a.mobile },
+      update: { name: a.name, role: "ADMIN" } as any,
+      create: {
+        name: a.name,
+        mobile: a.mobile,
+        passwordHash: null,
+        role: "ADMIN",
+        status: "ACTIVE",
+      } as any,
+    });
+  }
+  console.log("✅ Admin StaffUsers seeded");
 
   // ── Sample Companies ───────────────────────
   const companyDefs = [
@@ -283,31 +279,26 @@ async function main() {
   }
   console.log("✅ Sample users seeded");
 
-  // ── Sample Staff ──────────────────────────
+  // ── Sample Staff (StaffUser) ────────────────
   const defaultStaffPassword = await bcrypt.hash("VDStaff@2024", 12);
 
   const staffMembers = [
-    { name: "Ramesh (Delivery)", number: "9000000001" },
-    { name: "Suresh (Kitchen)", number: "9000000002" },
+    { name: "Ramesh (Delivery)", mobile: "9000000001" },
+    { name: "Suresh (Kitchen)", mobile: "9000000002" },
   ];
 
   for (const s of staffMembers) {
-    await prisma.staff.upsert({
-      where: { number: s.number },
-      update: {},
-      create: { name: s.name, number: s.number },
-    });
-
-    // Also create AppUser for staff login
-    await prisma.appUser.upsert({
-      where: { number: s.number },
-      update: {},
+    await prisma.staffUser.upsert({
+      where: { mobile: s.mobile },
+      update: { name: s.name, passwordHash: defaultStaffPassword } as any,
       create: {
         name: s.name,
-        number: s.number,
-        password: defaultStaffPassword,
+        mobile: s.mobile,
+        passwordHash: defaultStaffPassword,
         role: "STAFF",
-      },
+        status: "ACTIVE",
+        passwordSetAt: new Date(),
+      } as any,
     });
   }
   console.log("✅ Staff seeded");

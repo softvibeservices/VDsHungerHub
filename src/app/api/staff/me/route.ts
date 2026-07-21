@@ -14,6 +14,7 @@ export async function GET(req: NextRequest) {
       id: session.staffId,
       name: session.name,
       mobile: session.mobile,
+      number: session.mobile, // Compatibility alias
       role: session.role,
       permissions: session.permissions,
     },

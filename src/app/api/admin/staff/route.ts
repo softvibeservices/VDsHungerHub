@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hashPassword } from "@/lib/auth";
+import { checkPasswordStrength } from "@/lib/password";
 import { verifyStaffSession } from "@/lib/staff-auth";
 
 function normalizeMobile(raw: string): string {
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Forbidden: Admin access only" }, { status: 403 });
     }
 
-    const { name, mobile: rawMobile, permissions = [] } = await req.json();
+    const { name, mobile: rawMobile, permissions = [], tempPassword } = await req.json();
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
@@ -72,16 +74,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Permissions must be an array of strings" }, { status: 400 });
     }
 
+    const createData: any = {
+      name: name.trim(),
+      mobile,
+      role: "STAFF",
+      status: "ACTIVE",
+      permissions,
+      createdByAdminId: session.staffId,
+    };
+
+    if (tempPassword) {
+      const check = checkPasswordStrength(tempPassword);
+      if (!check.valid) {
+        return NextResponse.json({ error: check.errors.join(". ") }, { status: 400 });
+      }
+      createData.passwordHash = await hashPassword(tempPassword);
+      createData.passwordSetAt = new Date();
+      createData.mustChangePassword = true;
+    }
+
     // Create the StaffUser
     const staff = await prisma.staffUser.create({
-      data: {
-        name: name.trim(),
-        mobile,
-        role: "STAFF",
-        status: "ACTIVE",
-        permissions,
-        createdByAdminId: session.staffId,
-      },
+      data: createData,
     });
 
     return NextResponse.json({ staff }, { status: 201 });

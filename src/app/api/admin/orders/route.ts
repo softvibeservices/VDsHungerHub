@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { verifyStaffSession } from "@/lib/staff-auth";
 import { getTodayIST } from "@/lib/utils";
 
 /**
@@ -10,16 +10,8 @@ import { getTodayIST } from "@/lib/utils";
  * Supports 5-minute polling from the admin Orders page.
  */
 export async function GET(req: NextRequest) {
-  // Admin/Staff auth
-  const token =
-    req.cookies.get("tos_staff_session")?.value ??
-    req.cookies.get("vdh_token")?.value ??
-    req.cookies.get("vd_admin_token")?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
+  const session = await verifyStaffSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -89,16 +81,8 @@ export async function GET(req: NextRequest) {
  * PATCH /api/admin/orders — Bulk update order statuses
  */
 export async function PATCH(req: NextRequest) {
-  // Admin/Staff auth
-  const token =
-    req.cookies.get("tos_staff_session")?.value ??
-    req.cookies.get("vdh_token")?.value ??
-    req.cookies.get("vd_admin_token")?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const payload = verifyToken(token);
-  if (!payload) {
+  const session = await verifyStaffSession(req);
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

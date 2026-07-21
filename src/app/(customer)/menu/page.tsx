@@ -67,6 +67,10 @@ async function getTodayMenu() {
     where: { mealType },
   });
 
+  if (!settings) {
+    console.warn(`[menu] No MealSettings row found for ${mealType}. Run 'npx prisma db seed' to populate initial meal settings.`);
+  }
+
   // §8.2 menuVisibleFrom check: if current time is BEFORE the visibility window,
   // the menu for this cycle is not yet available. Return a sentinel object.
   if (settings?.menuVisibleFrom) {

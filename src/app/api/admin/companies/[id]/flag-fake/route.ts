@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { verifyStaffSession } from "@/lib/staff-auth";
 
 export async function POST(
   req: NextRequest,
@@ -11,15 +11,8 @@ export async function POST(
     const { reason, alsoBlockReporter } = await req.json();
 
     // Staff/Admin Authentication
-    const token =
-      req.cookies.get("tos_staff_session")?.value ??
-      req.cookies.get("vdh_token")?.value ??
-      req.cookies.get("vd_admin_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const payload = verifyToken(token);
-    if (!payload || (payload.role !== "ADMIN" && payload.role !== "STAFF")) {
+    const session = await verifyStaffSession(req);
+    if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -42,7 +35,7 @@ export async function POST(
       }),
       prisma.adminAuditLog.create({
         data: {
-          actedByStaffId: payload.id,
+          actedByStaffId: session.staffId,
           action: "COMPANY_FLAGGED_FAKE",
           targetType: "Company",
           targetId: companyId,
@@ -78,12 +71,12 @@ export async function POST(
               userId: reporterId,
               action: "BLOCKED",
               reason: blockReason,
-              actedByStaffId: payload.id,
+              actedByStaffId: session.staffId,
             },
           }),
           prisma.adminAuditLog.create({
             data: {
-              actedByStaffId: payload.id,
+              actedByStaffId: session.staffId,
               action: "USER_BLOCKED",
               targetType: "User",
               targetId: reporterId,
@@ -114,7 +107,7 @@ export async function POST(
 
             await prisma.adminAuditLog.create({
               data: {
-                actedByStaffId: payload.id,
+                actedByStaffId: session.staffId,
                 action: "DEVICE_BLOCKED",
                 targetType: "Device",
                 targetId: fp.fingerprintHash,

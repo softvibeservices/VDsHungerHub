@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth";
+import { verifyStaffSession } from "@/lib/staff-auth";
 
 export async function POST(
   req: NextRequest,
@@ -10,15 +10,8 @@ export async function POST(
     const { id: userId } = await params;
 
     // Staff/Admin Authentication - Requires ADMIN role
-    const token =
-      req.cookies.get("tos_staff_session")?.value ??
-      req.cookies.get("vdh_token")?.value ??
-      req.cookies.get("vd_admin_token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const payload = verifyToken(token);
-    if (!payload || payload.role !== "ADMIN") {
+    const session = await verifyStaffSession(req);
+    if (!session || session.role !== "ADMIN") {
       return NextResponse.json(
         { error: "Forbidden: Only Administrators can unban accounts" },
         { status: 403 }
@@ -55,13 +48,13 @@ export async function POST(
           userId,
           action: "UNBANNED",
           reason: null,
-          actedByStaffId: payload.id,
+          actedByStaffId: session.staffId,
         },
       }),
       // 3. Write Admin Audit Log
       prisma.adminAuditLog.create({
         data: {
-          actedByStaffId: payload.id,
+          actedByStaffId: session.staffId,
           action: "USER_UNBANNED",
           targetType: "User",
           targetId: userId,

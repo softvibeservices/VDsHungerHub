@@ -8,37 +8,7 @@ datasource db {
   directUrl = env("DATABASE_URL")
 }
 
-// -----------------------------------------
-// APP USER (unified login -- Admin + Staff)
-// -----------------------------------------
-enum AppRole {
-  ADMIN
-  STAFF
-  CUSTOMER
-}
 
-model AppUser {
-  id        String   @id @default(cuid())
-  name      String
-  number    String   @unique // 10-digit mobile, used as username
-  password  String           // bcrypt hashed
-  role      AppRole  @default(STAFF)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// -----------------------------------------
-// ADMIN (legacy -- kept for backwards compat)
-// -----------------------------------------
-model Admin {
-  id        String   @id @default(cuid())
-  name      String
-  number    String   @unique
-  password  String   // bcrypt hashed
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
 
 // -----------------------------------------
 // COMPANY STATUS ENUM
@@ -241,17 +211,7 @@ model ThaliSabjiProduct {
   @@unique([thaliId, productId])
 }
 
-// -----------------------------------------
-// STAFF
-// -----------------------------------------
-model Staff {
-  id        String   @id @default(cuid())
-  name      String
-  number    String   @unique
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+
 
 // -----------------------------------------
 // DAILY MENU
@@ -588,6 +548,11 @@ model StaffUser {
   role              StaffRole     @default(STAFF)
   permissions       String[]      @default([]) // Flat permission catalog
   status            StaffStatus   @default(ACTIVE)
+
+  // Password auth (added alongside OTP — hybrid login)
+  passwordHash       String?
+  passwordSetAt      DateTime?
+  mustChangePassword Boolean       @default(false)
 
   createdByAdminId  String?
   createdBy         StaffUser?    @relation("StaffCreatedBy", fields: [createdByAdminId], references: [id])

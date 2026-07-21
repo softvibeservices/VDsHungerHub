@@ -8,7 +8,6 @@ const nextConfig: NextConfig = {
     return [
       { source: "/products", destination: "/catalog", permanent: true },
       { source: "/thalis", destination: "/catalog", permanent: true },
-      { source: "/staff", destination: "/catalog", permanent: true },
 
       // ── Customer ordering: single canonical URL is /menu (Req #9) ──────────
       // /order was the old canonical URL — permanently moved to /menu
