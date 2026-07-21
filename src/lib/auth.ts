@@ -1,5 +1,5 @@
 import bcrypt from "bcryptjs";
-import { verifyStaffToken } from "@/lib/staff-auth";
+import { verifyStaffToken, clearStaffSessionCookie } from "@/lib/staff-auth";
 
 export type AppRole = "ADMIN" | "STAFF" | "CUSTOMER";
 
@@ -34,4 +34,8 @@ export async function comparePassword(
   hash: string
 ): Promise<boolean> {
   return bcrypt.compare(plain, hash);
+}
+
+export async function clearAuthCookie() {
+  await clearStaffSessionCookie();
 }
