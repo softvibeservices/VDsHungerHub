@@ -61,7 +61,7 @@ interface ThaliLine {
   lineId: string; // client-side unique
   thaliId: string;
   thali: Thali;
-  sabjiProductId: string;
+  sabjiProductIds: string[]; // multi-sabji support per thali
   quantity: number;
 }
 
@@ -150,11 +150,12 @@ export default function OrderingExperience({ userId, menu }: Props) {
       return;
     }
 
-    // Pick the first available sabji for this thali's category by default
+    // Pick initial available sabjis for this thali's category
     const categorySabji = menu.sabjiOptions.filter(
       (s) => s.categoryId === thali.categoryId
     );
-    const defaultSabji = categorySabji[0]?.productId ?? "";
+    const requiredCount = Math.min(thali.sabjiCount ?? 1, categorySabji.length);
+    const defaultSabjiIds = categorySabji.slice(0, requiredCount).map((s) => s.productId);
 
     setThaliLines((prev) => [
       ...prev,
@@ -162,7 +163,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
         lineId: newLineId(),
         thaliId: thali.id,
         thali,
-        sabjiProductId: defaultSabji,
+        sabjiProductIds: defaultSabjiIds,
         quantity: 1,
       },
     ]);
@@ -173,8 +174,35 @@ export default function OrderingExperience({ userId, menu }: Props) {
   };
 
   const updateThaliSabji = (lineId: string, sabjiProductId: string) => {
+    const targetLine = thaliLines.find((l) => l.lineId === lineId);
+    if (!targetLine) return;
+
+    const categorySabji = menu.sabjiOptions.filter(
+      (s) => s.categoryId === targetLine.thali.categoryId
+    );
+    const requiredCount = Math.min(targetLine.thali.sabjiCount ?? 1, categorySabji.length);
+
     setThaliLines((prev) =>
-      prev.map((l) => (l.lineId === lineId ? { ...l, sabjiProductId } : l))
+      prev.map((l) => {
+        if (l.lineId !== lineId) return l;
+
+        const currentIds = l.sabjiProductIds || [];
+        if (requiredCount <= 1) {
+          // Single sabji selection
+          return { ...l, sabjiProductIds: [sabjiProductId] };
+        } else {
+          // Multi sabji selection up to requiredCount
+          if (currentIds.includes(sabjiProductId)) {
+            return { ...l, sabjiProductIds: currentIds.filter((id) => id !== sabjiProductId) };
+          } else {
+            if (currentIds.length >= requiredCount) {
+              toast.error(`You can select at most ${requiredCount} sabjis for ${l.thali.name}`);
+              return l;
+            }
+            return { ...l, sabjiProductIds: [...currentIds, sabjiProductId] };
+          }
+        }
+      })
     );
   };
 
@@ -236,11 +264,14 @@ export default function OrderingExperience({ userId, menu }: Props) {
     }
 
     for (const line of thaliLines) {
-      const sabjiForCategory = menu.sabjiOptions.filter(
+      const categorySabji = menu.sabjiOptions.filter(
         (s) => s.categoryId === line.thali.categoryId
       );
-      if (sabjiForCategory.length > 0 && !line.sabjiProductId) {
-        toast.error(`Please select a sabji for your ${line.thali.name}`);
+      const requiredCount = Math.min(line.thali.sabjiCount ?? 1, categorySabji.length);
+      if (categorySabji.length > 0 && line.sabjiProductIds.length < requiredCount) {
+        toast.error(
+          `Please select ${requiredCount} sabji(s) for your ${line.thali.name} (currently selected ${line.sabjiProductIds.length}/${requiredCount})`
+        );
         return;
       }
     }
@@ -248,16 +279,25 @@ export default function OrderingExperience({ userId, menu }: Props) {
     setSubmitting(true);
 
     try {
+      // Format thaliItems: expand thali lines with multiple sabji choices if needed
+      const thaliItemsPayload = thaliLines.flatMap((l) => {
+        if (l.sabjiProductIds.length === 0) {
+          return [{ thaliId: l.thaliId, sabjiProductId: "", quantity: l.quantity }];
+        }
+        // If single sabji or quantity > 1, send 1 entry per chosen sabji
+        return l.sabjiProductIds.map((sabjiId) => ({
+          thaliId: l.thaliId,
+          sabjiProductId: sabjiId,
+          quantity: l.quantity,
+        }));
+      });
+
       const res = await fetch("/api/customer/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           menuId: menu.id,
-          thaliItems: thaliLines.map((l) => ({
-            thaliId: l.thaliId,
-            sabjiProductId: l.sabjiProductId,
-            quantity: l.quantity,
-          })),
+          thaliItems: thaliItemsPayload,
           addonItems: addonLines.map((l) => ({
             addonProductId: l.productId,
             quantity: l.quantity,
@@ -296,7 +336,10 @@ export default function OrderingExperience({ userId, menu }: Props) {
           </p>
           <div className="bg-orange-50 rounded-2xl p-4 text-left space-y-2.5">
             {thaliLines.map((l) => {
-              const sabjiObj = menu.sabjiOptions.find((s) => s.productId === l.sabjiProductId);
+              const sabjiNames = l.sabjiProductIds
+                .map((sid) => menu.sabjiOptions.find((s) => s.productId === sid)?.product.name)
+                .filter(Boolean);
+
               return (
                 <div key={l.lineId} className="border-b border-orange-100 pb-2 last:border-0 last:pb-0">
                   <div className="flex justify-between text-sm">
@@ -307,10 +350,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
                       {formatCurrency(l.thali.price * l.quantity)}
                     </span>
                   </div>
-                  {sabjiObj && (
+                  {sabjiNames.length > 0 && (
                     <p className="text-xs text-orange-700 font-medium mt-0.5">
-                      Sabji: {sabjiObj.product.name}
-                      {sabjiObj.product.nameGu && ` (${sabjiObj.product.nameGu})`}
+                      Sabji: {sabjiNames.join(", ")}
                     </p>
                   )}
                 </div>
@@ -373,6 +415,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
                         {thali.nameGu && (
                           <span className="text-xs text-gray-400 font-medium">({thali.nameGu})</span>
                         )}
+                        <span className="text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">
+                          {thali.sabjiCount} Sabji{thali.sabjiCount > 1 ? "s" : ""}
+                        </span>
                       </div>
                       <p className="text-orange-600 font-extrabold text-sm mt-0.5">
                         {formatCurrency(thali.price)}
@@ -415,6 +460,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
                 const sabjiForCategory = menu.sabjiOptions.filter(
                   (s) => s.categoryId === line.thali.categoryId
                 );
+                const requiredCount = Math.min(line.thali.sabjiCount ?? 1, sabjiForCategory.length);
+                const selectedCount = line.sabjiProductIds?.length ?? 0;
+                const isComplete = selectedCount >= requiredCount;
 
                 return (
                   <div key={line.lineId} className="p-4 space-y-3 bg-white hover:bg-orange-50/20 transition-colors">
@@ -470,17 +518,25 @@ export default function OrderingExperience({ userId, menu }: Props) {
                         <div className="flex items-center justify-between">
                           <label className="text-xs font-bold text-gray-700 flex items-center gap-1">
                             <span>Select Sabji for Thali #{index + 1}:</span>
+                            <span className="text-[10px] text-gray-500 font-semibold">
+                              (Pick {requiredCount})
+                            </span>
                           </label>
-                          {!line.sabjiProductId && (
+
+                          {isComplete ? (
+                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                              ✓ Selected ({selectedCount}/{requiredCount})
+                            </span>
+                          ) : (
                             <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
-                              ⚠️ Required
+                              ⚠️ Select {requiredCount - selectedCount} more
                             </span>
                           )}
                         </div>
 
                         <div className="flex flex-wrap gap-2">
                           {sabjiForCategory.map((s) => {
-                            const isSelected = line.sabjiProductId === s.productId;
+                            const isSelected = line.sabjiProductIds?.includes(s.productId);
                             return (
                               <button
                                 key={s.productId}
@@ -609,7 +665,10 @@ export default function OrderingExperience({ userId, menu }: Props) {
           <>
             <div className="space-y-3.5 max-h-[340px] overflow-y-auto pr-1 divide-y divide-gray-50">
               {thaliLines.map((l, idx) => {
-                const sabjiObj = menu.sabjiOptions.find((s) => s.productId === l.sabjiProductId);
+                const sabjiNames = (l.sabjiProductIds || [])
+                  .map((sid) => menu.sabjiOptions.find((s) => s.productId === sid)?.product.name)
+                  .filter(Boolean);
+
                 return (
                   <div key={l.lineId} className="pt-2 first:pt-0 space-y-1">
                     <div className="flex justify-between items-start text-sm">
@@ -621,9 +680,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
                       </span>
                     </div>
 
-                    {sabjiObj ? (
+                    {sabjiNames.length > 0 ? (
                       <p className="text-[11px] text-orange-700 font-semibold bg-orange-50 px-2 py-0.5 rounded-md inline-block">
-                        Sabji: {sabjiObj.product.name}
+                        Sabji: {sabjiNames.join(", ")}
                       </p>
                     ) : (
                       <p className="text-[11px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-md inline-block">
