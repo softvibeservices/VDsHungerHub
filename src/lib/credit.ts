@@ -163,6 +163,19 @@ export async function getUserLedgerDetail(userId: string) {
         createdAt: true,
         thali: { select: { name: true } },
         menu: { select: { date: true, mealType: true } },
+        thaliItems: {
+          select: {
+            quantity: true,
+            thali: { select: { name: true } },
+            sabjiProduct: { select: { name: true } },
+          },
+        },
+        addonItems: {
+          select: {
+            quantity: true,
+            addonProduct: { select: { name: true } },
+          },
+        },
       },
     }),
     prisma.payment.findMany({
@@ -187,14 +200,28 @@ export async function getUserLedgerDetail(userId: string) {
   const totalDebit = orders.reduce((s: number, o: { totalAmount: number }) => s + o.totalAmount, 0);
   const totalPaid = payments.reduce((s: number, p: { amount: number }) => s + p.amount, 0);
 
+  function buildOrderLabel(o: (typeof orders)[number]): string {
+    const mealTag = o.menu.mealType === "LUNCH" ? "Lunch" : "Dinner";
+    if (o.thaliItems && o.thaliItems.length > 0) {
+      const items = o.thaliItems
+        .map((ti: { quantity: number; thali: { name: string }; sabjiProduct: { name: string } | null }) => `${ti.quantity}× ${ti.thali.name}${ti.sabjiProduct ? ` (${ti.sabjiProduct.name})` : ""}`)
+        .join(", ");
+      const addons = o.addonItems && o.addonItems.length > 0
+        ? " + " + o.addonItems.map((a: { quantity: number; addonProduct: { name: string } }) => `${a.addonProduct.name}${a.quantity > 1 ? ` x${a.quantity}` : ""}`).join(", ")
+        : "";
+      return `${items}${addons} — ${mealTag}`;
+    }
+    return `${o.thali?.name ?? "Order"} — ${mealTag}`;
+  }
+
   // Merge into one chronological timeline for the statement view (newest first)
   const timeline = [
-    ...orders.map((o: { id: string; createdAt: Date; totalAmount: number; thali: { name: string } | null; menu: { mealType: string }; status: string }) => ({
+    ...orders.map((o: (typeof orders)[number]) => ({
       type: "DEBIT" as const,
       id: o.id,
       date: o.createdAt.toISOString(),
       amount: o.totalAmount,
-      label: `${o.thali?.name ?? "Order"} — ${o.menu.mealType}`,
+      label: buildOrderLabel(o),
       status: o.status,
     })),
     ...payments.map((p: { id: string; paidAtUtc: Date; amount: number; method: string; note: string | null }) => ({

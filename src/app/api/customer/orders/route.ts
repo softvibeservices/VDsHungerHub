@@ -123,19 +123,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    let activeCutoff = menu.cutoffTime;
-    if (!activeCutoff && settings && settings.cutoffTime) {
+    if (settings?.cutoffTime) {
       const [hours, minutes] = settings.cutoffTime.split(":").map(Number);
-      const combined = new Date(menu.date);
-      combined.setHours(hours, minutes, 0, 0);
-      activeCutoff = combined;
-    }
-
-    if (activeCutoff && new Date() > new Date(activeCutoff)) {
-      return NextResponse.json(
-        { error: "Ordering cutoff time has passed." },
-        { status: 400 }
-      );
+      const combinedCutoff = new Date(menu.date);
+      combinedCutoff.setHours(hours, minutes, 0, 0);
+      if (new Date() > combinedCutoff) {
+        return NextResponse.json(
+          { error: "Ordering cutoff time has passed." },
+          { status: 400 }
+        );
+      }
     }
 
     // ── Validate delivery address ─────────────────────────────────────────────

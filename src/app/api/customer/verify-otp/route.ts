@@ -107,6 +107,7 @@ export async function POST(req: NextRequest) {
           id: true,
           companyId: true,
           companyNameManual: true,
+          workAddress: true,
           company: { select: { id: true, status: true } },
         },
       });
@@ -135,6 +136,7 @@ export async function POST(req: NextRequest) {
           const newCompany = await prisma.company.create({
             data: {
               name: user.companyNameManual,
+              location: user.workAddress?.trim() || null,
               status: "CONFIRMED", // will appear in admin Pending tab since isVerifiedByAdmin=false
               addedByUserId: userId,
               isVerifiedByAdmin: false,

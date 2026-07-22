@@ -85,8 +85,13 @@ export default function ThaliSelector({
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-2.5 gap-2">
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="font-extrabold text-sm text-gray-800">{cat.name}</h4>
+                  {requiresSabji && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                      Pick ≥ {cat.thalis[0]?.sabjiCount ?? 1} dish{(cat.thalis[0]?.sabjiCount ?? 1) === 1 ? "" : "es"}
+                    </span>
+                  )}
                   <span className="text-[10px] text-gray-400 font-medium">
                     ({catSelected.length} of {cat.thalis.length} selected)
                   </span>
@@ -122,15 +127,15 @@ export default function ThaliSelector({
               </div>
             </div>
 
-            {/* Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {/* Inline Flex Row for Same-Category Thalis */}
+            <div className="flex flex-wrap gap-2.5">
               {cat.thalis.map((t) => {
                 const isSelected = selectedThaliIds.includes(t.id);
                 return (
                   <label
                     key={t.id}
                     className={cn(
-                      "flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all hover:bg-gray-50/50 select-none min-h-[46px]",
+                      "flex items-center justify-between gap-3 p-3 border rounded-xl cursor-pointer transition-all hover:bg-gray-50/50 select-none min-h-[46px] flex-1 min-w-[200px] max-w-[280px]",
                       isSelected
                         ? "bg-orange-50/20 border-orange-200"
                         : "bg-white border-gray-100 hover:border-gray-200"
@@ -147,7 +152,7 @@ export default function ThaliSelector({
                         <span className="text-xs font-semibold text-gray-700 leading-tight">
                           {t.name}
                         </span>
-                        <span className="text-[10px] text-gray-450 mt-0.5">
+                        <span className="text-[10px] text-gray-450 mt-0.5 font-medium">
                           ₹{t.price} · {t.sabjiCount} {t.sabjiCount === 1 ? "sabji" : "sabjis"}
                         </span>
                       </div>

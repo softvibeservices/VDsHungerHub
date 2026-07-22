@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   RefreshCw,
   Clock,
@@ -16,6 +16,8 @@ import {
   Send,
   ChevronDown,
   ChevronUp,
+  Truck,
+  UtensilsCrossed,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getTodayIST, formatCurrency } from "@/lib/utils";
@@ -23,7 +25,13 @@ import SearchInput from "@/components/ui/SearchInput";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
-type OrderStatus = "PENDING" | "CONFIRMED" | "DELIVERED" | "CANCELLED";
+type OrderStatus =
+  | "PENDING"
+  | "CONFIRMED"
+  | "PREPARING"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "CANCELLED";
 
 interface OrderThaliItem {
   id: string;
@@ -89,15 +97,19 @@ interface CompanyOption {
 const STATUS_ICONS: Record<OrderStatus, React.ReactNode> = {
   PENDING: <Clock size={13} className="text-yellow-500 flex-shrink-0" />,
   CONFIRMED: <CheckCircle2 size={13} className="text-blue-500 flex-shrink-0" />,
+  PREPARING: <UtensilsCrossed size={13} className="text-purple-500 flex-shrink-0" />,
+  OUT_FOR_DELIVERY: <Truck size={13} className="text-indigo-500 flex-shrink-0" />,
   DELIVERED: <Package size={13} className="text-green-500 flex-shrink-0" />,
   CANCELLED: <XCircle size={13} className="text-red-500 flex-shrink-0" />,
 };
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  PENDING: "bg-yellow-50 text-yellow-700 border border-yellow-250",
-  CONFIRMED: "bg-blue-50 text-blue-700 border border-blue-250",
-  DELIVERED: "bg-green-50 text-green-700 border border-green-250",
-  CANCELLED: "bg-red-50 text-red-700 border border-red-250",
+  PENDING: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  CONFIRMED: "bg-blue-50 text-blue-700 border border-blue-200",
+  PREPARING: "bg-purple-50 text-purple-700 border border-purple-200",
+  OUT_FOR_DELIVERY: "bg-indigo-50 text-indigo-700 border border-indigo-200",
+  DELIVERED: "bg-green-50 text-green-700 border border-green-200",
+  CANCELLED: "bg-red-50 text-red-700 border border-red-200",
 };
 
 export default function AdminOrdersPage() {
@@ -115,6 +127,7 @@ export default function AdminOrdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
   const [sortBy, setSortBy] = useState<"time-desc" | "time-asc" | "amount-desc" | "amount-asc" | "name-asc">("time-desc");
 
   // Bulk Selection state
@@ -284,7 +297,10 @@ export default function AdminOrdersPage() {
       const matchesStatus =
         selectedStatus === "" || order.status === selectedStatus;
 
-      return matchesSearch && matchesCompany && matchesStatus;
+      // Filter by Customer Note / Instructions
+      const matchesNoteFilter = !showOnlyWithNotes || !!order.note?.trim();
+
+      return matchesSearch && matchesCompany && matchesStatus && matchesNoteFilter;
     })
     .sort((a, b) => {
       if (sortBy === "time-desc") {
@@ -305,10 +321,31 @@ export default function AdminOrdersPage() {
       return 0;
     });
 
+  interface CustomerOrderGroup {
+    key: string;
+    user: AdminOrder["user"];
+    orders: AdminOrder[];
+    totalAmount: number;
+  }
+
+  const groupedCustomerOrders: CustomerOrderGroup[] = useMemo(() => {
+    const map = new Map<string, CustomerOrderGroup>();
+    for (const o of filteredAndSortedOrders) {
+      const key = o.user.number;
+      if (!map.has(key)) {
+        map.set(key, { key, user: o.user, orders: [], totalAmount: 0 });
+      }
+      const group = map.get(key)!;
+      group.orders.push(o);
+      group.totalAmount += o.totalAmount;
+    }
+    return Array.from(map.values());
+  }, [filteredAndSortedOrders]);
+
   // Clear selection on filter / tab changes to prevent accidental updates on off-screen items
   useEffect(() => {
     setSelectedOrderIds([]);
-  }, [activeTab, selectedCompanyId, selectedDate, searchQuery, selectedStatus]);
+  }, [activeTab, selectedCompanyId, selectedDate, searchQuery, selectedStatus, showOnlyWithNotes]);
 
   // Calculate pending count for display
   const pendingCount = data
@@ -425,6 +462,8 @@ export default function AdminOrdersPage() {
                 <option value="">All Statuses</option>
                 <option value="PENDING">Pending</option>
                 <option value="CONFIRMED">Confirmed</option>
+                <option value="PREPARING">Preparing</option>
+                <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
                 <option value="DELIVERED">Delivered</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
@@ -456,17 +495,39 @@ export default function AdminOrdersPage() {
           </div>
         </div>
 
+        {/* Has Instructions Quick Filter Toggle Chip */}
+        <div className="flex items-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => setShowOnlyWithNotes((v) => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
+              showOnlyWithNotes
+                ? "bg-amber-500 border-amber-500 text-white shadow-sm"
+                : "bg-white border-gray-200 text-gray-600 hover:border-amber-300"
+            }`}
+          >
+            <MessageSquare size={13} />
+            Has Cooking Instructions
+            {data && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                {[...data.lunch.orders, ...data.dinner.orders].filter((o) => !!o.note?.trim()).length}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* Filters status and reset action */}
-        {(searchQuery || selectedCompanyId || selectedStatus) && (
+        {(searchQuery || selectedCompanyId || selectedStatus || showOnlyWithNotes) && (
           <div className="flex items-center justify-between border-t border-gray-100 pt-3">
             <p className="text-xs text-gray-500 font-medium">
-              Active filters: showing {filteredAndSortedOrders.length} of {activeOrders.length} orders
+              Active filters: showing {filteredAndSortedOrders.length} of {activeOrders.length} orders ({groupedCustomerOrders.length} customers)
             </p>
             <button
               onClick={() => {
                 setSearchQuery("");
                 setSelectedCompanyId("");
                 setSelectedStatus("");
+                setShowOnlyWithNotes(false);
               }}
               className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-bold transition-colors"
             >
@@ -508,7 +569,15 @@ export default function AdminOrdersPage() {
             </span>
             <p className="text-xs font-bold text-orange-805 uppercase tracking-wider">orders selected</p>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={() => handleBulkStatusChange("OUT_FOR_DELIVERY")}
+              disabled={updatingId !== null}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50"
+            >
+              <Truck size={13} />
+              Mark Out for Delivery
+            </button>
             <button
               onClick={() => handleBulkStatusChange("DELIVERED")}
               disabled={updatingId !== null}
@@ -543,91 +612,82 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      {/* Orders custom table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-150 bg-gray-50/70 select-none">
-                {/* Select All Checkbox Column */}
-                <th className="px-4 py-3 w-10 text-center">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    ref={(el) => {
-                      if (el) {
-                        el.indeterminate = someVisibleSelected;
-                      }
-                    }}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        const visibleIds = filteredAndSortedOrders.map((o) => o.id);
-                        setSelectedOrderIds((prev) => {
-                          const union = Array.from(new Set([...prev, ...visibleIds]));
-                          return union;
-                        });
-                      } else {
-                        const visibleIds = filteredAndSortedOrders.map((o) => o.id);
-                        setSelectedOrderIds((prev) =>
-                          prev.filter((id) => !visibleIds.includes(id))
-                        );
-                      }
-                    }}
-                    className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500 focus:ring-offset-0 cursor-pointer"
-                  />
-                </th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-20">Time</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-40">Customer</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-32">Company</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Order Detail</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-24">Amount</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-28">Status</th>
-                <th className="px-4 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-wider w-56">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-16">
-                    <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
-                  </td>
-                </tr>
-              ) : filteredAndSortedOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-16 text-gray-400">
-                    <p className="font-semibold">
-                      {activeOrders.length === 0
-                        ? `No ${activeTab.toLowerCase()} orders for ${selectedDate}`
-                        : "No orders matched your filters"}
-                    </p>
-                    {activeOrders.length > 0 && (
-                      <button
-                        onClick={() => {
-                          setSearchQuery("");
-                          setSelectedCompanyId("");
-                          setSelectedStatus("");
-                        }}
-                        className="mt-2 text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
-                      >
-                        Reset Filters
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                filteredAndSortedOrders.map((order) => {
+      {/* CUSTOMER GROUPED ORDERS VIEW */}
+      <div className="space-y-4">
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
+            <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-gray-500 mt-2 font-medium">Loading customer orders...</p>
+          </div>
+        ) : groupedCustomerOrders.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center text-gray-400 shadow-sm">
+            <p className="font-bold text-gray-700 text-base">
+              {activeOrders.length === 0
+                ? `No ${activeTab.toLowerCase()} orders for ${selectedDate}`
+                : "No orders matched your filters"}
+            </p>
+            {activeOrders.length > 0 && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCompanyId("");
+                  setSelectedStatus("");
+                  setShowOnlyWithNotes(false);
+                }}
+                className="mt-2 text-xs font-bold text-orange-500 hover:text-orange-600 transition-colors"
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
+        ) : (
+          groupedCustomerOrders.map((group) => (
+            <div
+              key={group.key}
+              className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-orange-200 transition-all space-y-0"
+            >
+              {/* Customer Header Bar */}
+              <div className="bg-gradient-to-r from-gray-50 to-orange-50/20 px-5 py-3.5 border-b border-gray-150 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full bg-orange-500/10 text-orange-600 font-extrabold flex items-center justify-center text-sm border border-orange-200">
+                    {group.user.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-gray-900 text-base">{group.user.name}</h3>
+                      <span className="text-xs text-gray-500 font-mono font-medium">+91 {group.user.number}</span>
+                      {group.user.company && (
+                        <span className="text-[10px] bg-gray-100 text-gray-700 border border-gray-200 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                          🏢 {group.user.company.name}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold bg-orange-100 text-orange-800 px-2.5 py-1 rounded-full border border-orange-200">
+                    {group.orders.length} {group.orders.length === 1 ? "Order" : "Orders"}
+                  </span>
+                  <span className="text-sm font-black text-gray-900">
+                    Total: <span className="text-orange-600">{formatCurrency(group.totalAmount)}</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Indented List of Orders for this Customer */}
+              <div className="divide-y divide-gray-100">
+                {group.orders.map((order) => {
                   const isSelected = selectedOrderIds.includes(order.id);
                   return (
-                    <tr 
-                      key={order.id} 
-                      className={`transition-colors duration-75 ${
-                        isSelected 
-                          ? "bg-orange-500/5 hover:bg-orange-500/10" 
-                          : "hover:bg-orange-50/10"
+                    <div
+                      key={order.id}
+                      className={`p-4 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                        isSelected ? "bg-orange-50/20" : "hover:bg-gray-50/50"
                       }`}
                     >
-                      {/* Row Checkbox Column */}
-                      <td className="px-4 py-2 w-10 text-center">
+                      {/* Left: Checkbox + Time + Line items */}
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -640,54 +700,43 @@ export default function AdminOrdersPage() {
                               );
                             }
                           }}
-                          className="w-4 h-4 text-orange-500 border-gray-300 rounded focus:ring-orange-500 focus:ring-offset-0 cursor-pointer"
+                          className="w-4 h-4 mt-1 text-orange-500 border-gray-300 rounded focus:ring-orange-500 focus:ring-offset-0 cursor-pointer flex-shrink-0"
                         />
-                      </td>
 
-                      {/* Time */}
-                      <td className="px-4 py-2 font-mono text-xs font-semibold text-gray-500 whitespace-nowrap">
-                        {new Date(order.createdAt).toLocaleTimeString("en-IN", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                              {new Date(order.createdAt).toLocaleTimeString("en-IN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {order.menu.publicSlug && (
+                              <span className="text-[10px] text-gray-400 font-mono">#{order.id.slice(-6)}</span>
+                            )}
+                          </div>
 
-                      {/* Customer */}
-                      <td className="px-4 py-2">
-                        <p className="font-bold text-gray-900 leading-tight whitespace-nowrap">{order.user.name}</p>
-                        <p className="text-[10px] text-gray-400 font-semibold font-mono mt-0.5">+91 {order.user.number}</p>
-                      </td>
-
-                      {/* Company */}
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <span className="inline-block text-[9px] bg-gray-100 text-gray-600 border border-gray-150 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                          {order.user.company.name}
-                        </span>
-                      </td>
-
-                      {/* Order Detail */}
-                      <td className="px-4 py-2">
-                        <div className="space-y-1.5">
+                          {/* Line Items */}
                           {order.thaliItems && order.thaliItems.length > 0 ? (
                             <div className="space-y-1">
                               {order.thaliItems.map((ti) => (
-                                <div key={ti.id} className="text-xs">
-                                  <span className="font-bold text-gray-900">
-                                    {ti.quantity}× {ti.thali.name}
+                                <div key={ti.id} className="text-sm font-medium text-gray-900 flex items-center gap-2 flex-wrap">
+                                  <span>
+                                    {ti.quantity}× <strong className="text-gray-900">{ti.thali.name}</strong>
                                   </span>
                                   {ti.sabjiProduct && (
-                                    <span className="ml-1.5 text-[10px] bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.2 rounded font-bold">
+                                    <span className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-md font-bold">
                                       Sabji: {ti.sabjiProduct.name}
                                     </span>
                                   )}
                                 </div>
                               ))}
                               {order.addonItems && order.addonItems.length > 0 && (
-                                <div className="flex flex-wrap gap-1 items-center pt-0.5">
+                                <div className="flex flex-wrap gap-1.5 items-center pt-1">
                                   {order.addonItems.map((ai) => (
                                     <span
                                       key={ai.id}
-                                      className="text-[9px] bg-purple-50 text-purple-700 border border-purple-100 px-1.5 py-0.2 rounded font-bold"
+                                      className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-bold"
                                     >
                                       +{ai.addonProduct.name} x{ai.quantity} ({formatCurrency(ai.priceSnapshot * ai.quantity)})
                                     </span>
@@ -696,31 +745,17 @@ export default function AdminOrdersPage() {
                               )}
                             </div>
                           ) : (
-                            /* Fallback for legacy single-thali orders */
-                            <div className="space-y-0.5">
-                              <p className="font-bold text-gray-800 text-xs">
-                                {order.thali.name}
-                                {order.thali.nameGu && (
-                                  <span className="text-gray-450 font-normal text-[10px] ml-1">
-                                    ({order.thali.nameGu})
-                                  </span>
-                                )}
-                              </p>
+                            <div className="space-y-1">
+                              <p className="font-bold text-gray-900 text-sm">{order.thali.name}</p>
                               {(order.selectedSabji.length > 0 || order.selectedAddons.length > 0) && (
                                 <div className="flex flex-wrap gap-1 items-center">
                                   {order.selectedSabji.map(({ product }) => (
-                                    <span
-                                      key={product.id}
-                                      className="text-[9px] bg-orange-50/70 text-orange-700 border border-orange-100/60 px-1.5 py-0.2 rounded font-bold"
-                                    >
+                                    <span key={product.id} className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.5 rounded font-bold">
                                       {product.name}
                                     </span>
                                   ))}
                                   {order.selectedAddons.map(({ product, price, quantity }) => (
-                                    <span
-                                      key={product.id}
-                                      className="text-[9px] bg-purple-50/70 text-purple-700 border border-purple-100/60 px-1.5 py-0.2 rounded font-bold"
-                                    >
+                                    <span key={product.id} className="text-xs bg-purple-50 text-purple-700 border border-purple-100 px-1.5 py-0.5 rounded font-bold">
                                       +{product.name} {quantity > 1 ? `x${quantity}` : ""} ({formatCurrency(price * (quantity || 1))})
                                     </span>
                                   ))}
@@ -729,22 +764,24 @@ export default function AdminOrdersPage() {
                             </div>
                           )}
 
-                          {/* FIX #2: Customer cooking instruction note */}
+                          {/* Cooking Instruction note */}
                           {order.note && (
-                            <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 max-w-[260px]">
-                              <MessageSquare size={10} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                              <p className="text-[10px] text-amber-800 font-medium leading-snug">{order.note}</p>
+                            <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 max-w-md mt-1">
+                              <MessageSquare size={12} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                              <p className="text-xs text-amber-900 font-semibold leading-snug">
+                                Instruction: {order.note}
+                              </p>
                             </div>
                           )}
 
-                          {/* FIX #2: Comment thread toggle */}
+                          {/* Comment thread toggle */}
                           {(() => {
                             const thread = commentThreads[order.id];
                             const isOpen = thread?.open ?? false;
                             const commentCount = (thread?.comments ?? order.comments ?? []).length;
 
                             return (
-                              <div>
+                              <div className="pt-1">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -752,33 +789,31 @@ export default function AdminOrdersPage() {
                                       ? closeCommentThread(order.id)
                                       : openCommentThread(order.id, order.comments ?? [])
                                   }
-                                  className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 font-bold transition-colors"
+                                  className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-bold transition-colors"
                                 >
-                                  <MessageSquare size={10} />
+                                  <MessageSquare size={12} />
                                   {commentCount > 0 ? `${commentCount} Reply${commentCount > 1 ? "ies" : ""}` : "Add Reply"}
-                                  {isOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                  {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                                 </button>
 
                                 {isOpen && (
-                                  <div className="mt-1.5 border border-blue-100 rounded-lg overflow-hidden bg-blue-50/40 max-w-[280px]">
-                                    {/* Existing comments */}
+                                  <div className="mt-2 border border-blue-200 rounded-xl overflow-hidden bg-blue-50/30 max-w-md">
                                     {(thread?.comments ?? []).length > 0 && (
                                       <div className="divide-y divide-blue-100">
                                         {(thread?.comments ?? []).map((c) => (
-                                          <div key={c.id} className="px-2.5 py-1.5">
-                                            <p className="text-[10px] font-bold text-blue-700">
+                                          <div key={c.id} className="px-3 py-2">
+                                            <p className="text-xs font-bold text-blue-800">
                                               {c.authorType === "STAFF" ? "🧑‍💼 Staff" : "👤 Customer"}
-                                              <span className="text-[9px] text-blue-400 font-normal ml-1">
+                                              <span className="text-[10px] text-blue-500 font-normal ml-2">
                                                 {new Date(c.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                                               </span>
                                             </p>
-                                            <p className="text-[10px] text-gray-700 mt-0.5">{c.message}</p>
+                                            <p className="text-xs text-gray-800 mt-0.5">{c.message}</p>
                                           </div>
                                         ))}
                                       </div>
                                     )}
-                                    {/* Reply input */}
-                                    <div className="flex items-center gap-1 p-1.5 border-t border-blue-100">
+                                    <div className="flex items-center gap-1.5 p-2 border-t border-blue-100 bg-white">
                                       <input
                                         type="text"
                                         value={thread?.replyText ?? ""}
@@ -789,17 +824,17 @@ export default function AdminOrdersPage() {
                                           }))
                                         }
                                         onKeyDown={(e) => e.key === "Enter" && sendReply(order.id)}
-                                        placeholder="Add a reply…"
-                                        className="flex-1 text-[10px] px-2 py-1 border border-blue-200 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 min-w-0"
+                                        placeholder="Type reply to customer…"
+                                        className="flex-1 text-xs px-3 py-1.5 border border-gray-200 rounded-lg outline-none focus:ring-1 focus:ring-blue-500 min-w-0"
                                         maxLength={500}
                                       />
                                       <button
                                         type="button"
                                         onClick={() => sendReply(order.id)}
                                         disabled={thread?.loading || !thread?.replyText?.trim()}
-                                        className="p-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors flex-shrink-0"
+                                        className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors flex-shrink-0 text-xs font-bold"
                                       >
-                                        <Send size={10} />
+                                        <Send size={12} />
                                       </button>
                                     </div>
                                   </div>
@@ -808,77 +843,61 @@ export default function AdminOrdersPage() {
                             );
                           })()}
                         </div>
-                      </td>
+                      </div>
 
+                      {/* Right: Amount + Status + Actions */}
+                      <div className="flex items-center gap-3 self-end md:self-center flex-wrap">
+                        <span className="font-black text-gray-900 text-base">
+                          {formatCurrency(order.totalAmount)}
+                        </span>
 
-                      {/* Amount */}
-                      <td className="px-4 py-2 font-extrabold text-orange-600 whitespace-nowrap">
-                        {formatCurrency(order.totalAmount)}
-                      </td>
-
-                      {/* Status */}
-                      <td className="px-4 py-2 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
                           {STATUS_ICONS[order.status]}
-                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${STATUS_COLORS[order.status]}`}>
+                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${STATUS_COLORS[order.status]}`}>
                             {order.status}
                           </span>
                         </div>
-                      </td>
 
-                      {/* Actions */}
-                      <td className="px-4 py-2 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {/* Quick actions for Pending or Confirmed orders */}
-                          {(order.status === "PENDING" || order.status === "CONFIRMED") && (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleStatusChange(order.id, "DELIVERED")}
-                                disabled={updatingId !== null}
-                                className="px-2 py-0.5 bg-green-50 hover:bg-green-100 active:bg-green-200 text-green-700 border border-green-255 rounded text-[10px] font-bold transition-all disabled:opacity-40 flex items-center gap-0.5 shadow-sm"
-                                title="Mark as Delivered"
-                              >
-                                <Package size={10} />
-                                Deliver
-                              </button>
-                              <button
-                                onClick={() => handleStatusChange(order.id, "CANCELLED")}
-                                disabled={updatingId !== null}
-                                className="px-2 py-0.5 bg-red-50 hover:bg-red-100 active:bg-red-200 text-red-700 border border-red-255 rounded text-[10px] font-bold transition-all disabled:opacity-40 flex items-center gap-0.5 shadow-sm"
-                                title="Mark as Cancelled"
-                              >
-                                <XCircle size={10} />
-                                Cancel
-                              </button>
-                            </div>
-                          )}
-
-                          <select
-                            value={order.status}
+                        {/* Quick actions for Pending, Confirmed or Preparing orders */}
+                        {(order.status === "PENDING" || order.status === "CONFIRMED" || order.status === "PREPARING") && (
+                          <button
+                            onClick={() => handleStatusChange(order.id, "OUT_FOR_DELIVERY")}
                             disabled={updatingId !== null}
-                            onChange={(e) =>
-                              handleStatusChange(order.id, e.target.value as OrderStatus)
-                            }
-                            className="text-[11px] border border-gray-250 rounded px-1.5 py-0.5 bg-white text-gray-700 font-bold focus:ring-1 focus:ring-orange-500/30 outline-none disabled:opacity-40 hover:border-gray-400 transition-colors shadow-sm cursor-pointer"
+                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1 shadow-sm"
+                            title="Mark Out for Delivery"
                           >
-                            <option value="PENDING">Pending</option>
-                            <option value="CONFIRMED">Confirmed</option>
-                            <option value="DELIVERED">Delivered</option>
-                            <option value="CANCELLED">Cancelled</option>
-                          </select>
+                            <Truck size={12} />
+                            Out for Delivery
+                          </button>
+                        )}
 
-                          {updatingId === order.id && (
-                            <RefreshCw size={11} className="animate-spin text-orange-500" />
-                          )}
-                        </div>
-                      </td>
-                    </tr>
+                        <select
+                          value={order.status}
+                          disabled={updatingId !== null}
+                          onChange={(e) =>
+                            handleStatusChange(order.id, e.target.value as OrderStatus)
+                          }
+                          className="text-xs border border-gray-300 rounded-lg px-2.5 py-1 bg-white text-gray-800 font-bold focus:ring-1 focus:ring-orange-500 outline-none disabled:opacity-40 hover:border-gray-400 transition-colors shadow-sm cursor-pointer"
+                        >
+                          <option value="PENDING">Pending</option>
+                          <option value="CONFIRMED">Confirmed</option>
+                          <option value="PREPARING">Preparing</option>
+                          <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
+                          <option value="DELIVERED">Delivered</option>
+                          <option value="CANCELLED">Cancelled</option>
+                        </select>
+
+                        {updatingId === order.id && (
+                          <RefreshCw size={14} className="animate-spin text-orange-500" />
+                        )}
+                      </div>
+                    </div>
                   );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                })}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

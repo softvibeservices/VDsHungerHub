@@ -61,6 +61,10 @@ export default function DashboardPage() {
   const fetchData = async () => {
     try {
       const res = await fetch("/api/dashboard");
+      if (res.status === 401) {
+        window.location.href = "/staff-login";
+        return;
+      }
       const json = await res.json();
       setStats(json.stats);
       setTodayMenus(json.todayMenus ?? []);

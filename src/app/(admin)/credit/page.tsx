@@ -13,8 +13,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { formatCurrency, formatMobileNumber } from "@/lib/utils";
 import { formatDateTimeIST } from "@/lib/time";
 import { UserLedgerRow } from "@/types";
-import { generateBulkOutstandingPdf, generateUserBillPdf } from "@/lib/pdf-bill";
-import { buildWhatsAppBillText, buildWhatsAppDigestText, buildWhatsAppShareLink } from "@/lib/whatsapp-bill";
+import { generateBulkOutstandingPdf, generateCompanyGroupedOutstandingPdf, generateUserBillPdf } from "@/lib/pdf-bill";
+import { buildWhatsAppBillText, buildWhatsAppDigestText, buildWhatsAppCompanyDigestText, buildWhatsAppShareLink } from "@/lib/whatsapp-bill";
 import {
   Wallet,
   Download,
@@ -139,7 +139,9 @@ export default function CreditPage() {
 
   // Group digest action
   const handleCopyGroupDigest = () => {
-    const text = buildWhatsAppDigestText(rows);
+    const text = groupByCompany && groupedRows
+      ? buildWhatsAppCompanyDigestText(groupedRows)
+      : buildWhatsAppDigestText(rows);
     navigator.clipboard.writeText(text);
     toast.success("Group outstanding digest copied to clipboard!");
   };
@@ -150,7 +152,11 @@ export default function CreditPage() {
       toast.error("No data to export");
       return;
     }
-    generateBulkOutstandingPdf(rows);
+    if (groupByCompany && groupedRows) {
+      generateCompanyGroupedOutstandingPdf(groupedRows);
+    } else {
+      generateBulkOutstandingPdf(rows);
+    }
     toast.success("Outstanding report PDF generated");
   };
 

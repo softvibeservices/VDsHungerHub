@@ -86,31 +86,9 @@ function formatDisplayDate(dateStr: string): string {
   });
 }
 
-const LAST_CUTOFF_KEY = "vdh_last_cutoff";
-
-function getLastCutoff(mealType: "LUNCH" | "DINNER"): string {
-  try {
-    const stored = JSON.parse(localStorage.getItem(LAST_CUTOFF_KEY) ?? "{}");
-    return stored[mealType] ?? (mealType === "LUNCH" ? "11:30" : "18:30");
-  } catch {
-    return mealType === "LUNCH" ? "11:30" : "18:30";
-  }
-}
-
-function saveLastCutoff(mealType: "LUNCH" | "DINNER", value: string) {
-  try {
-    const stored = JSON.parse(localStorage.getItem(LAST_CUTOFF_KEY) ?? "{}");
-    stored[mealType] = value;
-    localStorage.setItem(LAST_CUTOFF_KEY, JSON.stringify(stored));
-  } catch {
-    /* ignore */
-  }
-}
-
 interface MealDraft {
   existingId: string | null;
   publicSlug: string | null;
-  cutoffTime: string;
   selectedThaliIds: string[];
   sabjiMap: Record<string, string[]>;
   minSabjiMap: Record<string, number>;
@@ -118,14 +96,17 @@ interface MealDraft {
   isDeleting: boolean;
 }
 
-function emptyDraft(mealType: "LUNCH" | "DINNER"): MealDraft {
+function emptyDraft(mealType: "LUNCH" | "DINNER", allThalis: Thali[] = []): MealDraft {
+  const activeThalis = allThalis.filter((t) => t.isActive);
+  const minSabjiMap: Record<string, number> = {};
+  activeThalis.forEach((t) => { minSabjiMap[t.id] = t.sabjiCount ?? 1; });
+
   return {
     existingId: null,
     publicSlug: null,
-    cutoffTime: getLastCutoff(mealType),
-    selectedThaliIds: [],
+    selectedThaliIds: activeThalis.map((t) => t.id),
     sabjiMap: {},
-    minSabjiMap: {},
+    minSabjiMap,
     isSaving: false,
     isDeleting: false,
   };
@@ -288,23 +269,9 @@ export default function MenuPage() {
           minSabjiMap[thaliId] = minSabjiRequired;
         });
 
-        let cutoffTime = getLastCutoff(mealType);
-        if (menu.cutoffTime) {
-          try {
-            const d = new Date(menu.cutoffTime);
-            const ist = new Date(d.getTime() + 330 * 60 * 1000);
-            cutoffTime = `${String(ist.getUTCHours()).padStart(2, "0")}:${String(
-              ist.getUTCMinutes()
-            ).padStart(2, "0")}`;
-          } catch {
-            /* use default */
-          }
-        }
-
         return {
           existingId: menu.id,
           publicSlug: menu.publicSlug ?? null,
-          cutoffTime,
           selectedThaliIds: menu.thalis.map((t) => t.thaliId),
           sabjiMap,
           minSabjiMap,
@@ -373,7 +340,6 @@ export default function MenuPage() {
       selectedThaliIds: template.thaliIds,
       sabjiMap,
       minSabjiMap,
-      cutoffTime: template.cutoffTime ?? getLastCutoff(mealType),
     });
     toast.success(`Template "${template.name}" loaded`);
   };
@@ -429,7 +395,6 @@ export default function MenuPage() {
     // ── end validation block ──
 
     updateDraft(mealType, { isSaving: true });
-    saveLastCutoff(mealType, draft.cutoffTime);
 
     try {
       const url = draft.existingId ? `/api/menu/${draft.existingId}` : "/api/menu";
@@ -441,7 +406,6 @@ export default function MenuPage() {
         body: JSON.stringify({
           date: selectedDate,
           mealType,
-          cutoffTime: draft.cutoffTime || null,
           thaliConfig,
           sabjiOptions,
         }),
@@ -526,7 +490,6 @@ export default function MenuPage() {
         body: JSON.stringify({
           name,
           mealType,
-          cutoffTime: draft.cutoffTime || null,
           thaliIds: draft.selectedThaliIds,
           sabjiConfig,
         }),
@@ -578,25 +541,11 @@ export default function MenuPage() {
         minSabjiMap[thaliId] = minSabjiRequired;
       });
 
-      let cutoffTime = getLastCutoff(mealType);
-      if (menu.cutoffTime) {
-        try {
-          const d = new Date(menu.cutoffTime);
-          const ist = new Date(d.getTime() + 330 * 60 * 1000);
-          cutoffTime = `${String(ist.getUTCHours()).padStart(2, "0")}:${String(
-            ist.getUTCMinutes()
-          ).padStart(2, "0")}`;
-        } catch {
-          /* use default */
-        }
-      }
-
       updateDraft(mealType, {
         existingId: null, // force create new menu
         selectedThaliIds: menu.thalis.map((t) => t.thaliId),
         sabjiMap,
         minSabjiMap,
-        cutoffTime,
         publicSlug: null,
       });
       toast.success(`Copied ${mealType.toLowerCase()} menu from ${sourceDate}`);

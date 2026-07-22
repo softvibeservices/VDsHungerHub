@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
       },
       ...(statusFilter === "PENDING" ||
       statusFilter === "CONFIRMED" ||
+      statusFilter === "PREPARING" ||
+      statusFilter === "OUT_FOR_DELIVERY" ||
       statusFilter === "DELIVERED" ||
       statusFilter === "CANCELLED"
         ? { status: statusFilter }
@@ -118,7 +120,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const validStatuses = ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"];
+    const validStatuses = ["PENDING", "CONFIRMED", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }

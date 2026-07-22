@@ -49,7 +49,6 @@ interface MenuTemplate {
 interface MealDraft {
   existingId: string | null;
   publicSlug: string | null;
-  cutoffTime: string;
   selectedThaliIds: string[];
   sabjiMap: Record<string, string[]>;
   minSabjiMap: Record<string, number>;
@@ -292,19 +291,11 @@ export default function MealColumn({
           </div>
         )}
 
-        {/* Copy From / Cutoff Actions (unchanged) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50/30 border border-gray-100 p-3 rounded-xl">
-          <TimeField
-            label="Cutoff Time"
-            value={draft.cutoffTime}
-            onChange={(e) => onUpdateDraft({ cutoffTime: e.target.value })}
-            disabled={isPast}
-          />
-          <div className="flex flex-col justify-end">
-            <Button variant="secondary" onClick={onOpenCopyFrom} disabled={isPast} leftIcon={<Copy size={13} />} size="md" className="h-[38px] w-full">
-              Copy From...
-            </Button>
-          </div>
+        {/* Copy From Action */}
+        <div className="bg-gray-50/30 border border-gray-100 p-3 rounded-xl">
+          <Button variant="secondary" onClick={onOpenCopyFrom} disabled={isPast} leftIcon={<Copy size={13} />} size="md" className="h-[38px] w-full">
+            Copy From Past Menu...
+          </Button>
         </div>
 
         {/* Step 1 — Thali selector (unchanged) */}

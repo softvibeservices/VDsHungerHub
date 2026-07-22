@@ -105,8 +105,8 @@ export function generateUserBillPdf(detail: UserLedgerDetail) {
       fontStyle: "bold",
     },
     columnStyles: {
-      0: { cellWidth: 32 },
-      1: { cellWidth: "auto" },
+      0: { cellWidth: 28 },
+      1: { cellWidth: "auto", overflow: "linebreak" },
       2: { cellWidth: 32, halign: "right", textColor: [185, 28, 28] },
       3: { cellWidth: 32, halign: "right", textColor: [22, 101, 52] },
       4: { cellWidth: 38, halign: "right", fontStyle: "bold" },
@@ -180,4 +180,66 @@ export function generateBulkOutstandingPdf(rows: UserLedgerRow[]) {
   });
 
   doc.save(`Outstanding-Report-${formatDate(new Date()).replace(/\s+/g, "_")}.pdf`);
+}
+
+export function generateCompanyGroupedOutstandingPdf(
+  groups: { companyName: string; items: UserLedgerRow[] }[]
+) {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let cursorY = 20;
+
+  doc.setFontSize(20);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(234, 88, 12);
+  doc.text("VD's Hunger Hub", 14, cursorY);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(100);
+  doc.text("Outstanding Balances — Grouped by Company", 14, cursorY + 6);
+  doc.text(`Generated: ${formatDate(new Date())}`, pageWidth - 14, cursorY + 6, { align: "right" });
+  cursorY += 14;
+
+  for (const group of groups) {
+    const groupTotal = group.items.reduce((s, i) => s + (i.balance > 0 ? i.balance : 0), 0);
+
+    doc.setFillColor(249, 115, 22);
+    doc.rect(14, cursorY, pageWidth - 28, 8, "F");
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.text(
+      `${group.companyName}  (${group.items.length} customers · Outstanding: ${formatCurrency(groupTotal)})`,
+      16,
+      cursorY + 5.5
+    );
+    cursorY += 10;
+
+    const body = group.items.map((r, i) => [
+      (i + 1).toString(),
+      r.name,
+      formatMobileNumber(r.number),
+      formatCurrency(r.totalDebit),
+      formatCurrency(r.totalPaid),
+      formatCurrency(r.balance),
+    ]);
+
+    autoTable(doc, {
+      startY: cursorY,
+      head: [["#", "Name", "Mobile", "Billed", "Paid", "Balance"]],
+      body,
+      headStyles: { fillColor: [55, 65, 81], textColor: [255, 255, 255], fontStyle: "bold", fontSize: 8 },
+      styles: { fontSize: 8.5, cellPadding: 2.5 },
+      margin: { left: 14, right: 14 },
+    });
+
+    cursorY = (doc as any).lastAutoTable.finalY + 10;
+
+    if (cursorY > doc.internal.pageSize.getHeight() - 40) {
+      doc.addPage();
+      cursorY = 20;
+    }
+  }
+
+  doc.save(`Outstanding-By-Company-${formatDate(new Date()).replace(/\s+/g, "_")}.pdf`);
 }

@@ -16,6 +16,7 @@ interface TableProps<T> {
   emptyMessage?: string;
   emptySubMessage?: string;
   className?: string;
+  mobileCardRender?: (row: T) => React.ReactNode;
 }
 
 export default function Table<T extends { id: string }>({
@@ -25,6 +26,7 @@ export default function Table<T extends { id: string }>({
   emptyMessage = "No data found",
   emptySubMessage,
   className,
+  mobileCardRender,
 }: TableProps<T>) {
   return (
     <div
@@ -33,7 +35,7 @@ export default function Table<T extends { id: string }>({
         className
       )}
     >
-      <div className="overflow-x-auto">
+      <div className={cn("overflow-x-auto", mobileCardRender && "hidden md:block")}>
         <table className="w-full min-w-[500px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/70">
@@ -85,6 +87,26 @@ export default function Table<T extends { id: string }>({
           </tbody>
         </table>
       </div>
+
+      {/* Stacked Card View for Mobile Devices */}
+      {mobileCardRender && (
+        <div className="md:hidden divide-y divide-gray-100">
+          {isLoading ? (
+            <div className="p-6 text-center text-gray-400 text-sm font-medium">Loading items...</div>
+          ) : data.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 py-10 text-gray-400">
+              <Inbox size={32} strokeWidth={1.2} />
+              <p className="text-sm font-medium">{emptyMessage}</p>
+            </div>
+          ) : (
+            data.map((row) => (
+              <div key={row.id} className="p-4 hover:bg-orange-50/20 transition-colors">
+                {mobileCardRender(row)}
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }

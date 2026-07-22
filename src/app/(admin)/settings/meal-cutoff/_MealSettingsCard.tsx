@@ -147,15 +147,8 @@ export default function MealSettingsCard({
 
       {/* Card Footer Actions */}
       <div className="pt-3 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <p className="text-[11px] text-gray-400 leading-relaxed max-w-[240px]">
-          This is the default. Override cutoffs for specific dates on the{" "}
-          <Link
-            href="/daily-menu"
-            className="font-bold text-orange-500 hover:text-orange-600 underline"
-          >
-            Daily Menu
-          </Link>{" "}
-          page.
+        <p className="text-[11px] text-gray-400 leading-relaxed max-w-[280px]">
+          This is the authoritative cutoff time for customer ordering across all days.
         </p>
         <Button
           variant="primary"

@@ -392,10 +392,12 @@ model SystemSetting {
 // ORDER STATUS ENUM
 // -----------------------------------------
 enum OrderStatus {
-  PENDING    // just placed
-  CONFIRMED  // admin acknowledged
-  DELIVERED  // marked delivered
-  CANCELLED  // admin cancelled (no user cancellation)
+  PENDING          // just placed
+  CONFIRMED        // admin acknowledged
+  PREPARING        // order being prepared
+  OUT_FOR_DELIVERY // out for delivery with rider/driver
+  DELIVERED        // marked delivered
+  CANCELLED        // admin cancelled (no user cancellation)
 }
 
 // -----------------------------------------

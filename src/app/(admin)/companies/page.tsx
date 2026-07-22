@@ -16,6 +16,7 @@ interface ReporterUser {
   id: string;
   name: string;
   number: string;
+  workAddress?: string | null;
 }
 
 interface Company {
@@ -149,8 +150,8 @@ export default function CompaniesPage() {
     },
     {
       key: "location",
-      header: "Location",
-      render: (row) => <span className="text-gray-500">{row.location || "—"}</span>,
+      header: "Address",
+      render: (row) => <span className="text-gray-500">{row.location || row.addedByUser?.workAddress || "—"}</span>,
     },
     {
       key: "users",
@@ -300,6 +301,55 @@ export default function CompaniesPage() {
         isLoading={isLoading}
         emptyMessage={`No ${tab} companies found`}
         emptySubMessage={search ? "Try a different search term" : "Add a company or wait for user submissions"}
+        mobileCardRender={(row) => (
+          <div className="space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
+                <p className="text-xs text-gray-500 mt-0.5">{row.location || row.addedByUser?.workAddress || "No address provided"}</p>
+              </div>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                {row._count.users} users
+              </span>
+            </div>
+            {row.addedByUser && (
+              <p className="text-[10px] text-gray-400">
+                Added by: {row.addedByUser.name} ({formatMobileNumber(row.addedByUser.number)})
+              </p>
+            )}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <div>
+                {row.isFlaggedFake ? (
+                  <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
+                    Flagged Fake
+                  </span>
+                ) : row.isVerifiedByAdmin ? (
+                  <span className="text-[10px] font-bold text-green-700 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                    Verified
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                    Pending
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setEditCompany(row); setModalOpen(true); }}
+                  className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => setDeleteId(row.id)}
+                  className="px-2 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       />
 
       {/* Footer */}

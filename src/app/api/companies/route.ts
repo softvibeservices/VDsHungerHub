@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
         take: limit,
         include: {
           _count: { select: { users: true } },
-          addedByUser: { select: { id: true, name: true, number: true } },
+          addedByUser: { select: { id: true, name: true, number: true, workAddress: true } },
         },
       }),
       prisma.company.count({ where }),

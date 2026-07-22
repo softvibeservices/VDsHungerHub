@@ -56,3 +56,39 @@ export function buildWhatsAppDigestText(
 
   return lines.join("\n");
 }
+
+export function buildWhatsAppCompanyDigestText(
+  groups: { companyName: string; items: Array<{ name: string; balance: number }> }[]
+): string {
+  const nonEmptyGroups = groups
+    .map((g) => ({ ...g, items: g.items.filter((r) => r.balance > 0) }))
+    .filter((g) => g.items.length > 0);
+
+  if (nonEmptyGroups.length === 0) {
+    return "🍱 *VD's Hunger Hub — Outstanding Balance Summary*\n\nAll accounts are cleared! 🎉";
+  }
+
+  const grandTotal = nonEmptyGroups.reduce(
+    (sum, g) => sum + g.items.reduce((s, r) => s + r.balance, 0),
+    0
+  );
+
+  const lines = [
+    `🍱 *VD's Hunger Hub — Outstanding Balance Summary*`,
+    `Date: ${formatDate(new Date())}`,
+    `Total Outstanding: *${formatCurrency(grandTotal)}*`,
+    ``,
+  ];
+
+  for (const group of nonEmptyGroups) {
+    const groupTotal = group.items.reduce((s, r) => s + r.balance, 0);
+    lines.push(`🏢 *${group.companyName}* — ${formatCurrency(groupTotal)}`);
+    group.items.forEach((r, i) => {
+      lines.push(`   ${i + 1}. ${r.name}: ${formatCurrency(r.balance)}`);
+    });
+    lines.push(``);
+  }
+
+  lines.push(`Please clear pending balances at your earliest convenience. Thank you! 🙏`);
+  return lines.join("\n");
+}
