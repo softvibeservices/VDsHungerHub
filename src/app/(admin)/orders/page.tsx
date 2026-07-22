@@ -18,10 +18,14 @@ import {
   ChevronUp,
   Truck,
   UtensilsCrossed,
+  Sun,
+  Moon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getTodayIST, formatCurrency } from "@/lib/utils";
 import SearchInput from "@/components/ui/SearchInput";
+import Button from "@/components/ui/Button";
+import Badge, { BadgeVariant } from "@/components/ui/Badge";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -94,22 +98,13 @@ interface CompanyOption {
   name: string;
 }
 
-const STATUS_ICONS: Record<OrderStatus, React.ReactNode> = {
-  PENDING: <Clock size={13} className="text-yellow-500 flex-shrink-0" />,
-  CONFIRMED: <CheckCircle2 size={13} className="text-blue-500 flex-shrink-0" />,
-  PREPARING: <UtensilsCrossed size={13} className="text-purple-500 flex-shrink-0" />,
-  OUT_FOR_DELIVERY: <Truck size={13} className="text-indigo-500 flex-shrink-0" />,
-  DELIVERED: <Package size={13} className="text-green-500 flex-shrink-0" />,
-  CANCELLED: <XCircle size={13} className="text-red-500 flex-shrink-0" />,
-};
-
-const STATUS_COLORS: Record<OrderStatus, string> = {
-  PENDING: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  CONFIRMED: "bg-blue-50 text-blue-700 border border-blue-200",
-  PREPARING: "bg-purple-50 text-purple-700 border border-purple-200",
-  OUT_FOR_DELIVERY: "bg-indigo-50 text-indigo-700 border border-indigo-200",
-  DELIVERED: "bg-green-50 text-green-700 border border-green-200",
-  CANCELLED: "bg-red-50 text-red-700 border border-red-200",
+const ORDER_STATUS_BADGE: Record<OrderStatus, { variant: BadgeVariant; icon: any; label: string }> = {
+  PENDING:           { variant: "warning", icon: Clock,           label: "Pending" },
+  CONFIRMED:         { variant: "info",    icon: CheckCircle2,    label: "Confirmed" },
+  PREPARING:         { variant: "info",    icon: UtensilsCrossed, label: "Preparing" },
+  OUT_FOR_DELIVERY:  { variant: "info",    icon: Truck,            label: "Out for Delivery" },
+  DELIVERED:         { variant: "success", icon: Package,          label: "Delivered" },
+  CANCELLED:         { variant: "danger",  icon: XCircle,          label: "Cancelled" },
 };
 
 export default function AdminOrdersPage() {
@@ -544,15 +539,20 @@ export default function AdminOrdersPage() {
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+            className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
               activeTab === tab
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-500 hover:text-gray-800"
             }`}
           >
-            {tab === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}
+            {tab === "LUNCH" ? (
+              <Sun size={15} className="text-amber-500" />
+            ) : (
+              <Moon size={15} className="text-indigo-500" />
+            )}
+            {tab === "LUNCH" ? "Lunch" : "Dinner"}
             {data && (
-              <span className="ml-1.5 text-xs text-gray-400 font-bold">
+              <span className="ml-1 text-xs text-gray-400 font-bold">
                 ({tab === "LUNCH" ? data.lunch.count : data.dinner.count})
               </span>
             )}
@@ -802,12 +802,15 @@ export default function AdminOrdersPage() {
                                       <div className="divide-y divide-blue-100">
                                         {(thread?.comments ?? []).map((c) => (
                                           <div key={c.id} className="px-3 py-2">
-                                            <p className="text-xs font-bold text-blue-800">
-                                              {c.authorType === "STAFF" ? "🧑‍💼 Staff" : "👤 Customer"}
-                                              <span className="text-[10px] text-blue-500 font-normal ml-2">
+                                            <div className="flex items-center gap-2">
+                                              <Badge
+                                                variant={c.authorType === "STAFF" ? "info" : "neutral"}
+                                                label={c.authorType === "STAFF" ? "Staff" : "Customer"}
+                                              />
+                                              <span className="text-[10px] text-blue-500 font-normal">
                                                 {new Date(c.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
                                               </span>
-                                            </p>
+                                            </div>
                                             <p className="text-xs text-gray-800 mt-0.5">{c.message}</p>
                                           </div>
                                         ))}
@@ -851,12 +854,10 @@ export default function AdminOrdersPage() {
                           {formatCurrency(order.totalAmount)}
                         </span>
 
-                        <div className="flex items-center gap-1.5">
-                          {STATUS_ICONS[order.status]}
-                          <span className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase tracking-wider ${STATUS_COLORS[order.status]}`}>
-                            {order.status}
-                          </span>
-                        </div>
+                        {(() => {
+                          const badge = ORDER_STATUS_BADGE[order.status];
+                          return <Badge variant={badge.variant} icon={badge.icon} label={badge.label} />;
+                        })()}
 
                         {/* Quick actions for Pending, Confirmed or Preparing orders */}
                         {(order.status === "PENDING" || order.status === "CONFIRMED" || order.status === "PREPARING") && (

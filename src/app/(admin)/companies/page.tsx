@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
+import Badge from "@/components/ui/Badge";
 import CompanyModal from "@/components/modals/CompanyModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -165,9 +166,7 @@ export default function CompaniesPage() {
         if (row.isFlaggedFake) {
           return (
             <div className="flex flex-col gap-0.5">
-              <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-100 rounded-full px-2 py-0.5 font-medium">
-                <AlertCircle size={11} /> Flagged Fake
-              </span>
+              <Badge variant="danger" icon={AlertCircle} label="Flagged Fake" />
               {row.flaggedReason && (
                 <span className="text-[10px] text-red-500 max-w-[200px] line-clamp-1">{row.flaggedReason}</span>
               )}
@@ -176,18 +175,12 @@ export default function CompaniesPage() {
         }
 
         if (row.isVerifiedByAdmin) {
-          return (
-            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 font-medium">
-              <ShieldCheck size={11} /> Verified
-            </span>
-          );
+          return <Badge variant="success" icon={ShieldCheck} label="Verified" />;
         }
 
         return (
           <div className="flex flex-col gap-1">
-            <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 font-medium">
-              <Clock size={11} /> Pending Moderation
-            </span>
+            <Badge variant="warning" icon={Clock} label="Pending Moderation" />
             {row.addedByUser && (
               <span className="text-[10px] text-gray-400">
                 Added by: {row.addedByUser.name} ({formatMobileNumber(row.addedByUser.number)})

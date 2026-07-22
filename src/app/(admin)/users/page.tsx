@@ -8,6 +8,7 @@ import SearchInput from "@/components/ui/SearchInput";
 import Select from "@/components/ui/Select";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Badge from "@/components/ui/Badge";
 import UserModal from "@/components/modals/UserModal";
 import BulkUserModal from "@/components/modals/BulkUserModal";
 import { useToast } from "@/hooks/useToast";
@@ -217,13 +218,9 @@ export default function UsersPage() {
       render: (row) => (
         <div className="flex flex-col gap-0.5">
           {row.isVerified ? (
-            <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 font-medium">
-              <ShieldCheck size={11} /> Verified
-            </span>
+            <Badge variant="success" icon={ShieldCheck} label="Verified" />
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 font-medium">
-              <ShieldOff size={11} /> Pending
-            </span>
+            <Badge variant="warning" icon={ShieldOff} label="Pending" />
           )}
           {row.verifiedAt && (
             <span className="text-[10px] text-gray-400">{formatDateTimeIST(row.verifiedAt)}</span>
@@ -236,24 +233,12 @@ export default function UsersPage() {
       header: "Status",
       render: (row) => {
         if (row.status === "BANNED") {
-          return (
-            <span className="inline-flex items-center gap-1 text-xs text-red-700 bg-red-50 border border-red-100 rounded-full px-2 py-0.5 font-medium" title={row.statusReason || ""}>
-              Banned
-            </span>
-          );
+          return <Badge variant="danger" label="Banned" className="cursor-help" />;
         }
         if (row.status === "BLOCKED") {
-          return (
-            <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-full px-2 py-0.5 font-medium" title={row.statusReason || ""}>
-              Blocked
-            </span>
-          );
+          return <Badge variant="warning" label="Blocked" className="cursor-help" />;
         }
-        return (
-          <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-100 rounded-full px-2 py-0.5 font-medium">
-            Active
-          </span>
-        );
+        return <Badge variant="success" label="Active" />;
       },
     },
     {
