@@ -417,6 +417,7 @@ model Order {
   // Multi-thali support (new)
   thaliItems   OrderThaliItem[]
   addonItems   OrderAddonItem[]
+  comments     OrderComment[]   // Admin reply thread
   totalAmount  Float
   status       OrderStatus @default(PENDING)
   note         String?
@@ -426,6 +427,26 @@ model Order {
   @@index([userId])
   @@index([menuId])
   @@index([createdAt])
+}
+
+// -----------------------------------------
+// ORDER COMMENT (admin reply thread)
+// -----------------------------------------
+enum OrderCommentAuthor {
+  STAFF
+  CUSTOMER
+}
+
+model OrderComment {
+  id             String              @id @default(cuid())
+  orderId        String
+  order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  authorType     OrderCommentAuthor
+  authorStaffId  String?             // set when authorType = STAFF
+  message        String
+  createdAt      DateTime            @default(now())
+
+  @@index([orderId])
 }
 
 // Selected sabji items per order (legacy single-thali)
@@ -458,14 +479,14 @@ model OrderAddon {
 
 // One line per thali type in a multi-thali order (each with its own sabji)
 model OrderThaliItem {
-  id             String  @id @default(cuid())
+  id             String   @id @default(cuid())
   orderId        String
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   thaliId        String
-  thali          Thali   @relation(fields: [thaliId], references: [id], onDelete: Restrict)
-  sabjiProductId String  // The sabji chosen for THIS specific thali line
-  sabjiProduct   Product @relation(fields: [sabjiProductId], references: [id], onDelete: Restrict)
-  quantity       Int     @default(1)
+  thali          Thali    @relation(fields: [thaliId], references: [id], onDelete: Restrict)
+  sabjiProductId String?  // Nullable: sabji-less thalis (sabjiCount=0) have null here
+  sabjiProduct   Product? @relation(fields: [sabjiProductId], references: [id], onDelete: Restrict)
+  quantity       Int      @default(1)
 }
 
 // One line per add-on product in a multi-thali order

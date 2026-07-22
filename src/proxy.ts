@@ -30,6 +30,7 @@ const CUSTOMER_PUBLIC_SUBROUTES = [
   "/api/customer/companies",
   "/api/customer/registration/status",
   "/api/customer/products",
+  "/api/customer/refresh", // CRITICAL: must be reachable when access token is expired
 ];
 
 function isPublicCustomerRoute(pathname: string) {

@@ -9,6 +9,13 @@ import {
   CUSTOMER_REFRESH_COOKIE,
 } from "@/lib/customer-auth";
 
+// REFRESH_TTL_DAYS is defined in customer-auth — use it here so rotated
+// sessions get the same 180-day lifetime as brand-new sessions.
+const REFRESH_TTL_DAYS = parseInt(
+  process.env.CUSTOMER_REFRESH_TOKEN_TTL_DAYS ?? "180",
+  10
+);
+
 /**
  * POST /api/customer/refresh
  *
@@ -70,7 +77,7 @@ export async function POST(req: NextRequest) {
     // Rotate: revoke old, create new
     const newRaw = generateRefreshToken();
     const newHash = hashRefreshToken(newRaw);
-    const expiresAt = new Date(Date.now() + 100 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
 
     const [, newSession] = await prisma.$transaction([
       prisma.customerSession.update({

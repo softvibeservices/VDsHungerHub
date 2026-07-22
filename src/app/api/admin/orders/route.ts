@@ -70,6 +70,17 @@ export async function GET(req: NextRequest) {
           product: { select: { id: true, name: true } },
         },
       },
+      // #2: include note + admin comment thread
+      comments: {
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          authorType: true,
+          authorStaffId: true,
+          message: true,
+          createdAt: true,
+        },
+      },
     },
   });
 

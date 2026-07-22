@@ -15,11 +15,16 @@ import {
  * Multi-thali order creation. Requires a verified customer session.
  * Server-side enforces MAX_THALI_PER_ORDER and MAX_ADDON_PER_ORDER limits.
  *
+ * Fixes applied:
+ *   #3: sabji validation is conditional on thali.sabjiCount (sabji-less thalis are allowed)
+ *   #4: add-on limit is per-product (not a shared combined total)
+ *
  * Body:
  *   menuId      string
- *   thaliItems  Array<{ thaliId: string; sabjiProductId: string; quantity: number }>
+ *   thaliItems  Array<{ thaliId: string; sabjiProductId: string | null; quantity: number }>
  *   addonItems? Array<{ addonProductId: string; quantity: number }>
  *   note?       string
+ *   addressId?  string
  */
 export async function POST(req: NextRequest) {
   try {
@@ -74,18 +79,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Load configurable limits ──────────────────────────────────────────────
-    const [maxThali, maxAddon] = await Promise.all([
+    const [maxThali, maxAddonPerItem] = await Promise.all([
       getOrderLimit("MAX_THALI_PER_ORDER", DEFAULT_MAX_THALI),
-      getOrderLimit("MAX_ADDON_PER_ORDER", DEFAULT_MAX_ADDON),
+      getOrderLimit("MAX_ADDON_PER_ORDER", DEFAULT_MAX_ADDON), // now means: max per ITEM, not combined
     ]);
 
     // ── Validate thali item totals (server-side, never trust client count) ─────
     const totalThaliQty: number = thaliItems.reduce(
       (sum: number, t: any) => sum + (Number(t.quantity) || 1),
-      0
-    );
-    const totalAddonQty: number = (addonItems as any[]).reduce(
-      (sum: number, a: any) => sum + (Number(a.quantity) || 1),
       0
     );
 
@@ -96,18 +97,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (totalAddonQty > maxAddon) {
-      return NextResponse.json(
-        { error: `Maximum ${maxAddon} add-on items per order. You submitted ${totalAddonQty}.` },
-        { status: 400 }
-      );
-    }
-
     // ── Validate menu ─────────────────────────────────────────────────────────
     const menu = await prisma.dailyMenu.findUnique({
       where: { id: menuId },
       include: {
-        thalis: { include: { thali: { select: { id: true, price: true, categoryId: true, isActive: true } } } },
+        // FIX #3: include sabjiCount so we can conditionally require it
+        thalis: { include: { thali: { select: { id: true, price: true, categoryId: true, isActive: true, sabjiCount: true } } } },
         sabjiOptions: true,
       },
     });
@@ -156,18 +151,21 @@ export async function POST(req: NextRequest) {
       verifiedAddressId = address.id;
     }
 
-    // ── Validate each thali item ──────────────────────────────────────────────
+    // ── Build lookup maps for thali validation ────────────────────────────────
     const thaliPriceMap: Record<string, number> = {};
     const thaliCategoryMap: Record<string, string | null> = {};
+    const thaliSabjiCountMap: Record<string, number> = {};
     const validThaliIds = new Set<string>();
 
     for (const mt of menu.thalis) {
-      if (!mt.thali.isActive) continue; // skip inactive thalis
+      if (!mt.thali.isActive) continue;
       validThaliIds.add(mt.thaliId);
       thaliPriceMap[mt.thaliId] = mt.thali.price;
       thaliCategoryMap[mt.thaliId] = mt.thali.categoryId;
+      thaliSabjiCountMap[mt.thaliId] = mt.thali.sabjiCount;
     }
 
+    // ── Validate each thali item ──────────────────────────────────────────────
     for (const item of thaliItems as any[]) {
       if (!item.thaliId || !validThaliIds.has(item.thaliId)) {
         return NextResponse.json(
@@ -176,30 +174,37 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (!item.sabjiProductId) {
+      // FIX #3: only require sabji if the thali actually has sabjiCount > 0
+      const requiresSabji = (thaliSabjiCountMap[item.thaliId] ?? 1) > 0;
+
+      if (requiresSabji && !item.sabjiProductId) {
         return NextResponse.json(
-          { error: `Each thali item must have a sabjiProductId` },
+          { error: "This thali requires a sabji selection" },
           { status: 400 }
         );
       }
 
-      // Validate sabji is valid for this thali's category
-      const categoryId = thaliCategoryMap[item.thaliId];
-      const validSabji = menu.sabjiOptions.filter(
-        (so: { categoryId: string; productId: string }) => so.categoryId === categoryId
-      );
-      const validSabjiIds = new Set(validSabji.map((s: { productId: string }) => s.productId));
-
-      if (!validSabjiIds.has(item.sabjiProductId)) {
-        return NextResponse.json(
-          { error: `Sabji ${item.sabjiProductId} is not valid for thali ${item.thaliId}` },
-          { status: 400 }
+      // If a sabji was provided, validate it belongs to this thali's category
+      if (item.sabjiProductId) {
+        const categoryId = thaliCategoryMap[item.thaliId];
+        const validSabji = menu.sabjiOptions.filter(
+          (so: { categoryId: string; productId: string }) => so.categoryId === categoryId
         );
+        const validSabjiIds = new Set(validSabji.map((s: { productId: string }) => s.productId));
+
+        if (!validSabjiIds.has(item.sabjiProductId)) {
+          return NextResponse.json(
+            { error: `Sabji ${item.sabjiProductId} is not valid for thali ${item.thaliId}` },
+            { status: 400 }
+          );
+        }
       }
     }
 
     // ── Validate and price add-ons ────────────────────────────────────────────
     let addonPriceMap: Record<string, number> = {};
+    let addonNameMap: Record<string, string> = {};
+
     if (Array.isArray(addonItems) && addonItems.length > 0) {
       const addonProductIds = (addonItems as any[]).map((a) => a.addonProductId);
       const addonProducts = await prisma.product.findMany({
@@ -208,10 +213,11 @@ export async function POST(req: NextRequest) {
           isActive: true,
           isAddOnAvailable: true,
         },
-        select: { id: true, price: true },
+        select: { id: true, price: true, name: true },
       });
 
-      addonPriceMap = Object.fromEntries(addonProducts.map((p: { id: string; price: number }) => [p.id, p.price]));
+      addonPriceMap = Object.fromEntries(addonProducts.map((p: { id: string; price: number; name: string }) => [p.id, p.price]));
+      addonNameMap = Object.fromEntries(addonProducts.map((p: { id: string; price: number; name: string }) => [p.id, p.name]));
 
       for (const item of addonItems as any[]) {
         if (!addonPriceMap[item.addonProductId]) {
@@ -223,7 +229,28 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Check Cumulative Limits for this Meal Cycle (non-cancelled orders) ──
+    // ── FIX #4: Validate per-product add-on limits ────────────────────────────
+    // Group THIS submission's requested quantity by product
+    const requestedByProduct = new Map<string, number>();
+    for (const a of addonItems as any[]) {
+      requestedByProduct.set(
+        a.addonProductId,
+        (requestedByProduct.get(a.addonProductId) ?? 0) + (Number(a.quantity) || 1)
+      );
+    }
+
+    // Check against per-item limit immediately (before checking existing orders)
+    for (const [productId, qty] of requestedByProduct) {
+      if (qty > maxAddonPerItem) {
+        const productName = addonNameMap[productId] ?? "This item";
+        return NextResponse.json(
+          { error: `Maximum ${maxAddonPerItem} × ${productName} allowed per order.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // ── Check cumulative limits for this meal cycle (non-cancelled orders) ──
     const existingOrders = await prisma.order.findMany({
       where: {
         userId,
@@ -233,7 +260,8 @@ export async function POST(req: NextRequest) {
       select: {
         id: true,
         thaliItems: { select: { quantity: true } },
-        addonItems: { select: { quantity: true } },
+        // FIX #4: need addonProductId to do per-product cumulative check
+        addonItems: { select: { addonProductId: true, quantity: true } },
       },
     });
 
@@ -242,13 +270,6 @@ export async function POST(req: NextRequest) {
         return acc + o.thaliItems.reduce((s: number, item: { quantity: number }) => s + (item.quantity || 1), 0);
       }
       return acc + 1; // fallback for legacy single-thali orders
-    }, 0);
-
-    const existingAddonCount = existingOrders.reduce((acc: number, o: any) => {
-      if (o.addonItems && o.addonItems.length > 0) {
-        return acc + o.addonItems.reduce((s: number, item: { quantity: number }) => s + (item.quantity || 1), 0);
-      }
-      return acc;
     }, 0);
 
     if (existingThaliCount + totalThaliQty > maxThali) {
@@ -260,13 +281,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: errorMsg }, { status: 400 });
     }
 
-    if (existingAddonCount + totalAddonQty > maxAddon) {
-      const remainingAddonsAllowed = Math.max(0, maxAddon - existingAddonCount);
-      const errorMsg =
-        existingAddonCount > 0
-          ? `Maximum ${maxAddon} Add-ons allowed per meal cycle. You have already ordered ${existingAddonCount} Add-on(s). You can order at most ${remainingAddonsAllowed} more.`
-          : `Maximum ${maxAddon} Add-on items allowed per order. You submitted ${totalAddonQty}.`;
-      return NextResponse.json({ error: errorMsg }, { status: 400 });
+    // FIX #4: per-product cumulative check against existing orders
+    if (requestedByProduct.size > 0) {
+      // Build map of existing ordered qty per product for this meal cycle
+      const existingByProduct = new Map<string, number>();
+      for (const o of existingOrders) {
+        for (const item of o.addonItems ?? []) {
+          existingByProduct.set(
+            item.addonProductId,
+            (existingByProduct.get(item.addonProductId) ?? 0) + (item.quantity || 1)
+          );
+        }
+      }
+
+      for (const [productId, requestedQty] of requestedByProduct) {
+        const alreadyOrdered = existingByProduct.get(productId) ?? 0;
+        if (alreadyOrdered + requestedQty > maxAddonPerItem) {
+          const remaining = Math.max(0, maxAddonPerItem - alreadyOrdered);
+          const productName = addonNameMap[productId] ?? "This item";
+          return NextResponse.json(
+            {
+              error:
+                alreadyOrdered > 0
+                  ? `Maximum ${maxAddonPerItem} × ${productName} allowed per meal. You've already ordered ${alreadyOrdered}. You can add ${remaining} more.`
+                  : `Maximum ${maxAddonPerItem} × ${productName} allowed per order.`,
+            },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     // ── Calculate total ───────────────────────────────────────────────────────
@@ -294,9 +337,10 @@ export async function POST(req: NextRequest) {
         status: "PENDING",
         note: note ? note.trim().slice(0, 200) || null : null,
         thaliItems: {
-          create: (thaliItems as any[]).map((t: { thaliId: string; sabjiProductId: string; quantity: number }) => ({
+          create: (thaliItems as any[]).map((t: { thaliId: string; sabjiProductId: string | null; quantity: number }) => ({
             thaliId: t.thaliId,
-            sabjiProductId: t.sabjiProductId,
+            // FIX #3: normalize empty string to null
+            sabjiProductId: t.sabjiProductId || null,
             quantity: Math.max(1, Number(t.quantity) || 1),
           })),
         },
@@ -333,7 +377,15 @@ export async function POST(req: NextRequest) {
 
 /**
  * GET /api/customer/orders
- * Returns the current customer's order history.
+ * Returns the current customer's order history with pagination and filters.
+ *
+ * Query params:
+ *   page?     number (default: 1)
+ *   limit?    number (default: 20, max: 50)
+ *   status?   PENDING | CONFIRMED | DELIVERED | CANCELLED
+ *   mealType? LUNCH | DINNER
+ *   from?     YYYY-MM-DD
+ *   to?       YYYY-MM-DD
  */
 export async function GET(req: NextRequest) {
   try {
@@ -361,15 +413,46 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(50, parseInt(searchParams.get("limit") ?? "20"));
     const skip = (page - 1) * limit;
 
+    // ── FIX #6: filter params ─────────────────────────────────────────────────
+    const statusParam = searchParams.get("status");
+    const mealTypeParam = searchParams.get("mealType");
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+
+    const validStatuses = ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"];
+    const validMealTypes = ["LUNCH", "DINNER"];
+
+    // Build where clause
+    const where: any = { userId: claims.sub };
+
+    if (statusParam && validStatuses.includes(statusParam)) {
+      where.status = statusParam;
+    }
+
+    if (mealTypeParam && validMealTypes.includes(mealTypeParam)) {
+      where.menu = { ...(where.menu ?? {}), mealType: mealTypeParam };
+    }
+
+    if (fromParam || toParam) {
+      where.menu = {
+        ...(where.menu ?? {}),
+        date: {
+          ...(fromParam ? { gte: new Date(fromParam + "T00:00:00.000Z") } : {}),
+          ...(toParam ? { lte: new Date(toParam + "T23:59:59.999Z") } : {}),
+        },
+      };
+    }
+
     const [orders, total] = await Promise.all([
       prisma.order.findMany({
-        where: { userId: claims.sub },
+        where,
         orderBy: { createdAt: "desc" },
         skip,
         take: limit,
         include: {
           thali: { select: { id: true, name: true, nameGu: true, price: true } },
           menu: { select: { id: true, date: true, mealType: true } },
+          address: { select: { id: true, type: true, line1: true, line2: true, landmark: true, city: true, pincode: true } },
           thaliItems: {
             include: {
               thali: { select: { id: true, name: true } },
@@ -381,9 +464,13 @@ export async function GET(req: NextRequest) {
               addonProduct: { select: { id: true, name: true, price: true } },
             },
           },
+          // Include admin comments so customer sees replies
+          comments: {
+            orderBy: { createdAt: "asc" },
+          },
         },
       }),
-      prisma.order.count({ where: { userId: claims.sub } }),
+      prisma.order.count({ where }),
     ]);
 
     return NextResponse.json({ orders, total, page, limit });

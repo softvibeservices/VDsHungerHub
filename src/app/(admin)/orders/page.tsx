@@ -12,6 +12,10 @@ import {
   SlidersHorizontal,
   ArrowUpDown,
   FilterX,
+  MessageSquare,
+  Send,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getTodayIST, formatCurrency } from "@/lib/utils";
@@ -40,6 +44,7 @@ interface AdminOrder {
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
+  note?: string | null;          // FIX #2: customer cooking instruction
   user: {
     id: string;
     name: string;
@@ -57,6 +62,15 @@ interface AdminOrder {
   };
   selectedSabji: { product: { id: string; name: string } }[];
   selectedAddons: { product: { id: string; name: string }; price: number; quantity: number }[];
+  comments?: OrderComment[];     // FIX #2: admin reply thread
+}
+
+interface OrderComment {
+  id: string;
+  authorType: "STAFF" | "CUSTOMER";
+  authorStaffId?: string | null;
+  message: string;
+  createdAt: string;
 }
 
 interface OrdersResponse {
@@ -105,6 +119,53 @@ export default function AdminOrdersPage() {
 
   // Bulk Selection state
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+
+  // FIX #2: comment thread state per order (openId → { loading, replyText, localComments })
+  const [commentThreads, setCommentThreads] = useState<
+    Record<string, { open: boolean; replyText: string; loading: boolean; comments: OrderComment[] }>
+  >({});
+
+  const openCommentThread = async (orderId: string, initialComments: OrderComment[] = []) => {
+    setCommentThreads((prev) => ({
+      ...prev,
+      [orderId]: { open: true, replyText: "", loading: false, comments: initialComments },
+    }));
+  };
+
+  const closeCommentThread = (orderId: string) => {
+    setCommentThreads((prev) => ({
+      ...prev,
+      [orderId]: { ...prev[orderId], open: false },
+    }));
+  };
+
+  const sendReply = async (orderId: string) => {
+    const thread = commentThreads[orderId];
+    if (!thread || !thread.replyText.trim()) return;
+    setCommentThreads((prev) => ({ ...prev, [orderId]: { ...prev[orderId], loading: true } }));
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: thread.replyText.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? "Failed to post reply"); return; }
+      setCommentThreads((prev) => ({
+        ...prev,
+        [orderId]: {
+          ...prev[orderId],
+          replyText: "",
+          comments: [...(prev[orderId]?.comments ?? []), data.comment],
+        },
+      }));
+      toast.success("Reply added");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setCommentThreads((prev) => ({ ...prev, [orderId]: { ...prev[orderId], loading: false } }));
+    }
+  };
 
   // Fetch companies for dropdown list
   useEffect(() => {
@@ -606,7 +667,7 @@ export default function AdminOrdersPage() {
 
                       {/* Order Detail */}
                       <td className="px-4 py-2">
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           {order.thaliItems && order.thaliItems.length > 0 ? (
                             <div className="space-y-1">
                               {order.thaliItems.map((ti) => (
@@ -667,8 +728,88 @@ export default function AdminOrdersPage() {
                               )}
                             </div>
                           )}
+
+                          {/* FIX #2: Customer cooking instruction note */}
+                          {order.note && (
+                            <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded px-2 py-1.5 max-w-[260px]">
+                              <MessageSquare size={10} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                              <p className="text-[10px] text-amber-800 font-medium leading-snug">{order.note}</p>
+                            </div>
+                          )}
+
+                          {/* FIX #2: Comment thread toggle */}
+                          {(() => {
+                            const thread = commentThreads[order.id];
+                            const isOpen = thread?.open ?? false;
+                            const commentCount = (thread?.comments ?? order.comments ?? []).length;
+
+                            return (
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    isOpen
+                                      ? closeCommentThread(order.id)
+                                      : openCommentThread(order.id, order.comments ?? [])
+                                  }
+                                  className="flex items-center gap-1 text-[10px] text-blue-600 hover:text-blue-700 font-bold transition-colors"
+                                >
+                                  <MessageSquare size={10} />
+                                  {commentCount > 0 ? `${commentCount} Reply${commentCount > 1 ? "ies" : ""}` : "Add Reply"}
+                                  {isOpen ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+                                </button>
+
+                                {isOpen && (
+                                  <div className="mt-1.5 border border-blue-100 rounded-lg overflow-hidden bg-blue-50/40 max-w-[280px]">
+                                    {/* Existing comments */}
+                                    {(thread?.comments ?? []).length > 0 && (
+                                      <div className="divide-y divide-blue-100">
+                                        {(thread?.comments ?? []).map((c) => (
+                                          <div key={c.id} className="px-2.5 py-1.5">
+                                            <p className="text-[10px] font-bold text-blue-700">
+                                              {c.authorType === "STAFF" ? "🧑‍💼 Staff" : "👤 Customer"}
+                                              <span className="text-[9px] text-blue-400 font-normal ml-1">
+                                                {new Date(c.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                              </span>
+                                            </p>
+                                            <p className="text-[10px] text-gray-700 mt-0.5">{c.message}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {/* Reply input */}
+                                    <div className="flex items-center gap-1 p-1.5 border-t border-blue-100">
+                                      <input
+                                        type="text"
+                                        value={thread?.replyText ?? ""}
+                                        onChange={(e) =>
+                                          setCommentThreads((prev) => ({
+                                            ...prev,
+                                            [order.id]: { ...prev[order.id], replyText: e.target.value },
+                                          }))
+                                        }
+                                        onKeyDown={(e) => e.key === "Enter" && sendReply(order.id)}
+                                        placeholder="Add a reply…"
+                                        className="flex-1 text-[10px] px-2 py-1 border border-blue-200 rounded bg-white outline-none focus:ring-1 focus:ring-blue-400 min-w-0"
+                                        maxLength={500}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => sendReply(order.id)}
+                                        disabled={thread?.loading || !thread?.replyText?.trim()}
+                                        className="p-1 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-40 transition-colors flex-shrink-0"
+                                      >
+                                        <Send size={10} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
+
 
                       {/* Amount */}
                       <td className="px-4 py-2 font-extrabold text-orange-600 whitespace-nowrap">

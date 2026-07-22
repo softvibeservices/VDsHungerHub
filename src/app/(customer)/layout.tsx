@@ -7,6 +7,7 @@ import {
 } from "@/lib/customer-auth";
 import { prisma } from "@/lib/prisma";
 import UserNavbar from "@/components/customer/UserNavbar";
+import SessionKeepAlive from "@/components/customer/SessionKeepAlive";
 
 async function resolveNavAuthState() {
   const cookieStore = await cookies();
@@ -33,7 +34,10 @@ export default async function CustomerLayout({ children }: { children: React.Rea
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-amber-50">
       <UserNavbar loggedIn={nav.loggedIn} userName={nav.name} />
+      {/* Silent background token refresher — keeps sessions alive for 180 days */}
+      {nav.loggedIn && <SessionKeepAlive />}
       <main>{children}</main>
     </div>
   );
 }
+
