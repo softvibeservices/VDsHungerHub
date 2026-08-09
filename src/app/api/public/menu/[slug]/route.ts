@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, getClientIp, formatRateLimitWaitTime } from "@/lib/customer-auth";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
+    const ip = getClientIp(req);
+    // Rate limit: 60 requests per minute per IP
+    await checkRateLimit("IP", ip, "PUBLIC_API_REQUEST", 60 * 1000, 60);
+
     const { slug } = await params;
 
     const menu = await prisma.dailyMenu.findUnique({
@@ -64,7 +69,14 @@ export async function GET(
     });
 
     return NextResponse.json({ menu, addOns, mealSettings });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.name === "RateLimitExceededError") {
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
+      return NextResponse.json(
+        { error: `Too many requests. Please try again after ${waitTime}.` },
+        { status: 429 }
+      );
+    }
     console.error("[PUBLIC MENU GET]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

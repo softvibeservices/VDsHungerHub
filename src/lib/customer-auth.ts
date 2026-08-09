@@ -389,6 +389,7 @@ export async function checkRateLimit(
     | "VERIFY_OTP"
     | "LOGIN_PIN_ATTEMPT"
     | "STAFF_PASSWORD_ATTEMPT"
+    | "PUBLIC_API_REQUEST"
     | "ADD_COMPANY"
     | "ADD_ADDRESS",
   windowMs: number,
