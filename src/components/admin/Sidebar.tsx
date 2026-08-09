@@ -87,11 +87,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
-      await fetch("/api/staff/logout", { method: "POST" });
+      const res = await fetch("/api/staff/logout", { method: "POST" });
+      if (!res.ok) throw new Error("Logout failed");
       toast.success("Logged out successfully");
       router.push("/staff-login");
+      router.refresh();
     } catch {
-      toast.error("Logout failed");
+      toast.error("Logout failed. Please try again.");
     } finally {
       setLoggingOut(false);
       setLogoutConfirmOpen(false);

@@ -17,9 +17,27 @@ function normalizeMobile(raw: string): string {
   return clean;
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { mobile: rawMobile, deviceVisitorId = "" } = await req.json();
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
+
+    const { mobile: rawMobile, deviceVisitorId = "" } = body ?? {};
 
     let mobile: string;
     try {
@@ -30,7 +48,9 @@ export async function POST(req: NextRequest) {
 
     const ip = getClientIp(req);
     const userAgent = req.headers.get("user-agent") ?? "";
-    const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
+    const fingerprintHash = deviceVisitorId
+      ? computeFingerprintHash(deviceVisitorId, userAgent)
+      : "";
 
     // 1. Device fingerprint blocking check
     if (fingerprintHash) {
@@ -49,7 +69,7 @@ export async function POST(req: NextRequest) {
     // 2. Strict Rate Limits on 3 Axes (checked BEFORE calling provider or dummy path)
     const rlAction = "SEND_OTP_STAFF_LOGIN";
 
-    // 60-second cooldown
+    // 60-second cooldown per mobile
     await checkResendCooldown(mobile, rlAction);
 
     // Per-mobile limits (5 sends per hour)
@@ -58,8 +78,10 @@ export async function POST(req: NextRequest) {
     // Per-IP limits (15 sends per hour)
     await checkRateLimit("IP", ip, rlAction, 60 * 60 * 1000, 15);
 
-    // Per-device limits (10 sends per day)
-    await checkRateLimit("DEVICE", fingerprintHash, rlAction, 24 * 60 * 60 * 1000, 10);
+    // Per-device limits (10 sends per day) — only if deviceVisitorId is present
+    if (fingerprintHash) {
+      await checkRateLimit("DEVICE", fingerprintHash, rlAction, 24 * 60 * 60 * 1000, 10);
+    }
 
     // 3. Find staff user
     const staff = await prisma.staffUser.findUnique({ where: { mobile } });
@@ -78,7 +100,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "If this number is registered, an OTP has been sent." });
     }
 
-    // 4. Send actual OTP
+    // 4. Send actual OTP via Message Central
     const verificationId = await sendOtp(mobile, 6);
 
     await prisma.staffOtpAttempt.create({

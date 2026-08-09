@@ -359,10 +359,22 @@ export default function StaffLoginPage() {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label htmlFor="password" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                  Password
-                </label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMethod("otp");
+                      setError("");
+                      toast.success("Enter your mobile number to log in via OTP and reset your password.");
+                    }}
+                    className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
                 <div className="relative">
                   <input
                     id="password"
@@ -381,7 +393,6 @@ export default function StaffLoginPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-              </div>
 
               <button
                 type="submit"

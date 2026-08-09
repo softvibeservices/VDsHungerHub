@@ -138,6 +138,7 @@ model Product {
   price            Float   // price per unit / per item
   isActive         Boolean @default(true)
   isAddOnAvailable Boolean @default(false)
+  addons           ProductAddon[]
 
   thaliSabjiPool    ThaliSabjiProduct[]
   dailySabjiOptions DailyMenuSabjiOption[]
@@ -147,6 +148,21 @@ model Product {
   orderAddonItems   OrderAddonItem[]
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+}
+
+// -----------------------------------------
+// PRODUCT ADDON
+// -----------------------------------------
+model ProductAddon {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name      String
+  price     Float    @default(0)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
 }
 
 // -----------------------------------------
@@ -366,6 +382,7 @@ enum RateLimitAction {
   SEND_OTP_STAFF_LOGIN
   VERIFY_OTP
   LOGIN_PIN_ATTEMPT
+  STAFF_PASSWORD_ATTEMPT
   ADD_COMPANY
 }
 

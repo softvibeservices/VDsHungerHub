@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getTodayIST } from "@/lib/utils";
+import { getEffectiveCutoffDate } from "@/lib/time";
 import {
   verifyCustomerAccessToken,
   getOrderLimit,
@@ -123,16 +125,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (settings?.cutoffTime) {
-      const [hours, minutes] = settings.cutoffTime.split(":").map(Number);
-      const combinedCutoff = new Date(menu.date);
-      combinedCutoff.setHours(hours, minutes, 0, 0);
-      if (new Date() > combinedCutoff) {
-        return NextResponse.json(
-          { error: "Ordering cutoff time has passed." },
-          { status: 400 }
-        );
-      }
+    const cutoffDate = getEffectiveCutoffDate(
+      menu.cutoffTime,
+      settings?.cutoffTime,
+      menu.date
+    );
+
+    if (cutoffDate && new Date() > cutoffDate) {
+      return NextResponse.json(
+        { error: "Ordering cutoff time has passed for this meal." },
+        { status: 400 }
+      );
     }
 
     // ── Validate delivery address ─────────────────────────────────────────────

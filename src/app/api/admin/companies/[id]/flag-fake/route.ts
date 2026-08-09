@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyStaffSession } from "@/lib/staff-auth";
+import { verifyStaffSession, hasPermission } from "@/lib/staff-auth";
 
 export async function POST(
   req: NextRequest,
@@ -12,8 +12,11 @@ export async function POST(
 
     // Staff/Admin Authentication
     const session = await verifyStaffSession(req);
-    if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
+    if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    if (!hasPermission(session, "companies:moderate")) {
+      return NextResponse.json({ error: "Forbidden: Missing companies:moderate permission" }, { status: 403 });
     }
 
     // Verify company exists

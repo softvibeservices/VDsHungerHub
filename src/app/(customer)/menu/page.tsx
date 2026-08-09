@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getEffectiveCutoffDate } from "@/lib/time";
 import {
   resolveAuthState,
 } from "@/lib/customer-auth";
@@ -121,13 +122,11 @@ async function getTodayMenu() {
 
   if (!menu) return null;
 
-  let cutoffTime = menu.cutoffTime;
-  if (!cutoffTime && settings?.cutoffTime) {
-    const [hours, minutes] = settings.cutoffTime.split(":").map(Number);
-    const combined = new Date(menu.date);
-    combined.setHours(hours, minutes, 0, 0);
-    cutoffTime = combined;
-  }
+  const cutoffTime = getEffectiveCutoffDate(
+    menu.cutoffTime,
+    settings?.cutoffTime,
+    menu.date
+  );
 
   return {
     ...menu,

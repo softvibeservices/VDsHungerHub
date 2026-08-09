@@ -83,9 +83,13 @@ export async function verifyStaffSession(req?: NextRequest): Promise<StaffSessio
   }
 }
 
+export function hasPermission(session: StaffSessionPayload, permission: string): boolean {
+  if (session.role === "ADMIN") return true;
+  return Array.isArray(session.permissions) && session.permissions.includes(permission);
+}
+
 export function requirePermission(session: StaffSessionPayload, permission: string): void {
-  if (session.role === "ADMIN") return;
-  if (!session.permissions.includes(permission)) {
+  if (!hasPermission(session, permission)) {
     throw new Error("PERMISSION_DENIED");
   }
 }

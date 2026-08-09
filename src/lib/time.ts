@@ -20,6 +20,18 @@ export function getTodayIST(): string {
 }
 
 /**
+ * Convert a UTC Date to a "YYYY-MM-DD" string in IST.
+ */
+export function utcToISTDateString(utcDate: Date | string): string {
+  const d = typeof utcDate === "string" ? new Date(utcDate) : utcDate;
+  const ist = toIST(d);
+  const y = ist.getUTCFullYear();
+  const m = String(ist.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(ist.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Format a UTC Date for display in IST.
  * e.g. "26 Jun 2026, 11:30 AM"
  */
@@ -97,4 +109,26 @@ export function utcToISTTimeString(utcDate: Date | string): string {
 export function istDateToUTC(istDateYYYYMMDD: string): Date {
   const [y, mo, d] = istDateYYYYMMDD.split("-").map(Number);
   return new Date(Date.UTC(y, mo - 1, d, 0, 0, 0, 0) - IST_OFFSET_MS);
+}
+
+/**
+ * Calculates the effective cutoff Date (in UTC) for a given DailyMenu and optional MealSettings.
+ * Precedence:
+ * 1. menu.cutoffTime (per-day override, stored as a Date object in DB)
+ * 2. settings.cutoffTime (global default "HH:MM" IST string, converted using menu date + IST offset)
+ * 3. null (no cutoff configured)
+ */
+export function getEffectiveCutoffDate(
+  menuCutoffTime?: Date | string | null,
+  settingsCutoffTime?: string | null,
+  menuDate?: Date | string | null
+): Date | null {
+  if (menuCutoffTime) {
+    return typeof menuCutoffTime === "string" ? new Date(menuCutoffTime) : menuCutoffTime;
+  }
+  if (settingsCutoffTime && menuDate) {
+    const dateStr = utcToISTDateString(menuDate);
+    return istTimeToUTC(settingsCutoffTime, dateStr);
+  }
+  return null;
 }

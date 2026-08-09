@@ -103,21 +103,9 @@ interface PageProps {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function isCutoffPassed(cutoffTime: string | null | undefined): boolean {
+function isCutoffPassed(cutoffTime: string | Date | null | undefined): boolean {
   if (!cutoffTime) return false;
   return new Date() > new Date(cutoffTime);
-}
-
-/** Parse "HH:mm" (24h IST) and return a Date for today in IST */
-function parseISTTime(hhmm: string): Date {
-  const [hh, mm] = hhmm.split(":").map(Number);
-  // Get current date in IST
-  const now = new Date();
-  const istOffset = 5.5 * 60 * 60 * 1000;
-  const istNow = new Date(now.getTime() + istOffset);
-  istNow.setUTCHours(hh, mm, 0, 0);
-  // Convert back to UTC-equivalent
-  return new Date(istNow.getTime() - istOffset);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
