@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Phone, KeyRound, UtensilsCrossed, Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Loader2, Phone, KeyRound, UtensilsCrossed, Lock, Eye, EyeOff, ShieldCheck, Key } from "lucide-react";
 import toast from "react-hot-toast";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
@@ -15,6 +15,7 @@ export default function StaffLoginPage() {
   const router = useRouter();
   const [method, setMethod] = useState<Method>("otp");
   const [step, setStep] = useState<Step>("mobile");
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
 
   // Form fields
   const [mobile, setMobile] = useState("");
@@ -102,8 +103,8 @@ export default function StaffLoginPage() {
 
       if (!res.ok) {
         setError(data.error || "Verification failed. Please try again.");
-      } else if (data.mustSetPassword) {
-        toast.success("OTP verified! Please create your password for future logins.");
+      } else if (data.mustSetPassword || isForgotPassword) {
+        toast.success("OTP verified! Please set your new password below.");
         setStep("set-password");
       } else {
         toast.success("Logged in successfully!");
@@ -183,7 +184,7 @@ export default function StaffLoginPage() {
       if (!res.ok) {
         setError(data.error || "Failed to set password.");
       } else {
-        toast.success("Password saved successfully!");
+        toast.success(isForgotPassword ? "New password set successfully!" : "Password saved successfully!");
         router.push("/dashboard");
         router.refresh();
       }
@@ -215,23 +216,45 @@ export default function StaffLoginPage() {
             </div>
           </div>
 
+          {/* Forgot Password Mode Banner */}
+          {isForgotPassword && step !== "set-password" && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-2xl flex items-center justify-between text-xs font-semibold text-orange-700">
+              <div className="flex items-center gap-2">
+                <Key size={16} className="text-orange-500" />
+                <span>Reset Password Mode</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsForgotPassword(false);
+                  setMethod("password");
+                  setStep("mobile");
+                  setError("");
+                }}
+                className="text-[11px] underline text-orange-600 hover:text-orange-800"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
           {/* Login Method Switcher */}
           {step !== "set-password" && step !== "otp" && (
             <div className="flex bg-gray-100 rounded-xl p-1 text-xs font-semibold">
               <button
                 type="button"
-                onClick={() => { setMethod("otp"); setError(""); }}
+                onClick={() => { setMethod("otp"); setIsForgotPassword(false); setError(""); }}
                 className={`flex-1 py-2 rounded-lg transition-colors cursor-pointer ${
-                  method === "otp" ? "bg-white shadow-sm text-orange-600 font-bold" : "text-gray-500 hover:text-gray-700"
+                  method === "otp" && !isForgotPassword ? "bg-white shadow-sm text-orange-600 font-bold" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 OTP Login
               </button>
               <button
                 type="button"
-                onClick={() => { setMethod("password"); setError(""); }}
+                onClick={() => { setMethod("password"); setIsForgotPassword(false); setError(""); }}
                 className={`flex-1 py-2 rounded-lg transition-colors cursor-pointer ${
-                  method === "password" ? "bg-white shadow-sm text-orange-600 font-bold" : "text-gray-500 hover:text-gray-700"
+                  method === "password" || isForgotPassword ? "bg-white shadow-sm text-orange-600 font-bold" : "text-gray-500 hover:text-gray-700"
                 }`}
               >
                 Password Login
@@ -330,7 +353,7 @@ export default function StaffLoginPage() {
                 ) : (
                   <KeyRound size={16} />
                 )}
-                <span>Verify & Login</span>
+                <span>{isForgotPassword ? "Verify OTP & Reset Password" : "Verify & Login"}</span>
               </button>
             </form>
           )}
@@ -359,40 +382,41 @@ export default function StaffLoginPage() {
                 </div>
               </div>
 
-                <div className="flex items-center justify-between">
-                  <label htmlFor="password" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Password
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMethod("otp");
-                      setError("");
-                      toast.success("Enter your mobile number to log in via OTP and reset your password.");
-                    }}
-                    className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
-                  >
-                    Forgot Password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
+              <div className="flex items-center justify-between">
+                <label htmlFor="password" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotPassword(true);
+                    setMethod("otp");
+                    setStep("mobile");
+                    setError("");
+                  }}
+                  className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-4 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
 
               <button
                 type="submit"
@@ -409,14 +433,18 @@ export default function StaffLoginPage() {
             </form>
           )}
 
-          {/* Force / Initial Password Creation */}
+          {/* Force / Reset Password Creation */}
           {step === "set-password" && (
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div className="text-center space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-100">
                 <ShieldCheck size={24} className="text-orange-500 mx-auto" />
-                <h3 className="font-bold text-gray-900 text-sm">Create Your Password</h3>
+                <h3 className="font-bold text-gray-900 text-sm">
+                  {isForgotPassword ? "Set Your New Password" : "Create Your Password"}
+                </h3>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  Set a password for future logins. Must be 8–30 characters, including uppercase, lowercase, number, and special character.
+                  {isForgotPassword
+                    ? "Enter your new strong password below to finish resetting your credentials."
+                    : "Set a password for future logins. Must be 8–30 characters, including uppercase, lowercase, number, and special character."}
                 </p>
               </div>
 
@@ -437,7 +465,7 @@ export default function StaffLoginPage() {
 
               <div className="space-y-1">
                 <label htmlFor="confirm-password" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                  Confirm Password
+                  Confirm New Password
                 </label>
                 <input
                   id="confirm-password"
@@ -460,16 +488,18 @@ export default function StaffLoginPage() {
                 ) : (
                   <ShieldCheck size={16} />
                 )}
-                <span>Save Password & Continue</span>
+                <span>{isForgotPassword ? "Set New Password & Login" : "Save Password & Continue"}</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => router.push("/dashboard")}
-                className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors text-center block"
-              >
-                Skip for now
-              </button>
+              {!isForgotPassword && (
+                <button
+                  type="button"
+                  onClick={() => router.push("/dashboard")}
+                  className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors text-center block"
+                >
+                  Skip for now
+                </button>
+              )}
             </form>
           )}
 
