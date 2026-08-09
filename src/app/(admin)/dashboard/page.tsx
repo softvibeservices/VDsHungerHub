@@ -29,8 +29,8 @@ interface DailyMenu {
   id: string;
   mealType: "LUNCH" | "DINNER";
   cutoffTime?: string;
-  thalis: { thali: { name: string; price: number } }[];
-  sabjiOptions: { product: { name: string }; thali: { name: string } }[];
+  thalis: { thali: { name: string; price: number; categoryId?: string | null } }[];
+  sabjiOptions: { categoryId?: string; product?: { name: string }; category?: { name: string } }[];
 }
 
 interface StatCardProps {
@@ -187,22 +187,33 @@ export default function DashboardPage() {
                 )}
               </div>
               {menu ? (
-                <div className="space-y-2">
-                  {menu.thalis.map((mt, i) => {
-                    const thaliSabji = menu.sabjiOptions.filter((s) => s.thali.name === mt.thali.name);
-                    return (
-                      <div key={i} className="pl-3 border-l-2 border-orange-200 space-y-0.5">
-                        <p className="text-xs font-bold text-gray-800">
-                          {mt.thali.name} — <span className="text-orange-600">{formatCurrency(mt.thali.price)}</span>
-                        </p>
-                        {thaliSabji.length > 0 && (
-                          <p className="text-[11px] text-gray-500 font-medium">
-                            Sabji: {thaliSabji.map((s) => s.product.name).join(", ")}
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    {menu.thalis.map((mt, i) => {
+                      const thaliSabji = (menu.sabjiOptions || []).filter(
+                        (s) => s.categoryId && mt.thali.categoryId && s.categoryId === mt.thali.categoryId
+                      );
+                      return (
+                        <div key={i} className="pl-3 border-l-2 border-orange-200 space-y-0.5">
+                          <p className="text-xs font-bold text-gray-800">
+                            {mt.thali.name} — <span className="text-orange-600">{formatCurrency(mt.thali.price)}</span>
                           </p>
-                        )}
-                      </div>
-                    );
-                  })}
+                          {thaliSabji.length > 0 && (
+                            <p className="text-[11px] text-gray-500 font-medium">
+                              Sabji: {thaliSabji.map((s) => s.product?.name).filter(Boolean).join(", ")}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(!menu.thalis.some((mt) => (menu.sabjiOptions || []).some((s) => s.categoryId && s.categoryId === mt.thali.categoryId))) &&
+                    menu.sabjiOptions && menu.sabjiOptions.length > 0 && (
+                      <p className="text-[11px] text-gray-500 font-medium pt-1 border-t border-gray-100">
+                        <span className="font-semibold text-gray-700">Sabji Options:</span>{" "}
+                        {menu.sabjiOptions.map((s) => s.product?.name).filter(Boolean).join(", ")}
+                      </p>
+                  )}
                 </div>
               ) : (
                 <p className="text-xs text-gray-400 font-medium italic">No menu set for today.</p>

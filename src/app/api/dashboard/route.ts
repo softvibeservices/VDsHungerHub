@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       prisma.dailyMenu.findMany({
         where: { date: today },
         include: {
-          thalis: { include: { thali: { select: { name: true, price: true } } } },
+          thalis: { include: { thali: { select: { name: true, price: true, categoryId: true } } } },
           sabjiOptions: { include: { product: { select: { name: true } }, category: { select: { name: true } } } },
         },
       }),
