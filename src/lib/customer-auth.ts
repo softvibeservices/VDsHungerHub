@@ -276,7 +276,7 @@ export async function tryRotateRefreshToken(
 
   const session = await prisma.customerSession.findUnique({
     where: { refreshTokenHash: tokenHash },
-    include: { user: { select: { id: true, number: true, name: true, isVerified: true } } },
+    include: { user: { select: { id: true, number: true, name: true, isVerified: true, status: true } } },
   });
 
   if (!session) return null;
@@ -295,8 +295,8 @@ export async function tryRotateRefreshToken(
     return null;
   }
 
-  // User must still be verified
-  if (!session.user.isVerified) return null;
+  // User must still be verified and active
+  if (!session.user.isVerified || session.user.status !== "ACTIVE") return null;
 
   // Device binding check: compute current fingerprint from request headers
   const userAgent = req.headers.get("user-agent") ?? "";

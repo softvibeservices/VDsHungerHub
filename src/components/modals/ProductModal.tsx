@@ -147,12 +147,19 @@ export default function ProductModal({
         />
 
         {/* ── Name (Gujarati) ────────────────────────────────────────────── */}
-        <Input
-          label="નામ (Gujarati Name)"
-          placeholder="દા.ત. પાલક પનીર"
-          value={nameGu}
-          onChange={(e) => setNameGu(e.target.value)}
-        />
+        <div>
+          <Input
+            label="નામ (Gujarati Name)"
+            placeholder="દા.ત. પાલક પનીર"
+            value={nameGu}
+            onChange={(e) => setNameGu(e.target.value)}
+          />
+          {name.includes("(") && nameGu.includes("(") && (
+            <p className="text-[11px] text-amber-600 mt-1 font-medium">
+              Tip: Avoid duplicating parenthetical details in both English and Gujarati to prevent double brackets in customer view.
+            </p>
+          )}
+        </div>
 
         {/* ── Quantity + Price ───────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-3">

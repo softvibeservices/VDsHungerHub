@@ -9,6 +9,7 @@ import {
 import { formatCurrency } from "@/lib/utils";
 import { toast } from "react-hot-toast";
 import AddressSheet, { Address } from "@/components/customer/AddressSheet";
+import { BilingualLabel } from "@/components/ui/BilingualLabel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -246,6 +247,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // FIX #8: confirm modal state
   const [showConfirm, setShowConfirm] = useState(false);
+
+  // Inline quick-add thali tray state
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // Fetch add-on products
   useEffect(() => {
@@ -567,10 +571,14 @@ export default function OrderingExperience({ userId, menu }: Props) {
                     {sabjisForCat.map((s) => (
                       <span
                         key={s.productId}
-                        className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-medium border border-white/25"
+                        className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-medium border border-white/25 inline-flex items-center"
                       >
-                        {s.product.name}
-                        {s.product.nameGu && <span className="opacity-75"> ({s.product.nameGu})</span>}
+                        <BilingualLabel
+                          name={s.product.name}
+                          nameGu={s.product.nameGu}
+                          nameClassName="font-medium text-white truncate text-xs"
+                          nameGuClassName="text-[10px] text-orange-100 font-normal truncate -mt-0.5 opacity-90"
+                        />
                       </span>
                     ))}
                   </div>
@@ -828,13 +836,13 @@ export default function OrderingExperience({ userId, menu }: Props) {
                                     : "border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50/50 font-medium"
                                 }`}
                               >
-                                {isSelected && <CheckCircle2 size={13} className="text-white" />}
-                                <span>{s.product.name}</span>
-                                {s.product.nameGu && (
-                                  <span className={isSelected ? "text-orange-100" : "text-gray-400"}>
-                                    ({s.product.nameGu})
-                                  </span>
-                                )}
+                                {isSelected && <CheckCircle2 size={13} className="text-white flex-shrink-0" />}
+                                <BilingualLabel
+                                  name={s.product.name}
+                                  nameGu={s.product.nameGu}
+                                  nameClassName={`font-medium text-xs truncate ${isSelected ? "text-white font-bold" : "text-gray-800"}`}
+                                  nameGuClassName={`text-[10px] truncate -mt-0.5 ${isSelected ? "text-orange-100 opacity-90" : "text-gray-400"}`}
+                                />
                               </button>
                             );
                           })}
@@ -851,14 +859,57 @@ export default function OrderingExperience({ userId, menu }: Props) {
               })}
             </div>
 
-            {/* Add more button */}
-            <div className="px-4 py-3 border-t border-gray-50">
-              <button
-                onClick={() => setView("browse")}
-                className="flex items-center gap-2 text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors"
-              >
-                <Plus size={14} /> Add another thali
-              </button>
+            {/* Inline Quick Add Thali Tray */}
+            <div className="px-4 py-3 border-t border-gray-100 bg-orange-50/40">
+              {!showQuickAdd ? (
+                <button
+                  type="button"
+                  onClick={() => setShowQuickAdd(true)}
+                  className="flex items-center gap-2 text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+                >
+                  <Plus size={14} /> Add another thali
+                </button>
+              ) : (
+                <div className="space-y-2.5 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-700">Select a thali to add:</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickAdd(false)}
+                      className="text-xs text-gray-400 hover:text-gray-600 font-semibold px-2 py-0.5 rounded-lg hover:bg-gray-100 transition-colors"
+                    >
+                      Cancel ×
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {menu.thalis.map(({ thali }) => (
+                      <button
+                        key={thali.id}
+                        type="button"
+                        onClick={() => {
+                          addThaliLine(thali);
+                          setShowQuickAdd(false);
+                          toast.success(`Added ${thali.name}`);
+                        }}
+                        disabled={isOrderingClosed}
+                        className="p-2.5 bg-white border border-orange-200 rounded-xl flex items-center justify-between hover:border-orange-400 hover:shadow-md transition-all text-left group cursor-pointer"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <BilingualLabel
+                            name={thali.name}
+                            nameGu={thali.nameGu}
+                            nameClassName="font-bold text-xs text-gray-800 truncate"
+                            nameGuClassName="text-[10px] text-gray-400 truncate -mt-0.5"
+                          />
+                        </div>
+                        <span className="text-xs font-extrabold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg group-hover:bg-orange-500 group-hover:text-white transition-colors flex-shrink-0">
+                          + {formatCurrency(thali.price)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

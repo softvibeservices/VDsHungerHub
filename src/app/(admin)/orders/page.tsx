@@ -25,7 +25,6 @@ import SearchInput from "@/components/ui/SearchInput";
 import Button from "@/components/ui/Button";
 import Badge, { BadgeVariant } from "@/components/ui/Badge";
 import OrderSummaryMatrix from "./_OrderSummaryMatrix";
-import WhatsAppDigestPanel from "./_WhatsAppDigestPanel";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -609,11 +608,10 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      {/* Summary Matrix + WhatsApp Digest Panels */}
+      {/* Summary Matrix Panel */}
       {!loading && filteredAndSortedOrders.length > 0 && (
         <div className="space-y-3">
           <OrderSummaryMatrix orders={filteredAndSortedOrders as any} mealType={activeTab} />
-          <WhatsAppDigestPanel orders={filteredAndSortedOrders as any} mealType={activeTab} date={selectedDate} />
         </div>
       )}
 

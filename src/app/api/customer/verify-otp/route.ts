@@ -147,9 +147,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Transaction: verify user + link company + clear companyNameManual
-      await prisma.$transaction([
-        prisma.user.update({
+      // Transaction: verify user + link company + clear companyNameManual + auto-create Address
+      await prisma.$transaction(async (tx: any) => {
+        await tx.user.update({
           where: { id: userId },
           data: {
             isVerified: true,
@@ -157,8 +157,24 @@ export async function POST(req: NextRequest) {
             companyId: resolvedCompanyId,
             companyNameManual: null, // cleared once company row is created
           },
-        }),
-      ]);
+        });
+
+        if (user.workAddress?.trim()) {
+          const existingAddr = await tx.address.findFirst({
+            where: { userId, type: "WORK" },
+          });
+          if (!existingAddr) {
+            await tx.address.create({
+              data: {
+                userId,
+                type: "WORK",
+                line1: user.workAddress.trim(),
+                isDefault: true,
+              },
+            });
+          }
+        }
+      });
 
       // Issue a short-lived pre-auth token to gate the set-pin step
       const preAuthToken = signPreAuthToken(userId);
@@ -173,10 +189,17 @@ export async function POST(req: NextRequest) {
     if (purpose === "LOGIN") {
       const user = await prisma.user.findFirst({
         where: { number: mobile, isVerified: true },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      if (user.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: "Account is blocked or inactive. Please contact support." },
+          { status: 403 }
+        );
       }
 
       // Issue pre-auth token; actual session is created by the caller
@@ -188,10 +211,17 @@ export async function POST(req: NextRequest) {
     if (purpose === "FORGOT_PIN") {
       const user = await prisma.user.findFirst({
         where: { number: mobile, isVerified: true },
-        select: { id: true },
+        select: { id: true, status: true },
       });
       if (!user) {
         return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      if (user.status !== "ACTIVE") {
+        return NextResponse.json(
+          { error: "Account is blocked or inactive. Please contact support." },
+          { status: 403 }
+        );
       }
 
       const preAuthToken = signPreAuthToken(user.id);
