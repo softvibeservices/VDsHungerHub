@@ -1,16 +1,7 @@
 "use client";
 
-import { CheckCircle, Clock, Loader2, Package, Truck, UtensilsCrossed } from "lucide-react";
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-export type OrderStatus =
-  | "PENDING"
-  | "CONFIRMED"
-  | "PREPARING"
-  | "OUT_FOR_DELIVERY"
-  | "DELIVERED"
-  | "CANCELLED";
+import { CheckCircle, Clock, Loader2, Package, Truck } from "lucide-react";
+import type { OrderStatus } from "@/types";
 
 interface Props {
   status: OrderStatus;
@@ -35,18 +26,6 @@ const STEPS: Step[] = [
     icon: <Clock size={16} />,
   },
   {
-    key: "CONFIRMED",
-    label: "Confirmed",
-    sublabel: "Your order is confirmed",
-    icon: <CheckCircle size={16} />,
-  },
-  {
-    key: "PREPARING",
-    label: "Preparing",
-    sublabel: "Freshly cooking your thali",
-    icon: <UtensilsCrossed size={16} />,
-  },
-  {
     key: "OUT_FOR_DELIVERY",
     label: "Out for Delivery",
     sublabel: "On the way to you",
@@ -62,8 +41,6 @@ const STEPS: Step[] = [
 
 const STATUS_ORDER: OrderStatus[] = [
   "PENDING",
-  "CONFIRMED",
-  "PREPARING",
   "OUT_FOR_DELIVERY",
   "DELIVERED",
 ];

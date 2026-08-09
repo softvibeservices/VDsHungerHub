@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import {
   RefreshCw,
   Clock,
-  CheckCircle2,
   Package,
   XCircle,
   ShoppingBag,
@@ -17,7 +16,6 @@ import {
   ChevronDown,
   ChevronUp,
   Truck,
-  UtensilsCrossed,
   Sun,
   Moon,
 } from "lucide-react";
@@ -26,13 +24,13 @@ import { getTodayIST, formatCurrency } from "@/lib/utils";
 import SearchInput from "@/components/ui/SearchInput";
 import Button from "@/components/ui/Button";
 import Badge, { BadgeVariant } from "@/components/ui/Badge";
+import OrderSummaryMatrix from "./_OrderSummaryMatrix";
+import WhatsAppDigestPanel from "./_WhatsAppDigestPanel";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 type OrderStatus =
   | "PENDING"
-  | "CONFIRMED"
-  | "PREPARING"
   | "OUT_FOR_DELIVERY"
   | "DELIVERED"
   | "CANCELLED";
@@ -61,9 +59,9 @@ interface AdminOrder {
     id: string;
     name: string;
     number: string;
-    company: { id: string; name: string };
+    company: { id: string; name: string; address?: string | null } | null;
   };
-  thali: { id: string; name: string; nameGu: string | null; price: number };
+  thali: { id: string; name: string; nameGu: string | null; price: number } | null;
   thaliItems?: OrderThaliItem[];
   addonItems?: OrderAddonItem[];
   menu: {
@@ -99,12 +97,10 @@ interface CompanyOption {
 }
 
 const ORDER_STATUS_BADGE: Record<OrderStatus, { variant: BadgeVariant; icon: any; label: string }> = {
-  PENDING:           { variant: "warning", icon: Clock,           label: "Pending" },
-  CONFIRMED:         { variant: "info",    icon: CheckCircle2,    label: "Confirmed" },
-  PREPARING:         { variant: "info",    icon: UtensilsCrossed, label: "Preparing" },
-  OUT_FOR_DELIVERY:  { variant: "info",    icon: Truck,            label: "Out for Delivery" },
-  DELIVERED:         { variant: "success", icon: Package,          label: "Delivered" },
-  CANCELLED:         { variant: "danger",  icon: XCircle,          label: "Cancelled" },
+  PENDING:          { variant: "warning", icon: Clock,           label: "Pending" },
+  OUT_FOR_DELIVERY: { variant: "info",    icon: Truck,           label: "Out for Delivery" },
+  DELIVERED:        { variant: "success", icon: Package,         label: "Delivered" },
+  CANCELLED:        { variant: "danger",  icon: XCircle,         label: "Cancelled" },
 };
 
 export default function AdminOrdersPage() {
@@ -277,16 +273,19 @@ export default function AdminOrdersPage() {
   // Frontend filtering and sorting
   const filteredAndSortedOrders = activeOrders
     .filter((order) => {
-      // Search by user name, user number, or thali name
+      // Search by user name, user number, or thali name (thaliItems or legacy thali)
+      const thaliNames = order.thaliItems && order.thaliItems.length > 0
+        ? order.thaliItems.map((ti) => ti.thali.name.toLowerCase()).join(" ")
+        : (order.thali?.name ?? "").toLowerCase();
       const matchesSearch =
         searchQuery === "" ||
         order.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         order.user.number.includes(searchQuery) ||
-        order.thali.name.toLowerCase().includes(searchQuery.toLowerCase());
+        thaliNames.includes(searchQuery.toLowerCase());
 
       // Filter by Company
       const matchesCompany =
-        selectedCompanyId === "" || order.user.company.id === selectedCompanyId;
+        selectedCompanyId === "" || order.user.company?.id === selectedCompanyId;
 
       // Filter by Status
       const matchesStatus =
@@ -456,8 +455,6 @@ export default function AdminOrdersPage() {
               >
                 <option value="">All Statuses</option>
                 <option value="PENDING">Pending</option>
-                <option value="CONFIRMED">Confirmed</option>
-                <option value="PREPARING">Preparing</option>
                 <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
                 <option value="DELIVERED">Delivered</option>
                 <option value="CANCELLED">Cancelled</option>
@@ -612,6 +609,14 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
+      {/* Summary Matrix + WhatsApp Digest Panels */}
+      {!loading && filteredAndSortedOrders.length > 0 && (
+        <div className="space-y-3">
+          <OrderSummaryMatrix orders={filteredAndSortedOrders as any} mealType={activeTab} />
+          <WhatsAppDigestPanel orders={filteredAndSortedOrders as any} mealType={activeTab} date={selectedDate} />
+        </div>
+      )}
+
       {/* CUSTOMER GROUPED ORDERS VIEW */}
       <div className="space-y-4">
         {loading ? (
@@ -746,7 +751,7 @@ export default function AdminOrdersPage() {
                             </div>
                           ) : (
                             <div className="space-y-1">
-                              <p className="font-bold text-gray-900 text-sm">{order.thali.name}</p>
+                              <p className="font-bold text-gray-900 text-sm">{order.thali?.name ?? "—"}</p>
                               {(order.selectedSabji.length > 0 || order.selectedAddons.length > 0) && (
                                 <div className="flex flex-wrap gap-1 items-center">
                                   {order.selectedSabji.map(({ product }) => (
@@ -859,8 +864,8 @@ export default function AdminOrdersPage() {
                           return <Badge variant={badge.variant} icon={badge.icon} label={badge.label} />;
                         })()}
 
-                        {/* Quick actions for Pending, Confirmed or Preparing orders */}
-                        {(order.status === "PENDING" || order.status === "CONFIRMED" || order.status === "PREPARING") && (
+                        {/* Quick action for Pending orders → send Out for Delivery */}
+                        {order.status === "PENDING" && (
                           <button
                             onClick={() => handleStatusChange(order.id, "OUT_FOR_DELIVERY")}
                             disabled={updatingId !== null}
@@ -881,8 +886,6 @@ export default function AdminOrdersPage() {
                           className="text-xs border border-gray-300 rounded-lg px-2.5 py-1 bg-white text-gray-800 font-bold focus:ring-1 focus:ring-orange-500 outline-none disabled:opacity-40 hover:border-gray-400 transition-colors shadow-sm cursor-pointer"
                         >
                           <option value="PENDING">Pending</option>
-                          <option value="CONFIRMED">Confirmed</option>
-                          <option value="PREPARING">Preparing</option>
                           <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
                           <option value="DELIVERED">Delivered</option>
                           <option value="CANCELLED">Cancelled</option>

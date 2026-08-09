@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const { name, location, isActive } = await req.json();
+    const { name, location, address, isActive } = await req.json();
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Company name is required" }, { status: 400 });
@@ -18,6 +18,7 @@ export async function PUT(
       data: {
         name: name.trim(),
         location: location?.trim() || null,
+        address: address?.trim() || null,
         ...(isActive !== undefined && { isActive }),
       },
     });

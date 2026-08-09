@@ -31,8 +31,6 @@ export async function GET(req: NextRequest) {
           : {}),
       },
       ...(statusFilter === "PENDING" ||
-      statusFilter === "CONFIRMED" ||
-      statusFilter === "PREPARING" ||
       statusFilter === "OUT_FOR_DELIVERY" ||
       statusFilter === "DELIVERED" ||
       statusFilter === "CANCELLED"
@@ -42,7 +40,7 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "desc" },
     include: {
       user: {
-        include: { company: { select: { id: true, name: true } } },
+        include: { company: { select: { id: true, name: true, address: true } } },
       },
       thali: { select: { id: true, name: true, nameGu: true, price: true } },
       menu: {
@@ -120,7 +118,7 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
-    const validStatuses = ["PENDING", "CONFIRMED", "PREPARING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
+    const validStatuses = ["PENDING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 });
     }

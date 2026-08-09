@@ -24,6 +24,7 @@ interface Company {
   id: string;
   name: string;
   location?: string | null;
+  address?: string | null;          // full delivery address for PDF/WhatsApp
   isActive: boolean;
   status: "PENDING" | "CONFIRMED";
   isVerifiedByAdmin: boolean;
@@ -152,7 +153,19 @@ export default function CompaniesPage() {
     {
       key: "location",
       header: "Address",
-      render: (row) => <span className="text-gray-500">{row.location || row.addedByUser?.workAddress || "—"}</span>,
+      render: (row) => (
+        <div className="space-y-0.5">
+          {row.address && (
+            <p className="text-xs text-gray-700 font-medium">{row.address}</p>
+          )}
+          {row.location && (
+            <p className="text-gray-400 text-xs">{row.location}</p>
+          )}
+          {!row.address && !row.location && (
+            <span className="text-gray-400">—</span>
+          )}
+        </div>
+      ),
     },
     {
       key: "users",

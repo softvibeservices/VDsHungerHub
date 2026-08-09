@@ -3,12 +3,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
-  UtensilsCrossed, Clock, CheckCircle2, Package, XCircle,
+  UtensilsCrossed, Clock, CheckCircle2, Package, XCircle, Truck,
   AlertCircle, ChevronDown, ChevronUp, Filter, Search,
   Calendar, Loader2, MessageSquare
 } from "lucide-react";
 
-type OrderStatus = "PENDING" | "CONFIRMED" | "DELIVERED" | "CANCELLED";
+type OrderStatus = "PENDING" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
 type MealType = "LUNCH" | "DINNER";
 
 interface OrderComment {
@@ -43,10 +43,10 @@ interface OrderListItem {
 }
 
 const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
-  PENDING:   { label: "Pending",   bg: "bg-yellow-50",  text: "text-yellow-700",  icon: <Clock size={11} /> },
-  CONFIRMED: { label: "Confirmed", bg: "bg-blue-50",    text: "text-blue-700",    icon: <CheckCircle2 size={11} /> },
-  DELIVERED: { label: "Delivered", bg: "bg-green-50",   text: "text-green-700",   icon: <Package size={11} /> },
-  CANCELLED: { label: "Cancelled", bg: "bg-red-50",     text: "text-red-700",     icon: <XCircle size={11} /> },
+  PENDING:          { label: "Pending",         bg: "bg-yellow-50",  text: "text-yellow-700",  icon: <Clock size={11} /> },
+  OUT_FOR_DELIVERY: { label: "Out for Delivery", bg: "bg-indigo-50",  text: "text-indigo-700", icon: <Truck size={11} /> },
+  DELIVERED:        { label: "Delivered",        bg: "bg-green-50",   text: "text-green-700",   icon: <Package size={11} /> },
+  CANCELLED:        { label: "Cancelled",        bg: "bg-red-50",     text: "text-red-700",     icon: <XCircle size={11} /> },
 };
 
 const PAGE_SIZE = 15;
@@ -165,7 +165,7 @@ export default function UserOrdersPage() {
               >
                 <option value="">All Statuses</option>
                 <option value="PENDING">Pending</option>
-                <option value="CONFIRMED">Confirmed</option>
+                <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
                 <option value="DELIVERED">Delivered</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>

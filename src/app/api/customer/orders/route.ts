@@ -416,7 +416,7 @@ export async function GET(req: NextRequest) {
     const fromParam = searchParams.get("from");
     const toParam = searchParams.get("to");
 
-    const validStatuses = ["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"];
+    const validStatuses = ["PENDING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];
     const validMealTypes = ["LUNCH", "DINNER"];
 
     // Build where clause

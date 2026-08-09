@@ -53,14 +53,18 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, location } = await req.json();
+    const { name, location, address } = await req.json();
 
     if (!name?.trim()) {
       return NextResponse.json({ error: "Company name is required" }, { status: 400 });
     }
 
     const company = await prisma.company.create({
-      data: { name: name.trim(), location: location?.trim() || null },
+      data: {
+        name: name.trim(),
+        location: location?.trim() || null,
+        address: address?.trim() || null,
+      },
     });
 
     return NextResponse.json({ company }, { status: 201 });

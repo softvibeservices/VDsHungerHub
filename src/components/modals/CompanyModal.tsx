@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/useToast";
 const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   location: z.string().optional(),
+  address: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
 
@@ -19,6 +20,7 @@ interface Company {
   id: string;
   name: string;
   location?: string | null;
+  address?: string | null;
 }
 
 interface CompanyModalProps {
@@ -42,7 +44,11 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, company }: Co
 
   useEffect(() => {
     if (isOpen) {
-      reset({ name: company?.name ?? "", location: company?.location ?? "" });
+      reset({
+        name: company?.name ?? "",
+        location: company?.location ?? "",
+        address: company?.address ?? "",
+      });
     }
   }, [isOpen, company, reset]);
 
@@ -106,6 +112,21 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, company }: Co
           error={errors.location?.message}
           {...register("location")}
         />
+        <div className="space-y-1.5">
+          <label className="block text-sm font-medium text-gray-700">
+            Delivery Address
+            <span className="text-gray-400 font-normal ml-1">(optional — used in PDF &amp; WhatsApp digest)</span>
+          </label>
+          <textarea
+            {...register("address")}
+            rows={3}
+            placeholder="e.g. A-402, Iscon Elegance, SG Highway, Ahmedabad — 380054"
+            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none"
+          />
+          {errors.address && (
+            <p className="text-xs text-red-500">{errors.address.message}</p>
+          )}
+        </div>
       </div>
     </Modal>
   );

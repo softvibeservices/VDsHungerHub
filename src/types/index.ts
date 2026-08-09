@@ -3,6 +3,15 @@
 export type MealType = "LUNCH" | "DINNER";
 
 // ─────────────────────────────────────────
+// ORDER STATUS (canonical — import this everywhere, never re-declare locally)
+// ─────────────────────────────────────────
+export type OrderStatus =
+  | "PENDING"
+  | "OUT_FOR_DELIVERY"
+  | "DELIVERED"
+  | "CANCELLED";
+
+// ─────────────────────────────────────────
 // ADMIN
 // ─────────────────────────────────────────
 export interface Admin {
@@ -20,6 +29,7 @@ export interface Company {
   id: string;
   name: string;
   location?: string | null;
+  address?: string | null;       // full delivery address for PDF/WhatsApp
   isActive: boolean;
   _count?: { users: number };
   createdAt: string;
@@ -29,11 +39,13 @@ export interface Company {
 export interface CreateCompanyInput {
   name: string;
   location?: string;
+  address?: string;
 }
 
 export interface UpdateCompanyInput {
   name?: string;
   location?: string;
+  address?: string;
   isActive?: boolean;
 }
 

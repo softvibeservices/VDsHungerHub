@@ -114,6 +114,7 @@ export default function MealColumn({
 }: MealColumnProps) {
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [activeDishGroupKey, setActiveDishGroupKey] = useState<string | null>(null);
+  const [confirmDeleteTemplateId, setConfirmDeleteTemplateId] = useState<string | null>(null);
   const isLunch = mealType === "LUNCH";
   const isPast = selectedDate < todayStr;
 
@@ -277,14 +278,35 @@ export default function MealColumn({
                   >
                     {tmpl.name}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onDeleteTemplate(tmpl.id)}
-                    className="text-gray-300 hover:text-red-500 cursor-pointer p-0.5 transition-colors"
-                    title="Delete template"
-                  >
-                    <X size={10} />
-                  </button>
+                  {confirmDeleteTemplateId === tmpl.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => { onDeleteTemplate(tmpl.id); setConfirmDeleteTemplateId(null); }}
+                        className="text-red-600 hover:text-red-700 cursor-pointer p-0.5 font-bold text-[10px] transition-colors"
+                        title="Confirm delete"
+                      >
+                        <Check size={10} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteTemplateId(null)}
+                        className="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 transition-colors"
+                        title="Cancel"
+                      >
+                        <X size={10} />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDeleteTemplateId(tmpl.id)}
+                      className="text-gray-300 hover:text-red-500 cursor-pointer p-0.5 transition-colors"
+                      title="Delete template"
+                    >
+                      <X size={10} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

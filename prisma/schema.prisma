@@ -25,6 +25,7 @@ model Company {
   id             String        @id @default(cuid())
   name           String        @unique
   location       String?
+  address        String?       @db.Text   // full delivery address, shown in PDF/WhatsApp digest
   isActive       Boolean       @default(true)
   // New fields for customer self-registration
   status         CompanyStatus @default(CONFIRMED) // CONFIRMED for admin-created, PENDING for customer-created
