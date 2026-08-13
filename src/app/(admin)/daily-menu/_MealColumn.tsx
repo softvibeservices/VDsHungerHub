@@ -44,6 +44,7 @@ interface MenuTemplate {
   mealType: "LUNCH" | "DINNER";
   cutoffTime: string | null;
   thaliIds: string[];
+  sabjiConfig: { categoryId: string; productIds: string[] }[];
 }
 
 interface MealDraft {

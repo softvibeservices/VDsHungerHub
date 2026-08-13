@@ -1,17 +1,15 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import toast from "react-hot-toast";
-import Button from "@/components/ui/Button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { getTodayIST } from "@/lib/utils";
 import WeekStrip from "./_WeekStrip";
 import MealColumn from "./_MealColumn";
 import CopyFromDialog from "./_CopyFromDialog";
 import SaveTemplateModal from "./_SaveTemplateModal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import useDirtyState from "@/hooks/useDirtyState";
 import { cn } from "@/lib/utils";
+import toast from "react-hot-toast";
 import { validateSabjiCoverage } from "@/lib/menu-validation";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -69,12 +67,6 @@ interface DaySummary {
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-function dateAddDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T00:00:00.000Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().split("T")[0];
-}
-
 function formatDisplayDate(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00.000Z");
   return d.toLocaleDateString("en-IN", {
@@ -227,7 +219,7 @@ export default function MenuPage() {
         const lunchMenu = menus.find((m) => m.mealType === "LUNCH");
         const dinnerMenu = menus.find((m) => m.mealType === "DINNER");
 
-        const buildDraftFromMenu = (menu: DailyMenu, mealType: "LUNCH" | "DINNER"): MealDraft => {
+        const buildDraftFromMenu = (menu: DailyMenu): MealDraft => {
           const sabjiMap: Record<string, string[]> = {};
           menu.sabjiOptions.forEach(({ categoryId, productId }) => {
             if (!sabjiMap[categoryId]) sabjiMap[categoryId] = [];
@@ -251,10 +243,10 @@ export default function MenuPage() {
         };
 
         const newLunch = lunchMenu
-          ? buildDraftFromMenu(lunchMenu, "LUNCH")
+          ? buildDraftFromMenu(lunchMenu)
           : emptyDraft("LUNCH", catalogThalis);
         const newDinner = dinnerMenu
-          ? buildDraftFromMenu(dinnerMenu, "DINNER")
+          ? buildDraftFromMenu(dinnerMenu)
           : emptyDraft("DINNER", catalogThalis);
 
         setLunchDraft(newLunch);
@@ -312,6 +304,19 @@ export default function MenuPage() {
     }
   };
 
+  const applyTemplateToMeal = (template: MenuTemplate, mealType: "LUNCH" | "DINNER") => {
+    const sabjiMap: Record<string, string[]> = {};
+    template.sabjiConfig.forEach(({ categoryId, productIds }) => {
+      sabjiMap[categoryId] = productIds;
+    });
+
+    updateDraft(mealType, {
+      selectedThaliIds: template.thaliIds,
+      sabjiMap,
+    });
+    toast.success(`Loaded template "${template.name}"`);
+  };
+
   const handleSaveMenu = async (mealType: "LUNCH" | "DINNER") => {
     const draft = getDraft(mealType);
     if (draft.selectedThaliIds.length === 0) {
@@ -319,21 +324,29 @@ export default function MenuPage() {
       return;
     }
 
-    const coverageError = validateSabjiCoverage(draft.selectedThaliIds, draft.sabjiMap, thalis);
-    if (coverageError) {
-      toast.error(coverageError);
+    const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
+
+    const thaliConfig = draft.selectedThaliIds.map((thaliId) => ({
+      thaliId,
+      minSabjiRequired: draft.minSabjiMap[thaliId] ?? 1,
+    }));
+
+    const validationSabjiGroups = groups
+      .filter((g) => g.thalis[0].categoryId)
+      .map((g) => ({
+        categoryId: g.thalis[0].categoryId!,
+        productIds: draft.sabjiMap[g.key] ?? [],
+      }));
+
+    const validationResult = validateSabjiCoverage(thalis, thaliConfig, validationSabjiGroups);
+    if (!validationResult.isValid) {
+      const firstIssue = validationResult.issues[0];
+      toast.error(`Please select sabji choices for ${firstIssue.label}`);
       return;
     }
 
     updateDraft(mealType, { isSaving: true });
     try {
-      const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
-
-      const thaliConfig = draft.selectedThaliIds.map((thaliId) => ({
-        thaliId,
-        minSabjiRequired: draft.minSabjiMap[thaliId] ?? 1,
-      }));
-
       const sabjiOptions: { categoryId: string; productId: string }[] = [];
       for (const group of groups) {
         const categoryId = group.thalis[0].categoryId;
@@ -589,14 +602,15 @@ export default function MenuPage() {
             thalis={thalis}
             products={products}
             templates={templates}
-            onChangeDraft={(patch) => updateDraft("LUNCH", patch)}
+            onUpdateDraft={(patch: Partial<MealDraft>) => updateDraft("LUNCH", patch)}
             onSave={() => handleSaveMenu("LUNCH")}
             onDelete={() => setDeleteConfirmMeal("LUNCH")}
-            onOpenCopyModal={() => setCopyModalMeal("LUNCH")}
-            onOpenTemplateSaveModal={() =>
+            onLoadTemplate={(t) => applyTemplateToMeal(t, "LUNCH")}
+            onOpenSaveTemplate={() =>
               setTemplateSaveModal({ isOpen: true, mealType: "LUNCH" })
             }
             onDeleteTemplate={deleteTemplate}
+            onOpenCopyFrom={() => setCopyModalMeal("LUNCH")}
           />
         </div>
 
@@ -611,14 +625,15 @@ export default function MenuPage() {
             thalis={thalis}
             products={products}
             templates={templates}
-            onChangeDraft={(patch) => updateDraft("DINNER", patch)}
+            onUpdateDraft={(patch: Partial<MealDraft>) => updateDraft("DINNER", patch)}
             onSave={() => handleSaveMenu("DINNER")}
             onDelete={() => setDeleteConfirmMeal("DINNER")}
-            onOpenCopyModal={() => setCopyModalMeal("DINNER")}
-            onOpenTemplateSaveModal={() =>
+            onLoadTemplate={(t) => applyTemplateToMeal(t, "DINNER")}
+            onOpenSaveTemplate={() =>
               setTemplateSaveModal({ isOpen: true, mealType: "DINNER" })
             }
             onDeleteTemplate={deleteTemplate}
+            onOpenCopyFrom={() => setCopyModalMeal("DINNER")}
           />
         </div>
       </div>
@@ -667,9 +682,10 @@ export default function MenuPage() {
         <CopyFromDialog
           isOpen={!!copyModalMeal}
           mealType={copyModalMeal}
-          currentDate={selectedDate}
+          selectedDate={selectedDate}
+          summaries={summaries}
           onClose={() => setCopyModalMeal(null)}
-          onSelectDate={(srcDate) => handleCopyFromSelect(srcDate, copyModalMeal)}
+          onCopy={(srcDate: string) => handleCopyFromSelect(srcDate, copyModalMeal)}
         />
       )}
 
