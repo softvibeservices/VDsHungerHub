@@ -18,6 +18,8 @@ export async function GET(req: NextRequest) {
       companyId: searchParams.get("companyId") || undefined,
       balanceFilter: (searchParams.get("balanceFilter") as LedgerFilters["balanceFilter"]) || undefined,
       sortBy: (searchParams.get("sortBy") as LedgerFilters["sortBy"]) || undefined,
+      startDate: searchParams.get("startDate") || undefined,
+      endDate: searchParams.get("endDate") || undefined,
     };
 
     const rows = await getAllUsersLedger(filters);

@@ -8,17 +8,21 @@ export function buildWhatsAppBillText(row: {
   lastOrderAt: string | null;
 }): string {
   const lines = [
-    `🍱 *VD's Hunger Hub — Bill Summary*`,
+    `🍽️ *ViTa Cuisine — Bill Summary*`,
+    `_Think Food, Think Us_`,
     ``,
-    `Name: *${row.name}*`,
-    `Total Billed: ${formatCurrency(row.totalDebit)}`,
-    `Total Paid: ${formatCurrency(row.totalPaid)}`,
-    `*Balance Due: ${formatCurrency(row.balance)}*`,
-    row.lastOrderAt ? `Last Order: ${formatDate(row.lastOrderAt)}` : null,
+    `👤 Customer: *${row.name}*`,
+    `📊 Total Billed: ${formatCurrency(row.totalDebit)}`,
+    `✅ Total Paid: ${formatCurrency(row.totalPaid)}`,
+    `💰 *Balance Due: ${formatCurrency(row.balance)}*`,
+    row.lastOrderAt ? `🕐 Last Order: ${formatDate(row.lastOrderAt)}` : null,
     ``,
     row.balance > 0
-      ? `Please clear your pending balance at your earliest convenience. 🙏`
-      : `You're all settled up — thank you! 🙏`,
+      ? `Kindly clear your pending balance at your earliest convenience. 🙏`
+      : `You're all settled up — thank you for your trust! 🎉`,
+    ``,
+    `📞 +91 635 635 0085 (Restaurant)`,
+    `📞 +91 635 635 0086 (Delivery)`,
   ].filter((line): line is string => line !== null);
   return lines.join("\n");
 }
@@ -36,22 +40,25 @@ export function buildWhatsAppDigestText(
 ): string {
   const owingRows = rows.filter((r) => r.balance > 0);
   if (owingRows.length === 0) {
-    return "🍱 *VD's Hunger Hub — Outstanding Balance Summary*\n\nAll accounts are cleared! 🎉";
+    return "🍽️ *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉\n\n_Think Food, Think Us_";
   }
 
   const grandTotal = owingRows.reduce((sum, r) => sum + r.balance, 0);
 
   const lines = [
-    `🍱 *VD's Hunger Hub — Outstanding Balance Summary*`,
-    `Date: ${formatDate(new Date())}`,
-    `Total Outstanding: *${formatCurrency(grandTotal)}* across ${owingRows.length} customers`,
+    `🍽️ *ViTa Cuisine — Outstanding Balance Summary*`,
+    `_Think Food, Think Us_`,
+    `📅 Date: ${formatDate(new Date())}`,
+    `💰 Total Outstanding: *${formatCurrency(grandTotal)}* across ${owingRows.length} customers`,
     ``,
     ...owingRows.map(
       (r, i) =>
         `${i + 1}. *${r.name}*${r.company?.name ? ` (${r.company.name})` : ""}: ${formatCurrency(r.balance)}`
     ),
     ``,
-    `Please clear pending balances at your earliest convenience. Thank you! 🙏`,
+    `Please clear pending balances at your earliest convenience. 🙏`,
+    ``,
+    `📞 +91 635 635 0085 · 📞 +91 635 635 0086`,
   ];
 
   return lines.join("\n");
@@ -65,7 +72,7 @@ export function buildWhatsAppCompanyDigestText(
     .filter((g) => g.items.length > 0);
 
   if (nonEmptyGroups.length === 0) {
-    return "🍱 *VD's Hunger Hub — Outstanding Balance Summary*\n\nAll accounts are cleared! 🎉";
+    return "🍽️ *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉";
   }
 
   const grandTotal = nonEmptyGroups.reduce(
@@ -74,9 +81,10 @@ export function buildWhatsAppCompanyDigestText(
   );
 
   const lines = [
-    `🍱 *VD's Hunger Hub — Outstanding Balance Summary*`,
-    `Date: ${formatDate(new Date())}`,
-    `Total Outstanding: *${formatCurrency(grandTotal)}*`,
+    `🍽️ *ViTa Cuisine — Outstanding Balance Summary*`,
+    `_Think Food, Think Us_`,
+    `📅 ${formatDate(new Date())}`,
+    `💰 Total Outstanding: *${formatCurrency(grandTotal)}*`,
     ``,
   ];
 
@@ -89,6 +97,7 @@ export function buildWhatsAppCompanyDigestText(
     lines.push(``);
   }
 
-  lines.push(`Please clear pending balances at your earliest convenience. Thank you! 🙏`);
+  lines.push(`Please clear pending balances at your earliest convenience. 🙏`);
+  lines.push(`📞 +91 635 635 0085 · 📞 +91 635 635 0086`);
   return lines.join("\n");
 }

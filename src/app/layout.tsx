@@ -12,8 +12,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "VD's Hunger Hub – Fresh Tiffin, Delivered Daily",
-  description: "Order fresh, home-style thalis for lunch and dinner. Message us on WhatsApp to get started.",
+  title: "ViTa Cuisine – Restaurant & Cloud Kitchen | Fresh Tiffin, Catering & Meal Plans · Thaltej, Ahmedabad",
+  description: "ViTa Cuisine is Ahmedabad's premium tiffin & catering service. Corporate meal plans, birthday & party orders, family packs, and bulk catering. Fresh, hygienic, on-time delivery. Think Food, Think Us.",
 };
 
 export default function RootLayout({

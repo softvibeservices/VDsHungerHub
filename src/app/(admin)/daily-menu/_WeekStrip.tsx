@@ -24,10 +24,18 @@ function addDays(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+function formatDisplayDate(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00.000Z");
+  return d.toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect, onOpenDatePicker }: WeekStripProps) {
-  // The window is CENTERED on whatever date is selected, not hardcoded to
-  // today. This means scrolling into the past works exactly the same way
-  // as scrolling into the future.
   const days = useMemo(() => {
     const list = [];
     for (let i = -4; i <= 9; i++) {
@@ -48,36 +56,51 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
   }, [selectedDate, summaries, todayStr]);
 
   return (
-    <div className="space-y-2">
-      {/* Text-labeled navigation — clearer than icon-only buttons for non-technical users */}
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => onSelect(addDays(selectedDate, -7))}
-          className="flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-orange-600 cursor-pointer px-2 py-1 rounded-lg hover:bg-orange-50"
-        >
-          <ChevronLeft size={13} /> 7 Days Back
-        </button>
-        {selectedDate !== todayStr && (
+    <div className="space-y-1.5">
+      {/* Top Header Row with Active Date Indicator */}
+      <div className="flex items-center justify-between gap-2 flex-wrap px-0.5">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-500">Active Date:</span>
+          <span className="text-xs font-black text-orange-600">
+            {formatDisplayDate(selectedDate)}
+          </span>
+          {selectedDate === todayStr && (
+            <span className="text-[9px] font-extrabold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Today
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onSelect(todayStr)}
-            className="text-[11px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-3 py-1 rounded-full cursor-pointer hover:bg-orange-100"
+            onClick={() => onSelect(addDays(selectedDate, -7))}
+            className="flex items-center gap-0.5 text-[11px] font-bold text-gray-500 hover:text-orange-600 cursor-pointer px-2 py-0.5 rounded-lg hover:bg-orange-50"
           >
-            Jump to Today
+            <ChevronLeft size={13} /> 7 Days Back
           </button>
-        )}
-        <button
-          type="button"
-          onClick={() => onSelect(addDays(selectedDate, 7))}
-          className="flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-orange-600 cursor-pointer px-2 py-1 rounded-lg hover:bg-orange-50"
-        >
-          7 Days Forward <ChevronRight size={13} />
-        </button>
+          {selectedDate !== todayStr && (
+            <button
+              type="button"
+              onClick={() => onSelect(todayStr)}
+              className="text-[10px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-0.5 rounded-full cursor-pointer hover:bg-orange-100"
+            >
+              Today
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onSelect(addDays(selectedDate, 7))}
+            className="flex items-center gap-0.5 text-[11px] font-bold text-gray-500 hover:text-orange-600 cursor-pointer px-2 py-0.5 rounded-lg hover:bg-orange-50"
+          >
+            7 Days Forward <ChevronRight size={13} />
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-2xl p-3 shadow-sm select-none">
-        <div className="flex-1 flex gap-2 overflow-x-auto scrollbar-none snap-x py-1 px-0.5">
+      {/* Compact Date Strip Container */}
+      <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-2xl p-2 shadow-sm select-none">
+        <div className="flex-1 flex gap-1.5 overflow-x-auto scrollbar-none snap-x py-0.5 px-0.5">
           {days.map((day) => {
             const isSelected = day.dateStr === selectedDate;
             return (
@@ -85,7 +108,7 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
                 key={day.dateStr}
                 onClick={() => onSelect(day.dateStr)}
                 className={cn(
-                  "flex-shrink-0 snap-start flex flex-col items-center justify-between w-[72px] h-[84px] rounded-xl border p-2 transition-all cursor-pointer",
+                  "flex-shrink-0 snap-start flex flex-col items-center justify-between w-[58px] h-[58px] rounded-xl border p-1.5 transition-all cursor-pointer",
                   isSelected
                     ? "bg-orange-500 border-orange-500 text-white shadow-sm shadow-orange-500/20"
                     : day.isPast
@@ -93,21 +116,21 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
                     : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
                 )}
               >
-                <span className={cn("text-[10px] font-bold uppercase tracking-wider", isSelected ? "text-orange-100" : "text-gray-400")}>
+                <span className={cn("text-[9px] font-bold uppercase tracking-wider leading-none", isSelected ? "text-orange-100" : "text-gray-400")}>
                   {day.isToday ? "Today" : day.dayName}
                 </span>
-                <span className="text-lg font-black leading-none my-0.5">{day.dayNum}</span>
-                <div className="flex items-center justify-center gap-1.5 mt-1">
+                <span className="text-base font-black leading-none my-0.5">{day.dayNum}</span>
+                <div className="flex items-center justify-center gap-1">
                   <div
                     className={cn(
-                      "w-2 h-2 rounded-full",
+                      "w-1.5 h-1.5 rounded-full",
                       day.hasLunch ? (isSelected ? "bg-white" : "bg-orange-500") : isSelected ? "bg-transparent border border-orange-200" : "bg-transparent border border-gray-300"
                     )}
                     title="Lunch Status"
                   />
                   <div
                     className={cn(
-                      "w-2 h-2 rounded-full",
+                      "w-1.5 h-1.5 rounded-full",
                       day.hasDinner ? (isSelected ? "bg-white" : "bg-indigo-500") : isSelected ? "bg-transparent border border-orange-200" : "bg-transparent border border-gray-300"
                     )}
                     title="Dinner Status"
@@ -120,11 +143,12 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
 
         <button
           onClick={onOpenDatePicker}
-          className="flex-shrink-0 w-11 h-[84px] rounded-xl border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 flex flex-col items-center justify-center gap-1 text-gray-500 hover:text-gray-700 transition-all cursor-pointer shadow-inner"
+          className="flex-shrink-0 w-10 h-[58px] rounded-xl border border-gray-200 hover:border-gray-300 bg-white hover:bg-gray-50 flex flex-col items-center justify-center gap-0.5 text-gray-500 hover:text-gray-700 transition-all cursor-pointer shadow-inner"
           aria-label="Select Date"
+          title="Pick any date"
         >
-          <Calendar size={18} />
-          <span className="text-[9px] font-bold uppercase tracking-wide">Any Date</span>
+          <Calendar size={15} />
+          <span className="text-[8px] font-bold uppercase tracking-wide">Pick</span>
         </button>
       </div>
     </div>

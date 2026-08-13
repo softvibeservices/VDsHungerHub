@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { resolveAuthState } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
+import Footer from "@/components/public/Footer";
 
 export const metadata = {
-  title: "Login | VD's Hunger Hub",
-  description: "Sign in to place your daily thali order.",
+  title: "Login | ViTa Cuisine",
+  description: "Sign in to your ViTa Cuisine account and place your daily thali order.",
 };
 
 export default async function LoginPage() {
@@ -16,8 +17,9 @@ export default async function LoginPage() {
   }
 
   return (
-    <div className="min-h-[80vh] flex flex-col justify-center">
+    <>
       <AuthTabs activeTab="login" />
-    </div>
+      <Footer />
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { getEffectiveCutoffDate } from "@/lib/time";
 import {
@@ -6,6 +7,7 @@ import {
 } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
 import OrderingExperience from "@/components/customer/OrderingExperience";
+import { WHATSAPP_LINK } from "@/lib/constants";
 
 // ── Page component ────────────────────────────────────────────────────────────
 // Only VERIFIED_SESSION state renders the ordering UI (Req #8).
@@ -21,12 +23,24 @@ export default async function MenuPage() {
   // 1. If menu is not set (i.e. null), render a "No Menu Today" message
   if (!todayMenu) {
     return (
-      <div className="min-h-screen bg-orange-50/50 flex flex-col items-center justify-center p-6 text-center gap-4">
-        <div className="text-4xl">🍱</div>
-        <h1 className="text-xl font-bold text-gray-800">No Menu Today</h1>
-        <p className="text-gray-500 max-w-sm text-sm leading-relaxed">
-          Today&apos;s menu has not been published yet. Please check back later or contact the administrator.
-        </p>
+      <div className="min-h-[70vh] bg-white flex flex-col items-center justify-center p-8 text-center">
+        <div className="max-w-sm mx-auto space-y-6">
+          <Image src="/vita-Logo.png" alt="ViTa Cuisine" width={100} height={100} className="object-contain mx-auto" />
+          <div className="space-y-2">
+            <h1 className="text-2xl font-extrabold text-[#0F1E3D]">No Menu Published Yet</h1>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Today&apos;s menu hasn&apos;t been published yet. Check back soon, or message us directly on WhatsApp to place your order.
+            </p>
+          </div>
+          <a
+            href={WHATSAPP_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-[#C9A84C] hover:bg-[#b8963f] text-[#0F1E3D] font-bold text-sm px-6 py-3 rounded-xl shadow-lg shadow-[#C9A84C]/30 transition-all duration-300"
+          >
+            💬 Order on WhatsApp
+          </a>
+        </div>
       </div>
     );
   }
@@ -35,13 +49,25 @@ export default async function MenuPage() {
   if ((todayMenu as any).menuNotYetVisible === true) {
     const visibleFrom = (todayMenu as any).menuVisibleFrom as string;
     return (
-      <div className="min-h-screen bg-orange-50/50 flex flex-col items-center justify-center p-6 text-center gap-4">
-        <div className="text-4xl">🕐</div>
-        <h1 className="text-xl font-bold text-gray-800">Menu not available yet</h1>
-        <p className="text-gray-500 max-w-sm text-sm leading-relaxed">
-          The {(todayMenu as any).mealType === "DINNER" ? "dinner" : "lunch"} menu will be available
-          from <strong>{visibleFrom} IST</strong> today. Check back soon!
-        </p>
+      <div className="min-h-[70vh] bg-white flex flex-col items-center justify-center p-8 text-center">
+        <div className="max-w-sm mx-auto space-y-6">
+          <Image src="/vita-Logo.png" alt="ViTa Cuisine" width={100} height={100} className="object-contain mx-auto" />
+          <div className="space-y-2">
+            <h1 className="text-2xl font-extrabold text-[#0F1E3D]">
+              {(todayMenu as any).mealType === "DINNER" ? "🌙 Dinner Menu" : "☀️ Lunch Menu"} Coming Soon
+            </h1>
+            <p className="text-gray-500 text-sm leading-relaxed">
+              The {(todayMenu as any).mealType === "DINNER" ? "dinner" : "lunch"} menu will be available
+              from <strong className="text-[#1B2D5A]">{visibleFrom} IST</strong> today. Check back soon!
+            </p>
+          </div>
+          <div className="bg-[#0F1E3D] rounded-2xl px-6 py-4 text-white text-sm">
+            <p className="text-[#C9A84C] font-bold mb-1">Can&apos;t wait?</p>
+            <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer" className="underline hover:text-[#C9A84C] transition-colors">
+              Message us on WhatsApp
+            </a>
+          </div>
+        </div>
       </div>
     );
   }

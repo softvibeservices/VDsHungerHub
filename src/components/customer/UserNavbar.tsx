@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { UtensilsCrossed, Menu, X, LogOut, ClipboardList, ShoppingBag } from "lucide-react";
+import { Menu, X, LogOut, ClipboardList, ShoppingBag } from "lucide-react";
 
 interface Props {
   loggedIn: boolean;
@@ -26,8 +27,8 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
       aria-current={pathname === href ? "page" : undefined}
       className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
         pathname === href
-          ? "text-orange-600 bg-orange-50"
-          : "text-gray-600 hover:text-orange-600 hover:bg-orange-50/60"
+          ? "text-[#1B2D5A] bg-[#1B2D5A]/10"
+          : "text-gray-600 hover:text-[#1B2D5A] hover:bg-[#1B2D5A]/5"
       }`}
     >
       {icon}
@@ -38,20 +39,30 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
   const guestLinkClass = (href: string) =>
     `text-sm font-semibold transition-colors cursor-pointer ${
       pathname === href
-        ? "text-orange-600"
-        : "text-gray-600 hover:text-orange-600"
+        ? "text-[#1B2D5A]"
+        : "text-gray-600 hover:text-[#1B2D5A]"
     }`;
 
   return (
-    <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-sm border-b border-gray-200">
+    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-[#1B2D5A]/10 shadow-sm">
       <div className="max-w-5xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
-        <Link href={loggedIn ? "/menu" : "/"} className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 shrink-0 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center">
-            <UtensilsCrossed className="w-5 h-5 text-white" />
+        <Link href={loggedIn ? "/menu" : "/"} className="flex items-center gap-3 min-w-0">
+          <Image
+            src="/vita-Logo.png"
+            alt="ViTa Cuisine"
+            width={44}
+            height={44}
+            className="object-contain rounded-full flex-shrink-0"
+            priority
+          />
+          <div className="hidden sm:block">
+            <span className="font-extrabold text-[#1B2D5A] text-sm leading-tight block">
+              ViTa Cuisine
+            </span>
+            <span className="text-[9px] text-[#C9A84C] font-bold tracking-widest uppercase">
+              Think Food, Think Us
+            </span>
           </div>
-          <span className="font-bold text-gray-900 text-sm md:text-base leading-tight truncate">
-            VD&apos;s Hunger Hub
-          </span>
         </Link>
 
         {loggedIn ? (
@@ -92,7 +103,7 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
           )}
 
           <button
-            className="md:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            className="md:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-[#1B2D5A] transition-colors"
             aria-label="Toggle menu"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
@@ -103,12 +114,12 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden border-t border-gray-200 bg-white px-4 py-4 space-y-1 shadow-inner">
+        <div className="md:hidden border-t border-gray-100 bg-white/98 backdrop-blur-md px-4 py-4 space-y-1 shadow-lg">
           {loggedIn ? (
             <>
               {userName && (
                 <p className="px-3 pb-2 text-sm text-gray-500 border-b border-gray-100 mb-2">
-                  Signed in as <strong className="text-gray-800">{userName}</strong>
+                  Signed in as <strong className="text-[#1B2D5A]">{userName}</strong>
                 </p>
               )}
               {navLink("/menu", "Order", <ShoppingBag size={16} />)}
@@ -128,8 +139,8 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                 onClick={() => setMobileOpen(false)}
                 className={`w-full py-2.5 text-center text-sm font-bold rounded-xl ${
                   pathname === "/register"
-                    ? "bg-orange-600 text-white shadow-md shadow-orange-600/10"
-                    : "bg-orange-500 hover:bg-orange-600 text-white"
+                    ? "bg-[#1B2D5A] text-white shadow-md"
+                    : "bg-[#1B2D5A] hover:bg-[#243a73] text-white"
                 }`}
               >
                 Register
@@ -139,8 +150,8 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                 onClick={() => setMobileOpen(false)}
                 className={`w-full py-2.5 text-center text-sm font-bold rounded-xl border ${
                   pathname === "/login"
-                    ? "bg-orange-50 border-orange-400 text-orange-600"
-                    : "border-orange-200 text-orange-600 hover:bg-orange-50"
+                    ? "bg-[#1B2D5A]/10 border-[#1B2D5A] text-[#1B2D5A]"
+                    : "border-[#1B2D5A]/30 text-[#1B2D5A] hover:bg-[#1B2D5A]/5"
                 }`}
               >
                 Login
@@ -150,7 +161,7 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                 onClick={() => setMobileOpen(false)}
                 className={`w-full py-2 text-center text-xs font-semibold mt-1 ${
                   pathname === "/verify"
-                    ? "text-orange-600 underline font-bold"
+                    ? "text-[#C9A84C] underline font-bold"
                     : "text-gray-400 hover:text-gray-600"
                 }`}
               >

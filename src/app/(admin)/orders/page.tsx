@@ -851,46 +851,40 @@ export default function AdminOrdersPage() {
                         </div>
                       </div>
 
-                      {/* Right: Amount + Status + Actions */}
-                      <div className="flex items-center gap-3 self-end md:self-center flex-wrap">
-                        <span className="font-black text-gray-900 text-base">
+                      {/* Right: Amount + Status pill buttons */}
+                      <div className="flex flex-col items-end gap-2 self-end md:self-center">
+                        <span className="font-black text-gray-900 text-lg">
                           {formatCurrency(order.totalAmount)}
                         </span>
 
-                        {(() => {
-                          const badge = ORDER_STATUS_BADGE[order.status];
-                          return <Badge variant={badge.variant} icon={badge.icon} label={badge.label} />;
-                        })()}
-
-                        {/* Quick action for Pending orders → send Out for Delivery */}
-                        {order.status === "PENDING" && (
-                          <button
-                            onClick={() => handleStatusChange(order.id, "OUT_FOR_DELIVERY")}
-                            disabled={updatingId !== null}
-                            className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all disabled:opacity-40 flex items-center gap-1 shadow-sm"
-                            title="Mark Out for Delivery"
-                          >
-                            <Truck size={12} />
-                            Out for Delivery
-                          </button>
-                        )}
-
-                        <select
-                          value={order.status}
-                          disabled={updatingId !== null}
-                          onChange={(e) =>
-                            handleStatusChange(order.id, e.target.value as OrderStatus)
-                          }
-                          className="text-xs border border-gray-300 rounded-lg px-2.5 py-1 bg-white text-gray-800 font-bold focus:ring-1 focus:ring-orange-500 outline-none disabled:opacity-40 hover:border-gray-400 transition-colors shadow-sm cursor-pointer"
-                        >
-                          <option value="PENDING">Pending</option>
-                          <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
-                          <option value="DELIVERED">Delivered</option>
-                          <option value="CANCELLED">Cancelled</option>
-                        </select>
+                        {/* Status pill button row */}
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                          {([
+                            { status: "PENDING",          label: "Pending",   color: "text-yellow-700 bg-yellow-400" },
+                            { status: "OUT_FOR_DELIVERY", label: "🚚 Delivery", color: "text-indigo-700 bg-indigo-400" },
+                            { status: "DELIVERED",        label: "✓ Done",    color: "text-emerald-700 bg-emerald-400" },
+                            { status: "CANCELLED",        label: "✕ Cancel", color: "text-red-700 bg-red-400" },
+                          ] as const).map(({ status: s, label, color }) => (
+                            <button
+                              key={s}
+                              onClick={() => order.status !== s && handleStatusChange(order.id, s)}
+                              disabled={updatingId !== null}
+                              title={s}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all disabled:opacity-50 ${
+                                order.status === s
+                                  ? `${color} shadow-sm text-white`
+                                  : "text-gray-500 hover:bg-white hover:shadow-sm"
+                              }`}
+                            >
+                              {updatingId === order.id && order.status !== s ? label : label}
+                            </button>
+                          ))}
+                        </div>
 
                         {updatingId === order.id && (
-                          <RefreshCw size={14} className="animate-spin text-orange-500" />
+                          <div className="flex items-center gap-1 text-[10px] text-orange-500 font-bold">
+                            <RefreshCw size={10} className="animate-spin" /> Updating…
+                          </div>
                         )}
                       </div>
                     </div>

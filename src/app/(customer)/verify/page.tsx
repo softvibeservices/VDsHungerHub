@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { resolveAuthState } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
+import Footer from "@/components/public/Footer";
 
 export const metadata = {
-  title: "Verify Mobile | VD's Hunger Hub",
-  description: "Verify your mobile number to complete registration.",
+  title: "Verify Mobile | ViTa Cuisine",
+  description: "Verify your mobile number to complete your ViTa Cuisine registration.",
 };
 
 export default async function VerifyPage() {
@@ -18,8 +19,9 @@ export default async function VerifyPage() {
   const draftId = authState.state === "DRAFT_PENDING_VERIFICATION" ? authState.draftId : undefined;
 
   return (
-    <div className="min-h-[80vh] flex flex-col justify-center">
+    <>
       <AuthTabs activeTab="verify" draftId={draftId} />
-    </div>
+      <Footer />
+    </>
   );
 }

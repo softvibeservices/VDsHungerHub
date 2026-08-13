@@ -25,6 +25,8 @@ import {
   Building2,
   Users,
   CheckCircle,
+  Calendar,
+  FilterX,
 } from "lucide-react";
 
 interface CompanyOption {
@@ -58,6 +60,10 @@ export default function CreditPage() {
   const [sortBy, setSortBy] = useState<string>("balance_desc");
   const [groupByCompany, setGroupByCompany] = useState(false);
 
+  // Date Range Filters
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const debouncedSearch = useDebounce(search, 300);
 
   // Modal States
@@ -86,6 +92,8 @@ export default function CreditPage() {
       if (companyFilter) params.set("companyId", companyFilter);
       if (balanceFilter) params.set("balanceFilter", balanceFilter);
       if (sortBy) params.set("sortBy", sortBy);
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
 
       const res = await fetch(`/api/admin/credit?${params.toString()}`);
       if (!res.ok) {
@@ -109,16 +117,20 @@ export default function CreditPage() {
 
   useEffect(() => {
     fetchLedger();
-  }, [debouncedSearch, companyFilter, balanceFilter, sortBy]);
+  }, [debouncedSearch, companyFilter, balanceFilter, sortBy, startDate, endDate]);
 
-  // Handle PDF Export for a single user
+  // Handle PDF Export for a single user (with active date range if set)
   const handleExportUserPdf = async (userId: string) => {
     try {
-      const res = await fetch(`/api/admin/credit/${userId}`);
+      const params = new URLSearchParams();
+      if (startDate) params.set("startDate", startDate);
+      if (endDate) params.set("endDate", endDate);
+
+      const res = await fetch(`/api/admin/credit/${userId}?${params.toString()}`);
       if (!res.ok) throw new Error("Failed to load user detail");
       const detail = await res.json();
       generateUserBillPdf(detail);
-      toast.success("Bill PDF downloaded");
+      toast.success("Statement PDF downloaded");
     } catch {
       toast.error("Failed to generate PDF");
     }
@@ -129,12 +141,6 @@ export default function CreditPage() {
     const msg = buildWhatsAppBillText(row);
     const link = buildWhatsAppShareLink(row.number, msg);
     window.open(link, "_blank");
-  };
-
-  const handleCopyWhatsAppText = (row: UserLedgerRow) => {
-    const msg = buildWhatsAppBillText(row);
-    navigator.clipboard.writeText(msg);
-    toast.success("WhatsApp bill copied to clipboard");
   };
 
   // Group digest action
@@ -177,13 +183,45 @@ export default function CreditPage() {
     return Array.from(map.values());
   }, [rows, groupByCompany]);
 
+  // Date Range Quick Preset Handlers
+  const handlePreset1to15 = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    setStartDate(`${year}-${month}-01`);
+    setEndDate(`${year}-${month}-15`);
+  };
+
+  const handlePreset16toEnd = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    setStartDate(`${year}-${month}-16`);
+    setEndDate(`${year}-${month}-${lastDay}`);
+  };
+
+  const handlePresetThisMonth = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    setStartDate(`${year}-${month}-01`);
+    setEndDate(`${year}-${month}-${lastDay}`);
+  };
+
+  const handleClearDateRange = () => {
+    setStartDate("");
+    setEndDate("");
+  };
+
   const columns: Column<UserLedgerRow>[] = [
     {
       key: "name",
       header: "Customer",
       render: (r: UserLedgerRow) => (
         <div>
-          <p className="font-semibold text-gray-900">{r.name}</p>
+          <p className="font-bold text-gray-900">{r.name}</p>
           <p className="text-xs text-gray-400">{formatMobileNumber(r.number)}</p>
         </div>
       ),
@@ -201,14 +239,14 @@ export default function CreditPage() {
       key: "totalDebit",
       header: "Total Billed",
       render: (r: UserLedgerRow) => (
-        <span className="text-sm font-medium text-gray-700">{formatCurrency(r.totalDebit)}</span>
+        <span className="text-sm font-semibold text-gray-800">{formatCurrency(r.totalDebit)}</span>
       ),
     },
     {
       key: "totalPaid",
       header: "Total Paid",
       render: (r: UserLedgerRow) => (
-        <span className="text-sm font-medium text-emerald-600">{formatCurrency(r.totalPaid)}</span>
+        <span className="text-sm font-semibold text-emerald-600">{formatCurrency(r.totalPaid)}</span>
       ),
     },
     {
@@ -216,7 +254,7 @@ export default function CreditPage() {
       header: "Balance Due",
       render: (r: UserLedgerRow) => (
         <span
-          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+          className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-extrabold ${
             r.balance > 0
               ? "bg-red-50 text-red-700 border border-red-200"
               : "bg-emerald-50 text-emerald-700 border border-emerald-200"
@@ -239,71 +277,58 @@ export default function CreditPage() {
       key: "actions",
       header: "Actions",
       render: (r: UserLedgerRow) => (
-        <div className="flex items-center gap-1.5 justify-end">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Primary: Record Payment */}
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setPaymentUser({ id: r.id, name: r.name, balance: r.balance })}
+            className="gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 border-0"
+          >
+            <Plus className="w-3.5 h-3.5" /> Pay
+          </Button>
+
+          {/* Statement & PDF Actions */}
           <Button
             variant="secondary"
             size="sm"
             onClick={() => setSelectedUserForHistory(r.id)}
-            title="View Statement / History"
-            className="p-1.5 h-8 w-8"
+            className="gap-1.5 text-xs font-semibold"
           >
-            <History className="w-4 h-4" />
-          </Button>
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() =>
-              setPaymentUser({ id: r.id, name: r.name, balance: r.balance })
-            }
-            title="Record Payment"
-            className="h-8 px-2 text-xs gap-1"
-          >
-            <Plus className="w-3.5 h-3.5" /> Pay
+            <History className="w-3.5 h-3.5 text-[#0F1E3D]" /> Statement
           </Button>
 
           <Button
             variant="secondary"
             size="sm"
             onClick={() => handleExportUserPdf(r.id)}
-            title="Download PDF Bill"
-            className="p-1.5 h-8 w-8 text-gray-600"
+            className="gap-1.5 text-xs font-semibold"
           >
-            <Download className="w-4 h-4" />
+            <Download className="w-3.5 h-3.5 text-[#0F1E3D]" /> PDF
           </Button>
 
-          {/* WhatsApp Action buttons */}
-          <div className="flex items-center gap-1 border-l border-gray-200 pl-1.5">
-            <button
-              onClick={() => handleOpenWhatsApp(r)}
-              title="Open WhatsApp Chat with Bill text"
-              className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-            >
-              <MessageSquare className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleCopyWhatsAppText(r)}
-              title="Copy WhatsApp Bill text"
-              className="p-1 text-gray-400 hover:text-gray-700 rounded transition-colors"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button
+            onClick={() => handleOpenWhatsApp(r)}
+            title="Send bill via WhatsApp"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors"
+          >
+            <MessageSquare className="w-3.5 h-3.5" /> WhatsApp
+          </button>
         </div>
       ),
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Wallet className="w-7 h-7 text-orange-500" /> Admin Credit / Debit Ledger
+          <h1 className="text-xl font-black text-[#0F1E3D] flex items-center gap-2">
+            <Wallet className="w-6 h-6 text-[#C9A84C]" /> Admin Credit & Ledger Statement
           </h1>
-          <p className="text-sm text-gray-500">
-            Track user balances, record offline payments, and generate WhatsApp / PDF reports.
+          <p className="text-xs text-gray-500">
+            Track user balances, filter by custom date ranges, record payments, and export PDF statements.
           </p>
         </div>
 
@@ -312,72 +337,122 @@ export default function CreditPage() {
             variant="secondary"
             size="sm"
             onClick={handleCopyGroupDigest}
-            className="gap-2 text-emerald-700 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100"
+            className="gap-1.5 text-emerald-700 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100 font-bold text-xs"
           >
-            <Copy className="w-4 h-4 text-emerald-600" /> Copy WhatsApp Group Digest
+            <Copy className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Digest
           </Button>
 
           <Button
-            variant="secondary"
+            variant="primary"
             size="sm"
             onClick={handleBulkExportPdf}
-            className="gap-2"
+            className="gap-1.5 bg-[#0F1E3D] hover:bg-[#1B2D5A] text-white border-0 font-bold text-xs"
           >
-            <Download className="w-4 h-4" /> Export Report (PDF)
+            <Download className="w-3.5 h-3.5 text-[#C9A84C]" /> Export PDF Report
           </Button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+      {/* Compact Summary Metrics Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               Total Outstanding
             </p>
-            <p className="text-2xl font-bold text-red-600 mt-1">
+            <p className="text-xl font-black text-red-600 mt-0.5">
               {formatCurrency(totals.totalOwed)}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Across {totals.customersOwing} owing customers</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-red-50 flex items-center justify-center text-red-600">
-            <Wallet className="w-6 h-6" />
+          <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
+            <Wallet className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+        <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               Total Collected
             </p>
-            <p className="text-2xl font-bold text-emerald-600 mt-1">
+            <p className="text-xl font-black text-emerald-600 mt-0.5">
               {formatCurrency(totals.totalCollected)}
             </p>
-            <p className="text-xs text-gray-400 mt-1">All-time payment total</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <CheckCircle className="w-6 h-6" />
+          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <CheckCircle className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+        <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
               Customers Owing
             </p>
-            <p className="text-2xl font-bold text-gray-900 mt-1">
+            <p className="text-xl font-black text-gray-900 mt-0.5">
               {totals.customersOwing} <span className="text-xs font-normal text-gray-400">/ {totals.userCount}</span>
             </p>
-            <p className="text-xs text-gray-400 mt-1">Accounts with balance &gt; ₹0</p>
           </div>
-          <div className="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600">
-            <Users className="w-6 h-6" />
+          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+            <Users className="w-5 h-5" />
           </div>
         </div>
       </div>
 
-      {/* Filter Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+      {/* Unified Filter & Date Range Toolbar */}
+      <div className="bg-white p-3.5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+        {/* Top Row: Inline Date Range & Quick Presets */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-extrabold text-[#0F1E3D] flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-[#C9A84C]" /> Statement Period:
+            </span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="text-xs px-2.5 py-1.5 border border-gray-250 rounded-lg bg-gray-50 text-gray-900 font-bold outline-none focus:ring-1 focus:ring-[#C9A84C]"
+            />
+            <span className="text-xs text-gray-400 font-bold">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="text-xs px-2.5 py-1.5 border border-gray-250 rounded-lg bg-gray-50 text-gray-900 font-bold outline-none focus:ring-1 focus:ring-[#C9A84C]"
+            />
+          </div>
+
+          {/* Quick Presets */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              onClick={handlePreset1to15}
+              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
+            >
+              1st – 15th
+            </button>
+            <button
+              onClick={handlePreset16toEnd}
+              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
+            >
+              16th – End
+            </button>
+            <button
+              onClick={handlePresetThisMonth}
+              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
+            >
+              This Month
+            </button>
+            {(startDate || endDate) && (
+              <button
+                onClick={handleClearDateRange}
+                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors flex items-center gap-1"
+              >
+                <FilterX className="w-3.5 h-3.5" /> All Time
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Row: Search, Company Filter, Balance Filter & Sorting */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <SearchInput
             placeholder="Search by name or mobile..."
@@ -417,7 +492,7 @@ export default function CreditPage() {
           />
         </div>
 
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
           <div className="flex items-center gap-2">
             <ToggleSwitch
               checked={groupByCompany}
@@ -426,15 +501,15 @@ export default function CreditPage() {
             />
           </div>
 
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500 font-bold">
             Showing {rows.length} customers
           </p>
         </div>
       </div>
 
-      {/* Main Content Table or Grouped Tables */}
+      {/* Main Content Table with max height & scroll */}
       {groupByCompany && groupedRows ? (
-        <div className="space-y-6">
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
           {groupedRows.map((group) => {
             const groupTotalDebit = group.items.reduce((s, i) => s + i.totalDebit, 0);
             const groupTotalPaid = group.items.reduce((s, i) => s + i.totalPaid, 0);
@@ -443,11 +518,11 @@ export default function CreditPage() {
             return (
               <div
                 key={group.companyName}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+                className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
               >
-                <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <Building2 className="w-4 h-4 text-orange-500" /> {group.companyName}
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
+                    <Building2 className="w-4 h-4 text-[#C9A84C]" /> {group.companyName}
                     <span className="text-xs font-normal text-gray-400">
                       ({group.items.length} users)
                     </span>
@@ -468,7 +543,7 @@ export default function CreditPage() {
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden max-h-[60vh] overflow-y-auto">
           <Table columns={columns} data={rows} isLoading={isLoading} />
         </div>
       )}
@@ -478,6 +553,8 @@ export default function CreditPage() {
         isOpen={!!selectedUserForHistory}
         onClose={() => setSelectedUserForHistory(null)}
         userId={selectedUserForHistory}
+        initialStartDate={startDate}
+        initialEndDate={endDate}
         onOpenRecordPayment={() => {
           const user = rows.find((r) => r.id === selectedUserForHistory);
           if (user) {

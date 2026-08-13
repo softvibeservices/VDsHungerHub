@@ -5,6 +5,8 @@ export interface LedgerFilters {
   companyId?: string;
   balanceFilter?: "owing" | "clear" | "all"; // owing = balance > 0
   sortBy?: "balance_desc" | "balance_asc" | "name_asc" | "name_desc" | "lastOrder_desc";
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface UserLedgerRow {
@@ -45,15 +47,39 @@ export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLed
     return [];
   }
 
+  const orderWhere: Record<string, unknown> = { userId: { in: userIds }, status: { not: "CANCELLED" } };
+  const paymentWhere: Record<string, unknown> = { userId: { in: userIds } };
+
+  const isDateFiltered = Boolean(filters.startDate || filters.endDate);
+
+  if (isDateFiltered) {
+    const orderDateRange: Record<string, Date> = {};
+    const paymentDateRange: Record<string, Date> = {};
+    if (filters.startDate) {
+      const s = new Date(filters.startDate);
+      s.setHours(0, 0, 0, 0);
+      orderDateRange.gte = s;
+      paymentDateRange.gte = s;
+    }
+    if (filters.endDate) {
+      const e = new Date(filters.endDate);
+      e.setHours(23, 59, 59, 999);
+      orderDateRange.lte = e;
+      paymentDateRange.lte = e;
+    }
+    orderWhere.createdAt = orderDateRange;
+    paymentWhere.paidAtUtc = paymentDateRange;
+  }
+
   const [debitSums, paidSums, lastOrders, lastPayments] = await Promise.all([
     prisma.order.groupBy({
       by: ["userId"],
-      where: { userId: { in: userIds }, status: { not: "CANCELLED" } },
+      where: orderWhere,
       _sum: { totalAmount: true },
     }),
     prisma.payment.groupBy({
       by: ["userId"],
-      where: { userId: { in: userIds } },
+      where: paymentWhere,
       _sum: { amount: true },
     }),
     prisma.order.groupBy({
@@ -114,8 +140,13 @@ export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLed
     }
   );
 
-  if (filters.balanceFilter === "owing") rows = rows.filter((r) => r.balance > 0);
-  if (filters.balanceFilter === "clear") rows = rows.filter((r) => r.balance <= 0);
+  if (filters.balanceFilter === "owing") {
+    rows = isDateFiltered
+      ? rows.filter((r) => r.balance > 0 || r.totalDebit > 0)
+      : rows.filter((r) => r.balance > 0);
+  } else if (filters.balanceFilter === "clear") {
+    rows = rows.filter((r) => r.balance <= 0);
+  }
 
   switch (filters.sortBy) {
     case "balance_asc":
@@ -142,7 +173,33 @@ export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLed
   return rows;
 }
 
-export async function getUserLedgerDetail(userId: string) {
+export async function getUserLedgerDetail(
+  userId: string,
+  startDate?: string,
+  endDate?: string
+) {
+  const orderWhere: Record<string, unknown> = { userId, status: { not: "CANCELLED" } };
+  const paymentWhere: Record<string, unknown> = { userId };
+
+  if (startDate || endDate) {
+    const orderDateRange: Record<string, Date> = {};
+    const paymentDateRange: Record<string, Date> = {};
+    if (startDate) {
+      const s = new Date(startDate);
+      s.setHours(0, 0, 0, 0);
+      orderDateRange.gte = s;
+      paymentDateRange.gte = s;
+    }
+    if (endDate) {
+      const e = new Date(endDate);
+      e.setHours(23, 59, 59, 999);
+      orderDateRange.lte = e;
+      paymentDateRange.lte = e;
+    }
+    orderWhere.createdAt = orderDateRange;
+    paymentWhere.paidAtUtc = paymentDateRange;
+  }
+
   const [user, orders, payments] = await Promise.all([
     prisma.user.findUnique({
       where: { id: userId },
@@ -154,7 +211,7 @@ export async function getUserLedgerDetail(userId: string) {
       },
     }),
     prisma.order.findMany({
-      where: { userId, status: { not: "CANCELLED" } },
+      where: orderWhere,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -179,7 +236,7 @@ export async function getUserLedgerDetail(userId: string) {
       },
     }),
     prisma.payment.findMany({
-      where: { userId },
+      where: paymentWhere,
       orderBy: { paidAtUtc: "desc" },
       select: {
         id: true,
@@ -239,6 +296,8 @@ export async function getUserLedgerDetail(userId: string) {
     totalDebit,
     totalPaid,
     balance: Math.round((totalDebit - totalPaid) * 100) / 100,
+    startDate: startDate ?? null,
+    endDate: endDate ?? null,
     timeline,
     payments: payments.map((p: { id: string; userId: string; amount: number; method: string; note: string | null; recordedByStaffId: string; paidAtUtc: Date; createdAt: Date; updatedAt: Date }) => ({
       ...p,

@@ -40,4 +40,3 @@ export default async function CustomerLayout({ children }: { children: React.Rea
     </div>
   );
 }
-

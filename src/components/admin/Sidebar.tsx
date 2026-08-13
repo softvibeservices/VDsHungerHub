@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
@@ -15,6 +16,7 @@ import {
   Settings,
   UserCheck,
   Wallet,
+  Menu,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
@@ -84,6 +86,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const handleNavClick = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      onClose();
+    }
+  };
+
   const handleLogout = async () => {
     setLoggingOut(true);
     try {
@@ -123,27 +131,31 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           fixed top-0 left-0 z-30 h-full w-[260px] bg-gray-900 flex flex-col
           transition-transform duration-300 ease-in-out
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0
         `}
       >
-        {/* Logo */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-gray-800">
+        {/* Logo & Sidebar Toggle Hamburger */}
+        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-orange-500 flex items-center justify-center text-lg">
-              🍱
-            </div>
+            <Image
+              src="/vita-Logo.png"
+              alt="ViTa Cuisine"
+              width={38}
+              height={38}
+              className="object-contain rounded-full flex-shrink-0"
+            />
             <div>
-              <p className="text-white font-bold text-sm leading-tight">
-                VD&apos;s Hunger Hub
+              <p className="text-white font-extrabold text-sm leading-tight">
+                ViTa Cuisine
               </p>
-              <p className="text-gray-400 text-xs">{panelLabel}</p>
+              <p className="text-[#C9A84C] text-[10px] font-semibold tracking-widest uppercase">{panelLabel}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
+            className="text-gray-400 hover:text-white p-1.5 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer"
+            title="Hide Sidebar"
           >
-            <X size={18} />
+            <Menu size={20} />
           </button>
         </div>
 
@@ -166,7 +178,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                       <Link
                         key={href}
                         href={href}
-                        onClick={onClose}
+                        onClick={handleNavClick}
                         className={cn(
                           "flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150",
                           isActive

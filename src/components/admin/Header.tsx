@@ -40,11 +40,12 @@ export default function Header({ onMenuToggle }: HeaderProps) {
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center px-4 md:px-6 gap-4 sticky top-0 z-10 shadow-sm">
-      {/* Mobile hamburger */}
+      {/* Hamburger Menu Toggle (Desktop & Mobile) */}
       <button
         onClick={onMenuToggle}
-        className="lg:hidden p-2 rounded-xl text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+        className="p-2 rounded-xl text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors cursor-pointer"
         aria-label="Toggle sidebar"
+        title="Toggle Sidebar"
       >
         <Menu size={20} />
       </button>

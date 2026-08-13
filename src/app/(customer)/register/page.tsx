@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
 import { resolveAuthState } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
+import Footer from "@/components/public/Footer";
 
 export const metadata = {
-  title: "Register | VD's Hunger Hub",
-  description: "Create an account to start ordering delicious home-style thalis.",
+  title: "Register | ViTa Cuisine",
+  description: "Create your ViTa Cuisine account to start ordering fresh home-style meals.",
 };
 
 export default async function RegisterPage() {
@@ -16,8 +17,9 @@ export default async function RegisterPage() {
   }
 
   return (
-    <div className="min-h-[80vh] flex flex-col justify-center">
+    <>
       <AuthTabs activeTab="register" />
-    </div>
+      <Footer />
+    </>
   );
 }

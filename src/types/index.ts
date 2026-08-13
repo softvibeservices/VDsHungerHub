@@ -315,6 +315,8 @@ export interface UserLedgerDetail {
   totalDebit: number;
   totalPaid: number;
   balance: number;
+  startDate?: string | null;
+  endDate?: string | null;
   timeline: LedgerTimelineItem[];
   payments: Payment[];
 }

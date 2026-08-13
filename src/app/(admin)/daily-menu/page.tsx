@@ -142,10 +142,6 @@ export default function MenuPage() {
 
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
 
-  // Deep-link support: /daily-menu?date=YYYY-MM-DD (used by the "Past
-  // Menus & Links" page's "View / Edit" button). Reads window.location
-  // directly instead of useSearchParams() so no Suspense boundary is
-  // required for this fully client-rendered page.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -153,250 +149,202 @@ export default function MenuPage() {
     if (fromQuery && /^\d{4}-\d{2}-\d{2}$/.test(fromQuery)) {
       setSelectedDate(fromQuery);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   const [thalis, setThalis] = useState<Thali[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [templates, setTemplates] = useState<MenuTemplate[]>([]);
   const [summaries, setSummaries] = useState<DaySummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Active tab on mobile
-  const [mobileActiveTab, setMobileActiveTab] = useState<"LUNCH" | "DINNER">("LUNCH");
-
-  // Drafts & Snapshots for dirty state tracking
   const [lunchDraft, setLunchDraft] = useState<MealDraft>(() => emptyDraft("LUNCH"));
   const [dinnerDraft, setDinnerDraft] = useState<MealDraft>(() => emptyDraft("DINNER"));
+
   const [lunchSnapshot, setLunchSnapshot] = useState<MealDraft | null>(null);
   const [dinnerSnapshot, setDinnerSnapshot] = useState<MealDraft | null>(null);
 
-  // Dirty hook bindings
   const isLunchDirty = useDirtyState(lunchDraft, lunchSnapshot);
   const isDinnerDirty = useDirtyState(dinnerDraft, dinnerSnapshot);
 
-  // Modals state
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Modals / dialogs
   const [pendingDateChange, setPendingDateChange] = useState<string | null>(null);
   const [deleteConfirmMeal, setDeleteConfirmMeal] = useState<"LUNCH" | "DINNER" | null>(null);
-
+  const [copyModalMeal, setCopyModalMeal] = useState<"LUNCH" | "DINNER" | null>(null);
   const [templateSaveModal, setTemplateSaveModal] = useState<{
+    isOpen: boolean;
     mealType: "LUNCH" | "DINNER";
-    open: boolean;
-  }>({ mealType: "LUNCH", open: false });
-
-  const [copyFromDialog, setCopyFromDialog] = useState<{
-    mealType: "LUNCH" | "DINNER";
-    open: boolean;
-  }>({ mealType: "LUNCH", open: false });
+  }>({ isOpen: false, mealType: "LUNCH" });
 
   const [pendingCopySource, setPendingCopySource] = useState<{
     mealType: "LUNCH" | "DINNER";
     sourceDate: string;
   } | null>(null);
 
-  // Fetch summaries for the WeekStrip + "Copy From" dialog.
-  // The window is centered on `centerDate` (not hardcoded to today) so
-  // browsing into the past always shows real history instead of empty dots,
-  // and "Copy From" can always see up to 45 days of past configured menus.
-  const fetchSummaries = useCallback(async (centerDate: string) => {
+  const [mobileActiveTab, setMobileActiveTab] = useState<"LUNCH" | "DINNER">("LUNCH");
+
+  const fetchCatalog = useCallback(async () => {
     try {
-      const from = dateAddDays(centerDate, -45);
-      const to = dateAddDays(centerDate, 13);
-      const res = await fetch(`/api/menu/summary?from=${from}&to=${to}`);
-      if (res.ok) {
-        const json = await res.json();
-        const map = new Map<string, { hasLunch: boolean; hasDinner: boolean }>();
-
-        let cursor = from;
-        while (cursor <= to) {
-          map.set(cursor, { hasLunch: false, hasDinner: false });
-          cursor = dateAddDays(cursor, 1);
-        }
-
-        json.days.forEach((day: { date: string; mealType: "LUNCH" | "DINNER" }) => {
-          if (map.has(day.date)) {
-            if (day.mealType === "LUNCH") map.get(day.date)!.hasLunch = true;
-            if (day.mealType === "DINNER") map.get(day.date)!.hasDinner = true;
-          }
-        });
-
-        const list = Array.from(map.entries()).map(([date, meals]) => ({
-          date,
-          hasLunch: meals.hasLunch,
-          hasDinner: meals.hasDinner,
-        }));
-        setSummaries(list);
-      }
+      const [tRes, pRes, tmplRes] = await Promise.all([
+        fetch("/api/thalis?isActive=true"),
+        fetch("/api/products?isActive=true"),
+        fetch("/api/menu-templates"),
+      ]);
+      const [tJson, pJson, tmplJson] = await Promise.all([
+        tRes.json(),
+        pRes.json(),
+        tmplRes.json(),
+      ]);
+      const loadedThalis: Thali[] = tJson.thalis ?? [];
+      const loadedProducts: Product[] = pJson.products ?? [];
+      setThalis(loadedThalis);
+      setProducts(loadedProducts);
+      setTemplates(tmplJson.templates ?? []);
+      return { loadedThalis };
     } catch {
-      /* ignore */
+      toast.error("Failed to load catalog");
+      return { loadedThalis: [] };
     }
   }, []);
 
-  // Fetch catalog master data
-  useEffect(() => {
-    Promise.all([
-      fetch("/api/thalis?isActive=true").then((r) => r.json()),
-      fetch("/api/products?isActive=true").then((r) => r.json()),
-      fetch("/api/menu-templates").then((r) => r.json()),
-    ])
-      .then(([thaliData, productData, templateData]) => {
-        setThalis(thaliData.thalis ?? []);
-        setProducts(productData.products ?? []);
-        setTemplates(templateData.templates ?? []);
-      })
-      .catch(() => toast.error("Failed to load catalog data"))
-      .finally(() => setIsLoading(false));
-  }, []);
-
-  // Fetch menus for selected date
-  const fetchMenusForDate = useCallback(async (date: string) => {
+  const fetchSummaries = useCallback(async (anchorDateStr: string) => {
     try {
-      const res = await fetch(`/api/menu?date=${date}`);
+      const res = await fetch(`/api/menu-summaries?anchorDate=${anchorDateStr}`);
       const json = await res.json();
-      const menus: DailyMenu[] = json.menus ?? [];
-
-      const buildDraft = (mealType: "LUNCH" | "DINNER"): MealDraft => {
-        const menu = menus.find((m) => m.mealType === mealType);
-        if (!menu) return emptyDraft(mealType);
-
-        const sabjiMap: Record<string, string[]> = {};
-        menu.sabjiOptions.forEach(({ categoryId, productId }) => {
-          if (!sabjiMap[categoryId]) sabjiMap[categoryId] = [];
-          sabjiMap[categoryId].push(productId);
-        });
-
-        const minSabjiMap: Record<string, number> = {};
-        menu.thalis.forEach(({ thaliId, minSabjiRequired }) => {
-          minSabjiMap[thaliId] = minSabjiRequired;
-        });
-
-        return {
-          existingId: menu.id,
-          publicSlug: menu.publicSlug ?? null,
-          selectedThaliIds: menu.thalis.map((t) => t.thaliId),
-          sabjiMap,
-          minSabjiMap,
-          isSaving: false,
-          isDeleting: false,
-        };
-      };
-
-      const lunch = buildDraft("LUNCH");
-      const dinner = buildDraft("DINNER");
-
-      setLunchDraft(lunch);
-      setLunchSnapshot(lunch);
-      setDinnerDraft(dinner);
-      setDinnerSnapshot(dinner);
+      setSummaries(json.summaries ?? []);
     } catch {
-      toast.error("Failed to load menus for this date");
+      // non-critical
     }
   }, []);
 
+  const fetchMenusForDate = useCallback(
+    async (dateStr: string, catalogThalis: Thali[]) => {
+      try {
+        const res = await fetch(`/api/menu?date=${dateStr}`);
+        const json = await res.json();
+        const menus: DailyMenu[] = json.menus ?? [];
+
+        const lunchMenu = menus.find((m) => m.mealType === "LUNCH");
+        const dinnerMenu = menus.find((m) => m.mealType === "DINNER");
+
+        const buildDraftFromMenu = (menu: DailyMenu, mealType: "LUNCH" | "DINNER"): MealDraft => {
+          const sabjiMap: Record<string, string[]> = {};
+          menu.sabjiOptions.forEach(({ categoryId, productId }) => {
+            if (!sabjiMap[categoryId]) sabjiMap[categoryId] = [];
+            sabjiMap[categoryId].push(productId);
+          });
+
+          const minSabjiMap: Record<string, number> = {};
+          menu.thalis.forEach(({ thaliId, minSabjiRequired }) => {
+            minSabjiMap[thaliId] = minSabjiRequired;
+          });
+
+          return {
+            existingId: menu.id,
+            publicSlug: menu.publicSlug ?? null,
+            selectedThaliIds: menu.thalis.map((t) => t.thaliId),
+            sabjiMap,
+            minSabjiMap,
+            isSaving: false,
+            isDeleting: false,
+          };
+        };
+
+        const newLunch = lunchMenu
+          ? buildDraftFromMenu(lunchMenu, "LUNCH")
+          : emptyDraft("LUNCH", catalogThalis);
+        const newDinner = dinnerMenu
+          ? buildDraftFromMenu(dinnerMenu, "DINNER")
+          : emptyDraft("DINNER", catalogThalis);
+
+        setLunchDraft(newLunch);
+        setDinnerDraft(newDinner);
+
+        setLunchSnapshot(lunchMenu ? newLunch : null);
+        setDinnerSnapshot(dinnerMenu ? newDinner : null);
+      } catch {
+        toast.error("Failed to load menus for date");
+      }
+    },
+    []
+  );
+
   useEffect(() => {
-    fetchMenusForDate(selectedDate);
-    fetchSummaries(selectedDate);
-  }, [selectedDate, fetchMenusForDate, fetchSummaries]);
+    let active = true;
+    (async () => {
+      setIsLoading(true);
+      const { loadedThalis } = await fetchCatalog();
+      if (!active) return;
+      await Promise.all([
+        fetchMenusForDate(selectedDate, loadedThalis),
+        fetchSummaries(selectedDate),
+      ]);
+      setIsLoading(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [fetchCatalog, fetchMenusForDate, fetchSummaries, selectedDate]);
 
-  // ── Date Navigation dirty warnings ──────────────────────────────────────────
-  const handleSelectDate = (date: string) => {
+  const loadDateTarget = (targetDateStr: string) => {
+    setSelectedDate(targetDateStr);
+    fetchMenusForDate(targetDateStr, thalis);
+    fetchSummaries(targetDateStr);
+  };
+
+  const handleSelectDate = (dateStr: string) => {
+    if (dateStr === selectedDate) return;
     if (isLunchDirty || isDinnerDirty) {
-      setPendingDateChange(date);
+      setPendingDateChange(dateStr);
     } else {
-      setSelectedDate(date);
+      loadDateTarget(dateStr);
     }
   };
 
-  const handleConfirmDateChange = () => {
-    if (pendingDateChange) {
-      setSelectedDate(pendingDateChange);
-      setPendingDateChange(null);
-    }
-  };
-
-  // ── Draft helpers ────────────────────────────────────────────────────────────
-  const updateDraft = (mealType: "LUNCH" | "DINNER", partial: Partial<MealDraft>) => {
-    if (mealType === "LUNCH") setLunchDraft((prev) => ({ ...prev, ...partial }));
-    else setDinnerDraft((prev) => ({ ...prev, ...partial }));
-  };
-
-  const getDraft = (mealType: "LUNCH" | "DINNER") =>
+  const getDraft = (mealType: "LUNCH" | "DINNER"): MealDraft =>
     mealType === "LUNCH" ? lunchDraft : dinnerDraft;
 
-  // ── Load template ────────────────────────────────────────────────────────────
-  const loadTemplate = (mealType: "LUNCH" | "DINNER", template: MenuTemplate) => {
-    const sabjiMap: Record<string, string[]> = {};
-    const minSabjiMap: Record<string, number> = {};
-    (template.sabjiConfig ?? []).forEach(
-      ({ categoryId, productIds }: { categoryId: string; productIds: string[] }) => {
-        sabjiMap[categoryId] = productIds;
-      }
-    );
-    template.thaliIds.forEach((tid) => {
-      const thali = thalis.find((t) => t.id === tid);
-      minSabjiMap[tid] = thali?.sabjiCount ?? 1;
-    });
-
-    updateDraft(mealType, {
-      selectedThaliIds: template.thaliIds,
-      sabjiMap,
-      minSabjiMap,
-    });
-    toast.success(`Template "${template.name}" loaded`);
+  const updateDraft = (mealType: "LUNCH" | "DINNER", patch: Partial<MealDraft>) => {
+    if (mealType === "LUNCH") {
+      setLunchDraft((prev) => ({ ...prev, ...patch }));
+    } else {
+      setDinnerDraft((prev) => ({ ...prev, ...patch }));
+    }
   };
 
-  // ── Save menu ────────────────────────────────────────────────────────────────
-  const saveMenu = async (mealType: "LUNCH" | "DINNER") => {
+  const handleSaveMenu = async (mealType: "LUNCH" | "DINNER") => {
     const draft = getDraft(mealType);
     if (draft.selectedThaliIds.length === 0) {
-      toast.error("Select at least one thali");
+      toast.error("Please select at least one thali");
       return;
     }
 
-    const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
-
-    // Validation: Block uncategorized thalis that require sabjis
-    const uncategorizedWithSabji = draft.selectedThaliIds
-      .map((id) => thalis.find((t) => t.id === id))
-      .filter((t) => t && !t.categoryId && t.sabjiCount > 0);
-    if (uncategorizedWithSabji.length > 0) {
-      toast.error(
-        `Assign a category to: ${uncategorizedWithSabji
-          .map((t) => t!.name)
-          .join(", ")} before adding them to a daily menu.`
-      );
+    const coverageError = validateSabjiCoverage(draft.selectedThaliIds, draft.sabjiMap, thalis);
+    if (coverageError) {
+      toast.error(coverageError);
       return;
     }
-
-    const sabjiOptions = groups
-      .filter((g) => g.sabjiCount > 0 && g.thalis[0].categoryId)
-      .map((g) => ({
-        categoryId: g.thalis[0].categoryId!,
-        productIds: draft.sabjiMap[g.key] ?? [],
-      }));
-
-    // Build the correct thaliConfig with custom minSabjiRequired overrides
-    const thaliConfig = draft.selectedThaliIds.map((tid) => ({
-      thaliId: tid,
-      minSabjiRequired: draft.minSabjiMap[tid] ?? 1,
-    }));
-
-    // ── NEW: refuse to save until every dish category has enough dishes ──
-    const validation = validateSabjiCoverage(thalis, thaliConfig, sabjiOptions);
-    if (!validation.isValid) {
-      validation.issues.forEach((issue) => {
-        toast.error(
-          `"${issue.label}" needs at least ${issue.required} dish${
-            issue.required === 1 ? "" : "es"
-          } — only ${issue.configured} added.`
-        );
-      });
-      return;
-    }
-    // ── end validation block ──
 
     updateDraft(mealType, { isSaving: true });
-
     try {
+      const groups = groupThalisByCategory(draft.selectedThaliIds, thalis);
+
+      const thaliConfig = draft.selectedThaliIds.map((thaliId) => ({
+        thaliId,
+        minSabjiRequired: draft.minSabjiMap[thaliId] ?? 1,
+      }));
+
+      const sabjiOptions: { categoryId: string; productId: string }[] = [];
+      for (const group of groups) {
+        const categoryId = group.thalis[0].categoryId;
+        if (categoryId) {
+          const productIds = draft.sabjiMap[group.key] ?? [];
+          for (const productId of productIds) {
+            sabjiOptions.push({ categoryId, productId });
+          }
+        }
+      }
+
       const url = draft.existingId ? `/api/menu/${draft.existingId}` : "/api/menu";
       const method = draft.existingId ? "PUT" : "POST";
 
@@ -430,11 +378,9 @@ export default function MenuPage() {
 
       updateDraft(mealType, updatedDraft);
 
-      // Save snapshots for dirty checks
       if (mealType === "LUNCH") setLunchSnapshot(updatedDraft);
       else setDinnerSnapshot(updatedDraft);
 
-      // Refresh week strip summaries
       fetchSummaries(selectedDate);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Save failed");
@@ -442,7 +388,6 @@ export default function MenuPage() {
     }
   };
 
-  // ── Delete menu ──────────────────────────────────────────────────────────────
   const runDeleteMenu = async () => {
     if (!deleteConfirmMeal) return;
     const mealType = deleteConfirmMeal;
@@ -470,7 +415,6 @@ export default function MenuPage() {
     }
   };
 
-  // ── Save as template ─────────────────────────────────────────────────────────
   const saveAsTemplate = async (name: string) => {
     const { mealType } = templateSaveModal;
     const draft = getDraft(mealType);
@@ -507,7 +451,6 @@ export default function MenuPage() {
     }
   };
 
-  // ── Delete template ──────────────────────────────────────────────────────────
   const deleteTemplate = async (id: string) => {
     try {
       const res = await fetch(`/api/menu-templates?id=${id}`, { method: "DELETE" });
@@ -519,7 +462,6 @@ export default function MenuPage() {
     }
   };
 
-  // ── Copy Menu From previous Date ─────────────────────────────────────────────
   const copyMenuFromDate = async (sourceDate: string, mealType: "LUNCH" | "DINNER") => {
     try {
       const res = await fetch(`/api/menu?date=${sourceDate}`);
@@ -542,7 +484,7 @@ export default function MenuPage() {
       });
 
       updateDraft(mealType, {
-        existingId: null, // force create new menu
+        existingId: null,
         selectedThaliIds: menu.thalis.map((t) => t.thaliId),
         sabjiMap,
         minSabjiMap,
@@ -582,16 +524,8 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
-      {/* Page Header */}
-      <div>
-        <h2 className="text-xl font-extrabold text-gray-900 leading-tight">Daily Menu</h2>
-        <p className="text-xs text-gray-400 font-medium mt-0.5">
-          Configure active thalis and sabji choices for any date
-        </p>
-      </div>
-
-      {/* Week Strip Navigation (today + 13 dayslookahead) */}
+    <div className="max-w-6xl mx-auto space-y-3">
+      {/* Compact Week Strip Navigation */}
       <WeekStrip
         selectedDate={selectedDate}
         todayStr={todayStr}
@@ -600,10 +534,6 @@ export default function MenuPage() {
         onOpenDatePicker={handleOpenDatePicker}
       />
 
-      {/* Hidden Native Date Picker for jump navigations.
-          NOTE: no `min` here on purpose — staff must be able to jump back
-          to any past date to review what was served (view-only; the API
-          still blocks editing/creating menus for past dates). */}
       <input
         type="date"
         ref={dateInputRef}
@@ -611,35 +541,6 @@ export default function MenuPage() {
         onChange={(e) => e.target.value && handleSelectDate(e.target.value)}
         className="sr-only absolute pointer-events-none"
       />
-
-      {/* Date Indicator info display */}
-      <div className="flex items-center justify-between bg-white border border-gray-150 rounded-2xl px-4 py-3 shadow-inner">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-gray-700">Active Date:</span>
-          <span className="text-xs font-black text-orange-600">
-            {formatDisplayDate(selectedDate)}
-          </span>
-          {selectedDate === todayStr && (
-            <span className="text-[9px] font-extrabold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
-              Today
-            </span>
-          )}
-        </div>
-        <div className="flex gap-1.5">
-          <button
-            onClick={() => handleSelectDate(dateAddDays(selectedDate, -1))}
-            className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 cursor-pointer"
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <button
-            onClick={() => handleSelectDate(dateAddDays(selectedDate, 1))}
-            className="p-1 rounded bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 cursor-pointer"
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
-      </div>
 
       {/* Mobile Tab Segmented Control */}
       <div className="flex md:hidden border border-gray-200 rounded-xl overflow-hidden p-1 bg-white shadow-sm">
@@ -650,11 +551,13 @@ export default function MenuPage() {
             "flex-grow flex-1 py-2 text-xs font-bold text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5",
             mobileActiveTab === "LUNCH"
               ? "bg-orange-500 text-white shadow-sm"
-              : "text-gray-500 hover:bg-gray-50"
+              : "text-gray-600 hover:bg-gray-50"
           )}
         >
-          🌞 Lunch
-          {isLunchDirty && <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
+          <span>🌞 Lunch Menu</span>
+          {lunchDraft.existingId && (
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+          )}
         </button>
         <button
           type="button"
@@ -663,110 +566,119 @@ export default function MenuPage() {
             "flex-grow flex-1 py-2 text-xs font-bold text-center rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5",
             mobileActiveTab === "DINNER"
               ? "bg-indigo-600 text-white shadow-sm"
-              : "text-gray-500 hover:bg-gray-50"
+              : "text-gray-600 hover:bg-gray-50"
           )}
         >
-          🌙 Dinner
-          {isDinnerDirty && (
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          <span>🌙 Dinner Menu</span>
+          {dinnerDraft.existingId && (
+            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
           )}
         </button>
       </div>
 
-      {/* Meal Columns */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className={cn("md:block h-full", mobileActiveTab === "LUNCH" ? "block" : "hidden")}>
+      {/* Main Grid: Lunch and Dinner Columns Side-by-Side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+        {/* LUNCH COLUMN */}
+        <div className={cn("space-y-4", mobileActiveTab !== "LUNCH" && "hidden md:block")}>
           <MealColumn
             mealType="LUNCH"
+            selectedDate={selectedDate}
+            todayStr={todayStr}
             draft={lunchDraft}
             isDirty={isLunchDirty}
             thalis={thalis}
             products={products}
-            templates={templates.filter((t) => t.mealType === "LUNCH")}
-            selectedDate={selectedDate}
-            todayStr={todayStr}
-            onUpdateDraft={(partial: any) => updateDraft("LUNCH", partial)}
-            onSave={() => saveMenu("LUNCH")}
+            templates={templates}
+            onChangeDraft={(patch) => updateDraft("LUNCH", patch)}
+            onSave={() => handleSaveMenu("LUNCH")}
             onDelete={() => setDeleteConfirmMeal("LUNCH")}
-            onLoadTemplate={(t: any) => loadTemplate("LUNCH", t)}
-            onOpenSaveTemplate={() => setTemplateSaveModal({ mealType: "LUNCH", open: true })}
+            onOpenCopyModal={() => setCopyModalMeal("LUNCH")}
+            onOpenTemplateSaveModal={() =>
+              setTemplateSaveModal({ isOpen: true, mealType: "LUNCH" })
+            }
             onDeleteTemplate={deleteTemplate}
-            onOpenCopyFrom={() => setCopyFromDialog({ mealType: "LUNCH", open: true })}
           />
         </div>
-        <div className={cn("md:block h-full", mobileActiveTab === "DINNER" ? "block" : "hidden")}>
+
+        {/* DINNER COLUMN */}
+        <div className={cn("space-y-4", mobileActiveTab !== "DINNER" && "hidden md:block")}>
           <MealColumn
             mealType="DINNER"
+            selectedDate={selectedDate}
+            todayStr={todayStr}
             draft={dinnerDraft}
             isDirty={isDinnerDirty}
             thalis={thalis}
             products={products}
-            templates={templates.filter((t) => t.mealType === "DINNER")}
-            selectedDate={selectedDate}
-            todayStr={todayStr}
-            onUpdateDraft={(partial: any) => updateDraft("DINNER", partial)}
-            onSave={() => saveMenu("DINNER")}
+            templates={templates}
+            onChangeDraft={(patch) => updateDraft("DINNER", patch)}
+            onSave={() => handleSaveMenu("DINNER")}
             onDelete={() => setDeleteConfirmMeal("DINNER")}
-            onLoadTemplate={(t: any) => loadTemplate("DINNER", t)}
-            onOpenSaveTemplate={() => setTemplateSaveModal({ mealType: "DINNER", open: true })}
+            onOpenCopyModal={() => setCopyModalMeal("DINNER")}
+            onOpenTemplateSaveModal={() =>
+              setTemplateSaveModal({ isOpen: true, mealType: "DINNER" })
+            }
             onDeleteTemplate={deleteTemplate}
-            onOpenCopyFrom={() => setCopyFromDialog({ mealType: "DINNER", open: true })}
           />
         </div>
       </div>
 
-      {/* ── Confirm Modals ──────────────────────────────────────────────────── */}
-      {/* Date change discard confirmation */}
+      {/* Confirmation modal for unsaved changes before date change */}
       <ConfirmDialog
-        isOpen={pendingDateChange !== null}
+        isOpen={!!pendingDateChange}
         onClose={() => setPendingDateChange(null)}
-        onConfirm={handleConfirmDateChange}
-        title="Discard Unsaved Changes?"
-        message="You have unsaved changes in your menu drafts. Navigating away will lose these changes. Proceed anyway?"
-        confirmLabel="Discard & Navigate"
+        onConfirm={() => {
+          if (pendingDateChange) {
+            loadDateTarget(pendingDateChange);
+            setPendingDateChange(null);
+          }
+        }}
+        title="Unsaved Changes"
+        message="You have unsaved menu edits for this date. Switching dates will discard your changes."
+        confirmLabel="Discard & Switch Date"
       />
 
-      {/* Menu delete confirmation */}
       <ConfirmDialog
-        isOpen={deleteConfirmMeal !== null}
-        onClose={() => setDeleteConfirmMeal(null)}
-        onConfirm={runDeleteMenu}
-        title={`Delete ${deleteConfirmMeal === "LUNCH" ? "Lunch" : "Dinner"} Menu`}
-        message={`Are you sure you want to delete the ${
-          deleteConfirmMeal === "LUNCH" ? "Lunch" : "Dinner"
-        } menu for ${formatDisplayDate(selectedDate)}? This will delete the public link and cannot be undone.`}
-        confirmLabel="Delete Menu"
-      />
-
-      {/* Copy overwrite confirmation */}
-      <ConfirmDialog
-        isOpen={pendingCopySource !== null}
+        isOpen={!!pendingCopySource}
         onClose={() => setPendingCopySource(null)}
         onConfirm={handleConfirmCopyOverwrite}
-        title="Overwrite Draft?"
-        message={`Copying this menu will overwrite your current unsaved ${pendingCopySource?.mealType.toLowerCase()} changes. Do you want to proceed?`}
-        confirmLabel="Overwrite & Copy"
+        title="Overwrite Unsaved Menu?"
+        message="You have unsaved changes in your current menu draft. Copying from another date will overwrite your current edits."
+        confirmLabel="Yes, Overwrite Draft"
       />
 
-      {/* Save Template Modal */}
-      {templateSaveModal.open && (
-        <SaveTemplateModal
-          isOpen={templateSaveModal.open}
-          onClose={() => setTemplateSaveModal((v) => ({ ...v, open: false }))}
-          mealType={templateSaveModal.mealType}
-          onSave={saveAsTemplate}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmMeal}
+        onClose={() => setDeleteConfirmMeal(null)}
+        onConfirm={runDeleteMenu}
+        title={`Delete ${deleteConfirmMeal === "LUNCH" ? "Lunch" : "Dinner"} Menu?`}
+        message={`Are you sure you want to delete the ${
+          deleteConfirmMeal === "LUNCH" ? "Lunch" : "Dinner"
+        } menu for ${formatDisplayDate(selectedDate)}?`}
+        confirmLabel="Delete Menu"
+        isLoading={
+          deleteConfirmMeal
+            ? getDraft(deleteConfirmMeal).isDeleting
+            : false
+        }
+      />
+
+      {copyModalMeal && (
+        <CopyFromDialog
+          isOpen={!!copyModalMeal}
+          mealType={copyModalMeal}
+          currentDate={selectedDate}
+          onClose={() => setCopyModalMeal(null)}
+          onSelectDate={(srcDate) => handleCopyFromSelect(srcDate, copyModalMeal)}
         />
       )}
 
-      {/* Copy From Dialog */}
-      {copyFromDialog.open && (
-        <CopyFromDialog
-          isOpen={copyFromDialog.open}
-          onClose={() => setCopyFromDialog((v) => ({ ...v, open: false }))}
-          mealType={copyFromDialog.mealType}
-          selectedDate={selectedDate}
-          summaries={summaries}
-          onCopy={(sourceDate) => handleCopyFromSelect(sourceDate, copyFromDialog.mealType)}
+      {templateSaveModal.isOpen && (
+        <SaveTemplateModal
+          isOpen={templateSaveModal.isOpen}
+          mealType={templateSaveModal.mealType}
+          onClose={() => setTemplateSaveModal({ isOpen: false, mealType: "LUNCH" })}
+          onSave={saveAsTemplate}
         />
       )}
     </div>

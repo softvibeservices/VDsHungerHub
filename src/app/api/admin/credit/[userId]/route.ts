@@ -16,7 +16,11 @@ export async function GET(
       );
     }
 
-    const detail = await getUserLedgerDetail(userId);
+    const { searchParams } = new URL(req.url);
+    const startDate = searchParams.get("startDate") ?? undefined;
+    const endDate = searchParams.get("endDate") ?? undefined;
+
+    const detail = await getUserLedgerDetail(userId, startDate, endDate);
     if (!detail) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
