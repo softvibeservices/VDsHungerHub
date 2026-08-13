@@ -134,20 +134,18 @@ export default async function RootPage() {
       <Navbar />
 
       {/* ─── HERO SECTION ─── */}
-      <section className="relative overflow-hidden bg-[#0F1E3D] py-20 md:py-28 px-4">
+      <section className="relative overflow-hidden bg-[#0F1E3D] py-16 md:py-24 px-4">
         {/* Background decoration */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_#C9A84C22_0%,_transparent_60%)] pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_#1B2D5A80_0%,_transparent_60%)] pointer-events-none" />
-        {/* Animated gold rings */}
         <div className="absolute top-1/2 right-0 translate-x-1/3 -translate-y-1/2 w-[500px] h-[500px] rounded-full border border-[#C9A84C]/10 pointer-events-none" />
-        <div className="absolute top-1/2 right-0 translate-x-1/4 -translate-y-1/2 w-[350px] h-[350px] rounded-full border border-[#C9A84C]/15 pointer-events-none" />
 
         <div className="max-w-7xl mx-auto relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             {/* Left: Text content */}
-            <div className="space-y-8">
+            <div className="lg:col-span-6 space-y-7">
               <div>
-                <span className="inline-flex items-center gap-2 bg-[#C9A84C]/15 text-[#C9A84C] text-xs font-bold px-4 py-2 rounded-full border border-[#C9A84C]/30 mb-6">
+                <span className="inline-flex items-center gap-2 bg-[#C9A84C]/15 text-[#C9A84C] text-xs font-extrabold px-4 py-2 rounded-full border border-[#C9A84C]/30 mb-5">
                   🍽️ Restaurant & Cloud Kitchen · Thaltej, Ahmedabad
                 </span>
                 <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold text-white leading-tight tracking-tight">
@@ -191,14 +189,14 @@ export default async function RootPage() {
                   </Button>
                 </a>
                 <a href="/menu">
-                  <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white border border-white/40 hover:bg-white/15 hover:border-white/70 rounded-xl transition-all duration-300">
+                  <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white border border-white/40 hover:bg-white/15 hover:border-white/70 rounded-xl transition-all duration-300">
                     Explore Menu <ArrowRight size={16} />
                   </button>
                 </a>
               </div>
 
               {/* Trust badges */}
-              <div className="flex flex-wrap items-center gap-4 pt-2">
+              <div className="flex flex-wrap items-center gap-4 pt-1">
                 <div className="flex items-center gap-1.5 text-xs text-gray-400">
                   <ShieldCheck size={14} className="text-green-400" />
                   Hygienic Kitchen
@@ -214,29 +212,38 @@ export default async function RootPage() {
               </div>
             </div>
 
-            {/* Right: Logo + Business card */}
-            <div className="flex flex-col items-center gap-6 lg:pl-8">
-              <div className="relative">
-                {/* Glow effect */}
-                <div className="absolute inset-0 rounded-full bg-[#C9A84C]/20 blur-3xl scale-110" />
+            {/* Right: Featured Video Showcase (Fully Responsive across All Devices) */}
+            <div className="lg:col-span-6 flex flex-col items-center gap-4 w-full">
+              <div className="relative w-full max-w-full sm:max-w-lg lg:max-w-xl rounded-2xl sm:rounded-3xl overflow-hidden border-2 border-[#C9A84C]/40 shadow-2xl bg-[#0B152B] group transition-all duration-300">
+                <video
+                  src="/vita-1_QsF26q56 (online-video-cutter.com) (1).mp4"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  className="w-full h-[240px] sm:h-[340px] md:h-[420px] lg:h-[480px] object-cover rounded-2xl sm:rounded-3xl"
+                />
+                
+                {/* Overlay Badge */}
+                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-[#0F1E3D]/85 backdrop-blur-md px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-[#C9A84C]/40 text-white text-[11px] sm:text-xs font-bold flex items-center gap-2 shadow-lg">
+                  <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="text-[#C9A84C]">ViTa Kitchen Showcase</span>
+                </div>
+              </div>
+
+              {/* Logo Badge below video */}
+              <div className="flex items-center gap-3 bg-[#1B2D5A]/80 backdrop-blur-md border border-[#C9A84C]/30 px-5 py-2.5 rounded-2xl shadow-lg">
                 <Image
                   src="/vita-Logo.png"
-                  alt="ViTa Cuisine"
-                  width={280}
-                  height={280}
-                  className="object-contain relative z-10 drop-shadow-2xl"
-                  priority
+                  alt="ViTa Cuisine Logo"
+                  width={38}
+                  height={38}
+                  className="object-contain"
                 />
-              </div>
-              {/* Business Card Preview */}
-              <div className="w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl border border-[#C9A84C]/30 hover:border-[#C9A84C]/60 transition-all duration-300 hover:-translate-y-1">
-                <Image
-                  src="/ViTa Business Card-images-0.png"
-                  alt="ViTa Cuisine Services"
-                  width={600}
-                  height={350}
-                  className="object-cover w-full"
-                />
+                <div>
+                  <p className="text-xs font-bold text-white leading-tight">ViTa Cuisine</p>
+                  <p className="text-[10px] text-[#C9A84C] font-semibold">THINK FOOD, THINK US</p>
+                </div>
               </div>
             </div>
           </div>
@@ -248,205 +255,217 @@ export default async function RootPage() {
         <div className="max-w-7xl mx-auto space-y-14">
           <div className="text-center space-y-3">
             <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">What We Offer</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F1E3D] tracking-tight">
-              Our Premium Services
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900">
+              Our Special Offerings
             </h2>
-            <p className="text-gray-500 max-w-xl mx-auto text-sm md:text-base">
-              From daily tiffins to large-scale catering — ViTa Cuisine handles every food need with the same dedication to quality.
+            <p className="text-gray-500 text-sm max-w-xl mx-auto">
+              From corporate daily meal subscriptions to festive party catering — we handle everything with care and perfection.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {serviceCards.map(({ icon: Icon, name, description, badge }, idx) => (
-              <div
-                key={idx}
-                className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-xl hover:border-[#C9A84C]/40 transition-all duration-300 group relative flex flex-col"
-              >
-                {badge && (
-                  <span className="absolute -top-3 left-4 bg-[#C9A84C] text-[#0F1E3D] text-[9px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow">
-                    {badge}
-                  </span>
-                )}
-                <div className="w-12 h-12 rounded-2xl bg-[#0F1E3D]/5 flex items-center justify-center mb-4 group-hover:bg-[#0F1E3D] group-hover:scale-110 transition-all duration-300">
-                  <Icon className="text-[#1B2D5A] group-hover:text-[#C9A84C] transition-colors" size={22} />
-                </div>
-                <h3 className="font-extrabold text-[#0F1E3D] text-base mb-2">{name}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed flex-1">{description}</p>
-                <a
-                  href={WHATSAPP_LINK}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-4 text-xs font-bold text-[#C9A84C] hover:text-[#0F1E3D] flex items-center gap-1 transition-colors group-hover:gap-2"
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {serviceCards.map((s) => {
+              const Icon = s.icon;
+              return (
+                <div
+                  key={s.name}
+                  className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-xl hover:border-[#C9A84C]/40 transition-all duration-300 flex flex-col justify-between group"
                 >
-                  Enquire Now <ArrowRight size={12} />
-                </a>
-              </div>
-            ))}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="w-12 h-12 rounded-xl bg-[#0F1E3D] text-[#C9A84C] flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Icon size={24} />
+                      </div>
+                      {s.badge && (
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#C9A84C]/15 text-[#0F1E3D] border border-[#C9A84C]/30">
+                          {s.badge}
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="font-extrabold text-gray-900 text-lg group-hover:text-[#0F1E3D] transition-colors">
+                        {s.name}
+                      </h3>
+                      <p className="text-gray-500 text-xs mt-2 leading-relaxed">
+                        {s.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-6">
+                    <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">
+                      <button className="w-full py-2 px-4 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-[#0F1E3D] hover:text-white hover:border-[#0F1E3D] transition-all duration-200 flex items-center justify-center gap-2">
+                        Inquire Now <ArrowRight size={14} />
+                      </button>
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* ─── HOW IT WORKS ─── */}
-      <section id="how-it-works" className="bg-white py-20 px-4 scroll-mt-20">
-        <div className="max-w-6xl mx-auto space-y-14">
+      <section className="py-20 px-4 bg-white">
+        <div className="max-w-7xl mx-auto space-y-14">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Simple Process</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F1E3D] tracking-tight">
-              How It Works
+            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">How It Works</span>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900">
+              3 Simple Steps to Your Meal
             </h2>
-            <p className="text-gray-500 max-w-md mx-auto text-sm">
-              Getting fresh home-style meals is incredibly easy. Three simple steps is all it takes.
+            <p className="text-gray-500 text-sm max-w-xl mx-auto">
+              Getting fresh tiffin or corporate catering delivered to you is fast, easy, and completely hassle-free.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-            {/* Connector line (desktop only) */}
-            <div className="hidden md:block absolute top-10 left-1/6 right-1/6 h-px bg-gradient-to-r from-[#C9A84C]/20 via-[#C9A84C]/60 to-[#C9A84C]/20" />
-
-            {stepCards.map(({ step, icon: Icon, title, description }, idx) => (
-              <div
-                key={idx}
-                className="bg-white border border-gray-200 rounded-2xl p-8 text-center shadow-sm hover:shadow-xl hover:border-[#C9A84C]/30 transition-all duration-300 relative group"
-              >
-                {/* Step number badge */}
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-[#0F1E3D] text-[#C9A84C] flex items-center justify-center text-xs font-extrabold shadow-md">
-                  {step}
+            {stepCards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <div
+                  key={card.step}
+                  className="bg-gray-50 rounded-3xl p-8 border border-gray-200/80 relative space-y-4 hover:shadow-lg transition-shadow"
+                >
+                  <span className="text-4xl font-black text-[#C9A84C]/25 select-none absolute top-6 right-6">
+                    {card.step}
+                  </span>
+                  <div className="w-14 h-14 rounded-2xl bg-[#0F1E3D] text-[#C9A84C] flex items-center justify-center shadow-md">
+                    <Icon size={28} />
+                  </div>
+                  <h3 className="text-xl font-extrabold text-gray-900">{card.title}</h3>
+                  <p className="text-gray-500 text-xs leading-relaxed">{card.description}</p>
                 </div>
-                <div className="w-14 h-14 rounded-2xl bg-[#0F1E3D]/5 flex items-center justify-center mx-auto mb-4 mt-2 group-hover:bg-[#0F1E3D] group-hover:scale-110 transition-all duration-300">
-                  <Icon className="text-[#1B2D5A] group-hover:text-[#C9A84C] transition-colors" size={24} />
-                </div>
-                <h3 className="font-extrabold text-[#0F1E3D] mb-3 text-base">{title}</h3>
-                <p className="text-sm text-gray-500 leading-relaxed">{description}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
-      {/* ─── MENU / THALI SECTION ─── */}
-      <section className="bg-[#0F1E3D] py-20 px-4">
-        <div className="max-w-6xl mx-auto space-y-14">
+      {/* ─── MENU HIGHLIGHT ─── */}
+      <section id="thalis" className="bg-[#0F1E3D] text-white py-20 px-4 scroll-mt-20 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto space-y-14 relative z-10">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Daily Menu</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight">
-              Our Fresh Daily Thalis
+            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Our Tiffin Options</span>
+            <h2 className="text-3xl md:text-4xl font-extrabold">
+              Daily Thali Packages
             </h2>
-            <p className="text-gray-400 max-w-md mx-auto text-sm">
-              Prepared fresh every morning with premium ingredients. Our menu rotates daily for variety.
+            <p className="text-gray-300 text-sm max-w-xl mx-auto">
+              Curated daily for Lunch & Dinner with fresh sabjis, hot rotis, and traditional Gujarati recipes.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {menuCards.map(({ name, price, description, items, highlight }, idx) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {menuCards.map((menu) => (
               <div
-                key={idx}
-                className={`rounded-2xl overflow-hidden flex flex-col transition-all duration-300 hover:-translate-y-1 ${
-                  highlight
-                    ? "bg-[#C9A84C] text-[#0F1E3D] shadow-2xl shadow-[#C9A84C]/30 scale-105"
-                    : "bg-white/5 border border-white/10 text-white hover:border-[#C9A84C]/40"
+                key={menu.name}
+                className={`rounded-3xl p-8 transition-all duration-300 flex flex-col justify-between relative ${
+                  menu.highlight
+                    ? "bg-gradient-to-b from-[#1B2D5A] to-[#0F1E3D] border-2 border-[#C9A84C] shadow-2xl shadow-[#C9A84C]/20 md:-translate-y-4"
+                    : "bg-[#14264A] border border-white/10"
                 }`}
               >
-                {highlight && (
-                  <div className="bg-[#0F1E3D] text-[#C9A84C] text-[10px] font-extrabold text-center py-2 tracking-widest uppercase">
-                    ⭐ Chef&apos;s Recommended
-                  </div>
+                {menu.highlight && (
+                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#C9A84C] text-[#0F1E3D] text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-md">
+                    Most Ordered
+                  </span>
                 )}
-                <div className="p-7 flex flex-col flex-1">
-                  <div className="mb-4">
-                    <div className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${highlight ? "text-[#0F1E3D]/60" : "text-[#C9A84C]"}`}>
-                      {price}
-                    </div>
-                    <h3 className={`font-extrabold text-xl ${highlight ? "text-[#0F1E3D]" : "text-white"}`}>{name}</h3>
-                    <p className={`text-xs mt-1.5 leading-relaxed ${highlight ? "text-[#0F1E3D]/70" : "text-gray-400"}`}>{description}</p>
+
+                <div className="space-y-6">
+                  <div>
+                    <span className="text-xs font-bold text-[#C9A84C]">{menu.price}</span>
+                    <h3 className="text-2xl font-extrabold mt-1">{menu.name}</h3>
+                    <p className="text-gray-300 text-xs mt-2 leading-relaxed">{menu.description}</p>
                   </div>
-                  <ul className="space-y-2 pt-4 border-t border-current/10 flex-1">
-                    {items.map((item, itemIdx) => (
-                      <li key={itemIdx} className={`text-sm flex items-center gap-2.5 ${highlight ? "text-[#0F1E3D]" : "text-gray-300"}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${highlight ? "bg-[#0F1E3D]" : "bg-[#C9A84C]"}`} />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                  <a
-                    href={WHATSAPP_LINK}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`mt-6 flex items-center justify-center gap-2 text-sm font-bold py-2.5 px-4 rounded-xl transition-all duration-300 ${
-                      highlight
-                        ? "bg-[#0F1E3D] text-[#C9A84C] hover:bg-[#1B2D5A]"
-                        : "bg-white/10 text-white hover:bg-[#C9A84C] hover:text-[#0F1E3D]"
-                    }`}
-                  >
-                    <MessageCircle size={15} /> Order Now
+
+                  <div className="space-y-2 pt-2">
+                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Includes:</p>
+                    <ul className="space-y-2">
+                      {menu.items.map((item) => (
+                        <li key={item} className="flex items-center gap-2.5 text-xs text-gray-200 font-medium">
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#C9A84C]" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="pt-8">
+                  <a href="/menu">
+                    <button
+                      className={`w-full py-3 px-6 rounded-xl text-xs font-bold transition-all duration-200 ${
+                        menu.highlight
+                          ? "bg-[#C9A84C] hover:bg-[#b8963f] text-[#0F1E3D] shadow-lg"
+                          : "bg-white/10 hover:bg-white/20 text-white border border-white/20"
+                      }`}
+                    >
+                      View Today&apos;s Choices
+                    </button>
                   </a>
                 </div>
               </div>
             ))}
           </div>
-
-          <div className="text-center">
-            <p className="text-sm text-[#C9A84C]/80 bg-[#C9A84C]/10 border border-[#C9A84C]/20 rounded-2xl px-6 py-3 inline-block">
-              💡 Our sabji options rotate daily for variety — WhatsApp us to check today&apos;s special menu!
-            </p>
-          </div>
         </div>
       </section>
 
       {/* ─── WHY CHOOSE US ─── */}
-      <section id="why-us" className="bg-white py-20 px-4 scroll-mt-20">
-        <div className="max-w-6xl mx-auto space-y-14">
+      <section className="py-20 px-4 bg-gray-50">
+        <div className="max-w-7xl mx-auto space-y-12">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Our Promise</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F1E3D] tracking-tight">
-              Why Choose ViTa Cuisine
+            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Why ViTa Cuisine</span>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900">
+              The ViTa Cuisine Promise
             </h2>
-            <p className="text-gray-500 max-w-md mx-auto text-sm">
-              We focus on taste, health, hygiene, and absolute reliability — every single day.
-            </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {whyUsCards.map(({ icon: Icon, label, desc }, idx) => (
-              <div
-                key={idx}
-                className="text-center space-y-3 p-6 rounded-2xl border border-gray-100 hover:border-[#C9A84C]/40 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-[#0F1E3D]/5 flex items-center justify-center mx-auto group-hover:bg-[#0F1E3D] group-hover:scale-110 transition-all duration-300">
-                  <Icon className="text-[#1B2D5A] group-hover:text-[#C9A84C] transition-colors" size={22} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {whyUsCards.map((w) => {
+              const Icon = w.icon;
+              return (
+                <div
+                  key={w.label}
+                  className="bg-white p-6 rounded-2xl border border-gray-200 text-center space-y-3 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-amber-50 text-[#C9A84C] flex items-center justify-center mx-auto">
+                    <Icon size={24} />
+                  </div>
+                  <h3 className="font-extrabold text-gray-900">{w.label}</h3>
+                  <p className="text-gray-500 text-xs">{w.desc}</p>
                 </div>
-                <p className="font-extrabold text-[#0F1E3D] text-sm leading-snug">{label}</p>
-                <p className="text-xs text-gray-400">{desc}</p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* ─── TESTIMONIALS ─── */}
-      <section className="bg-gray-50 py-20 px-4">
-        <div className="max-w-6xl mx-auto space-y-14">
+      <section className="py-20 px-4 bg-white">
+        <div className="max-w-7xl mx-auto space-y-12">
           <div className="text-center space-y-3">
-            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Customer Love</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F1E3D] tracking-tight">
+            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Reviews</span>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900">
               What Our Customers Say
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map(({ name, role, text, stars }, idx) => (
+            {testimonials.map((t) => (
               <div
-                key={idx}
-                className="bg-white rounded-2xl p-7 border border-gray-200 shadow-sm hover:shadow-xl hover:border-[#C9A84C]/30 transition-all duration-300 flex flex-col"
+                key={t.name}
+                className="bg-gray-50 rounded-2xl p-6 border border-gray-200 space-y-4 hover:shadow-md transition-shadow"
               >
-                <div className="flex mb-4">
-                  {Array.from({ length: stars }).map((_, i) => (
-                    <Star key={i} size={14} className="text-[#C9A84C] fill-[#C9A84C]" />
+                <div className="flex text-amber-400 gap-1">
+                  {Array.from({ length: t.stars }).map((_, i) => (
+                    <Star key={i} size={16} fill="currentColor" />
                   ))}
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed flex-1 italic">&ldquo;{text}&rdquo;</p>
-                <div className="mt-5 pt-4 border-t border-gray-100">
-                  <p className="font-bold text-[#0F1E3D] text-sm">{name}</p>
-                  <p className="text-xs text-gray-400">{role}</p>
+                <p className="text-gray-600 text-xs italic leading-relaxed">&ldquo;{t.text}&rdquo;</p>
+                <div>
+                  <p className="font-extrabold text-gray-900 text-sm">{t.name}</p>
+                  <p className="text-[10px] text-gray-400">{t.role}</p>
                 </div>
               </div>
             ))}
@@ -454,112 +473,30 @@ export default async function RootPage() {
         </div>
       </section>
 
-      {/* ─── CONTACT SECTION ─── */}
-      <section id="contact" className="bg-white py-20 px-4 scroll-mt-20">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center space-y-3 mb-14">
-            <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Get In Touch</span>
-            <h2 className="text-3xl md:text-4xl font-extrabold text-[#0F1E3D] tracking-tight">
-              Visit Us or Order Now
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
-            {/* Contact details */}
-            <div className="space-y-6">
-              <div className="rounded-2xl bg-[#0F1E3D] p-8 space-y-6 text-white">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
-                    <Phone size={18} className="text-[#C9A84C]" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">Call Us</p>
-                    <a href="tel:+916356350085" className="text-white font-bold hover:text-[#C9A84C] transition-colors block">+91 635 635 0085 (Restaurant)</a>
-                    <a href="tel:+916356350086" className="text-white font-bold hover:text-[#C9A84C] transition-colors block">+91 635 635 0086 (Delivery)</a>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
-                    <Mail size={18} className="text-[#C9A84C]" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">Email</p>
-                    <a href="mailto:ViTaCuisine0@gmail.com" className="text-white font-bold hover:text-[#C9A84C] transition-colors">ViTaCuisine0@gmail.com</a>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-[#C9A84C]/20 flex items-center justify-center flex-shrink-0">
-                    <MapPin size={18} className="text-[#C9A84C]" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mb-1">Location</p>
-                    <p className="text-white font-semibold leading-relaxed">
-                      19, Ayana Complex,<br />
-                      Nr. Zydus Cancer Hospital,<br />
-                      Zydus Hospital Road, Thaltej-380059.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Business card image */}
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-[#C9A84C]/30 hover:border-[#C9A84C]/60 transition-all duration-300">
-              <Image
-                src="/ViTa Business Card-images-1.png"
-                alt="ViTa Cuisine Contact Card"
-                width={600}
-                height={350}
-                className="object-cover w-full"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── FINAL CTA BANNER ─── */}
-      <section className="bg-gradient-to-br from-[#0F1E3D] via-[#1B2D5A] to-[#0F1E3D] py-20 px-4 text-center text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#C9A84C15_0%,_transparent_70%)] pointer-events-none" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-full bg-gradient-to-b from-[#C9A84C]/30 to-transparent pointer-events-none" />
-
-        <div className="max-w-2xl mx-auto space-y-8 relative z-10">
-          <div className="flex justify-center">
-            <Image
-              src="/vita-Logo.png"
-              alt="ViTa Cuisine"
-              width={80}
-              height={80}
-              className="object-contain opacity-90"
-            />
-          </div>
-          <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">
-            Hungry? Let&apos;s Fix That.
-          </h2>
-          <p className="text-gray-300 text-sm md:text-base leading-relaxed max-w-lg mx-auto">
-            Join our growing family of loyal customers who enjoy warm, wholesome, home-style food every single day. Your first meal is just one message away.
+      {/* ─── CTA BANNER ─── */}
+      <section className="bg-gradient-to-r from-[#0F1E3D] to-[#1B2D5A] text-white py-16 px-4">
+        <div className="max-w-5xl mx-auto text-center space-y-6">
+          <h2 className="text-3xl md:text-4xl font-extrabold">Ready to Taste Home-Style Goodness?</h2>
+          <p className="text-gray-300 text-sm max-w-xl mx-auto">
+            Get in touch for daily tiffin subscriptions, office lunch plans, or bulk event catering.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
+          <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
             <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">
               <Button
                 variant="primary"
                 size="lg"
-                className="bg-[#C9A84C] hover:bg-[#b8963f] text-[#0F1E3D] font-bold border-0 rounded-xl shadow-xl shadow-[#C9A84C]/30 hover:shadow-[#C9A84C]/50 transition-all duration-300 w-full sm:w-auto"
+                className="bg-[#C9A84C] hover:bg-[#b8963f] text-[#0F1E3D] font-bold border-0 rounded-xl shadow-xl"
                 leftIcon={<MessageCircle size={18} />}
               >
-                Order on WhatsApp
+                WhatsApp Us Now
               </Button>
             </a>
             <a href="tel:+916356350085">
-              <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white border border-white/40 hover:bg-white/15 hover:border-white/70 rounded-xl transition-all duration-300">
-                <Phone size={18} /> Call Us Now
+              <button className="inline-flex items-center gap-2 px-6 py-3 text-sm font-semibold text-white border border-white/40 hover:bg-white/10 rounded-xl transition-all">
+                <Phone size={16} /> Call +91 635 635 0085
               </button>
             </a>
           </div>
-          <p className="text-xs text-gray-500">
-            19, Ayana Complex · Thaltej, Ahmedabad · ViTaCuisine0@gmail.com
-          </p>
         </div>
       </section>
 
