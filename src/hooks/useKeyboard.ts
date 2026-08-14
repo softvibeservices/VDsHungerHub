@@ -18,6 +18,11 @@ export function useKeyboard() {
         return;
       }
 
+      // Require Alt key for admin shortcuts (e.g. Alt + C, Alt + D) and ignore if Ctrl/Meta is pressed
+      if (!e.altKey || e.ctrlKey || e.metaKey) {
+        return;
+      }
+
       const key = e.key.toLowerCase();
       
       switch (key) {
