@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { cookies } from "next/headers";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "./prisma";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -92,4 +92,47 @@ export function requirePermission(session: StaffSessionPayload, permission: stri
   if (!hasPermission(session, permission)) {
     throw new Error("PERMISSION_DENIED");
   }
+}
+
+export interface RequireStaffAuthOptions {
+  /** If set, only these roles may pass. Omit to allow any authenticated staff. */
+  roles?: ("ADMIN" | "STAFF")[];
+  /** If set, ADMIN always passes; STAFF must have this permission string. */
+  permission?: string;
+}
+
+export type RequireStaffAuthResult =
+  | { session: StaffSessionPayload; error?: undefined }
+  | { session?: undefined; error: NextResponse };
+
+/**
+ * One-line auth guard for API route handlers. Loads the session (with the DB
+ * ACTIVE-status revocation check baked in via verifyStaffSession), and
+ * optionally enforces a role allow-list and/or a granular permission string.
+ *
+ * Usage:
+ *   const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+ *   if (auth.error) return auth.error;
+ *   const { session } = auth;
+ */
+export async function requireStaffAuth(
+  req: NextRequest,
+  opts: RequireStaffAuthOptions = {}
+): Promise<RequireStaffAuthResult> {
+  const session = await verifyStaffSession(req);
+  if (!session) {
+    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (opts.roles && !opts.roles.includes(session.role)) {
+    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  if (opts.permission && !hasPermission(session, opts.permission)) {
+    return {
+      error: NextResponse.json(
+        { error: `Forbidden: missing ${opts.permission} permission` },
+        { status: 403 }
+      ),
+    };
+  }
+  return { session };
 }

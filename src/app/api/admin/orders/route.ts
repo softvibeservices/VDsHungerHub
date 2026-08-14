@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyStaffSession } from "@/lib/staff-auth";
+import { verifyStaffSession, requireStaffAuth } from "@/lib/staff-auth";
 import { getTodayIST } from "@/lib/utils";
 
 /**
@@ -70,7 +70,6 @@ export async function GET(req: NextRequest) {
           product: { select: { id: true, name: true } },
         },
       },
-      // #2: include note + admin comment thread
       comments: {
         orderBy: { createdAt: "asc" },
         select: {
@@ -86,7 +85,6 @@ export async function GET(req: NextRequest) {
 
   type OrderResult = (typeof orders)[number];
 
-  // Group by meal type for convenience
   const lunch = orders.filter((o: OrderResult) => o.menu.mealType === "LUNCH");
   const dinner = orders.filter((o: OrderResult) => o.menu.mealType === "DINNER");
 
@@ -103,10 +101,8 @@ export async function GET(req: NextRequest) {
  * PATCH /api/admin/orders — Bulk update order statuses
  */
 export async function PATCH(req: NextRequest) {
-  const session = await verifyStaffSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStaffAuth(req, { permission: "orders:update-status" });
+  if (auth.error) return auth.error;
 
   try {
     const { orderIds, status } = await req.json();

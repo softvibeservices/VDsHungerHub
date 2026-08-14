@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const { name, nameGu, price, description, sabjiCount, categoryId, items, isActive } = await req.json();
@@ -17,7 +21,6 @@ export async function PUT(
       return NextResponse.json({ error: "Sabji count must be between 0 and 3" }, { status: 400 });
     }
 
-    // Delete existing items only (sabjiPool no longer managed here)
     await prisma.thaliItem.deleteMany({ where: { thaliId: id } });
 
     await prisma.thali.update({
@@ -61,13 +64,15 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
 
-    // Check if thali is used in any menus
     const menuCount = await prisma.dailyMenuThali.count({ where: { thaliId: id } });
     if (menuCount > 0) {
       return NextResponse.json(
@@ -91,6 +96,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const body = await req.json();

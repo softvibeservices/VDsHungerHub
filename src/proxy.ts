@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyStaffToken, STAFF_SESSION_COOKIE } from "@/lib/staff-auth";
+import {
+  ADMIN_AUTHENTICATED_PAGE_PREFIXES,
+  ADMIN_ONLY_PAGE_PREFIXES,
+  ADMIN_ONLY_API_PREFIXES,
+  matchesAny,
+} from "@/lib/rbac";
 
 const PUBLIC_PATHS = [
   "/",
@@ -54,19 +60,10 @@ function isJwtSyntacticallyValid(token: string): boolean {
   }
 }
 
-// Pages only ADMIN can access
-const ADMIN_ONLY_PREFIXES = ["/companies", "/users", "/api/companies", "/api/users", "/api/admin/staff"];
-
-// Pages both ADMIN and STAFF can access (require authentication)
-const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/companies",
-  "/users",
-  "/staff",
-  "/catalog",
-  "/daily-menu",   // Admin menu management page (NOT the customer /menu page)
-  "/orders",
-];
+// Every page under src/app/(admin)/ requiring auth is listed in rbac.ts —
+// see src/lib/rbac.ts for the single source of truth and the rule that
+// every new admin page folder MUST be added there.
+const PROTECTED_PREFIXES = ADMIN_AUTHENTICATED_PAGE_PREFIXES;
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -92,7 +89,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isProtectedPage = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
+  const isProtectedPage = matchesAny(pathname, PROTECTED_PREFIXES);
   const isProtectedApi =
     pathname.startsWith("/api") &&
     !pathname.startsWith("/api/auth") &&
@@ -116,8 +113,13 @@ export function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/staff-login", request.url));
     }
 
-    // Role check: STAFF cannot access admin-only pages/routes
-    const isAdminOnly = ADMIN_ONLY_PREFIXES.some((p) => pathname.startsWith(p));
+    // Role check: STAFF cannot access admin-only pages/routes.
+    // Page paths (e.g. "/staff") and API paths (e.g. "/api/admin/staff") are
+    // checked against separate lists on purpose — they're unrelated strings.
+    const isAdminOnly = isProtectedPage
+      ? matchesAny(pathname, ADMIN_ONLY_PAGE_PREFIXES)
+      : matchesAny(pathname, ADMIN_ONLY_API_PREFIXES);
+
     if (isAdminOnly && payload.role !== "ADMIN") {
       if (isProtectedApi) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       return NextResponse.redirect(new URL("/dashboard", request.url));

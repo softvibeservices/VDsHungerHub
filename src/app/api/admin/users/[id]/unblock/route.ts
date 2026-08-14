@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyStaffSession } from "@/lib/staff-auth";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function POST(
   req: NextRequest,
@@ -9,11 +9,10 @@ export async function POST(
   try {
     const { id: userId } = await params;
 
-    // Staff/Admin Authentication
-    const session = await verifyStaffSession(req);
-    if (!session || (session.role !== "ADMIN" && session.role !== "STAFF")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Staff/Admin Authentication — requires the "Moderate Customers" permission
+    const auth = await requireStaffAuth(req, { permission: "users:moderate" });
+    if (auth.error) return auth.error;
+    const session = auth.session;
 
     // Verify target user exists
     const targetUser = await prisma.user.findUnique({

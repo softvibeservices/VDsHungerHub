@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function POST(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { products } = await req.json();
     if (!Array.isArray(products)) {

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
@@ -50,8 +54,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-
 export async function POST(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { name, location, address } = await req.json();
 

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 import { getTodayIST, istTimeToUTC } from "@/lib/time";
 import { validateSabjiCoverage } from "@/lib/menu-validation";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireStaffAuth(req);
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(req.url);
     const dateParam = searchParams.get("date");
@@ -11,7 +15,6 @@ export async function GET(req: NextRequest) {
 
     const where: Record<string, unknown> = {};
     if (dateParam) {
-      // Parse the date as UTC midnight to correctly match the DB Date column
       const date = new Date(dateParam + "T00:00:00.000Z");
       where.date = date;
     }
@@ -36,6 +39,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { date, mealType, cutoffTime, thaliIds, thaliConfig, sabjiOptions } = await req.json();
 
@@ -59,21 +65,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "At least one thali must be selected" }, { status: 400 });
     }
 
-    // Fetch full thali records (incl. category) — needed for both the
-    // sabjiCount cap AND the new dish-coverage validation below.
     const thalisFromDb = await prisma.thali.findMany({
       where: { id: { in: resolvedConfig.map((t) => t.thaliId) } },
       include: { category: true },
     });
     const sabjiCountMap = new Map<string, number>(thalisFromDb.map((t: { id: string; sabjiCount: number }) => [t.id, t.sabjiCount]));
 
-    // Clamp minSabjiRequired to each thali's sabjiCount cap (existing behaviour, unchanged)
     const clampedThaliConfig = resolvedConfig.map(({ thaliId, minSabjiRequired }) => {
       const cap = sabjiCountMap.get(thaliId) ?? 1;
       return { thaliId, minSabjiRequired: Math.min(minSabjiRequired ?? cap, cap) };
     });
 
-    // Client sends flat { categoryId, productId }[] — group them into { categoryId, productIds[] }[]
     const flatSabjiOptions = (sabjiOptions ?? []) as { categoryId: string; productId: string }[];
     const sabjiGroupMap = new Map<string, string[]>();
     for (const { categoryId, productId } of flatSabjiOptions) {
@@ -84,7 +86,6 @@ export async function POST(req: NextRequest) {
       sabjiGroupMap.entries()
     ).map(([categoryId, productIds]) => ({ categoryId, productIds }));
 
-    // ── server-side dish-coverage validation (safety net, mirrors the client) ──
     const validation = validateSabjiCoverage(thalisFromDb, clampedThaliConfig, sabjiOptionsInput);
     if (!validation.isValid) {
       return NextResponse.json(
@@ -95,12 +96,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    // ── end validation block ──
 
-    // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     const cutoffTimeUTC = cutoffTime ? istTimeToUTC(cutoffTime, date) : null;
-
-    // Parse date as UTC midnight so that the date stored in the PostgreSQL DATE column is exactly YYYY-MM-DD
     const menuDate = new Date(date + "T00:00:00.000Z");
 
     const menu = await prisma.dailyMenu.create({

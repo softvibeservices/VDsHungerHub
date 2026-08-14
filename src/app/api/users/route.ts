@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(req.url);
     const search = searchParams.get("search") ?? "";
     const companyId = searchParams.get("companyId") ?? "";
-    const isVerifiedParam = searchParams.get("isVerified"); // "true" | "false" | null
+    const isVerifiedParam = searchParams.get("isVerified");
     const statusFilter = searchParams.get("status") ?? "";
     const page = parseInt(searchParams.get("page") ?? "1");
     const limit = parseInt(searchParams.get("limit") ?? "20");
@@ -38,7 +42,6 @@ export async function GET(req: NextRequest) {
           verifiedAt: true,
           workAddress: true,
           homeAddress: true,
-          // lat/long: NEVER sent to customer-facing APIs, but admin GET is fine
           latitude: true,
           longitude: true,
           companyId: true,
@@ -61,6 +64,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { name, number, companyId, workAddress, homeAddress } = await req.json();
     const cleanNumber = number?.replace(/\s+/g, "").replace(/^\+91/, "").replace(/^0/, "");
@@ -77,7 +83,6 @@ export async function POST(req: NextRequest) {
         companyId,
         workAddress: workAddress?.trim() || null,
         homeAddress: homeAddress?.trim() || null,
-        // Admin-created users are set as verified since admin manually adds them
         isVerified: true,
         verifiedAt: new Date(),
       },

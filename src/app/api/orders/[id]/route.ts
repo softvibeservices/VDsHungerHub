@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyStaffSession } from "@/lib/staff-auth";
+import { verifyStaffSession, requireStaffAuth } from "@/lib/staff-auth";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -10,11 +10,8 @@ type Params = { params: Promise<{ id: string }> };
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
 
-  // Admin/Staff auth only
-  const session = await verifyStaffSession(req);
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStaffAuth(req, { permission: "orders:update-status" });
+  if (auth.error) return auth.error;
 
   const { status } = await req.json();
   const validStatuses = ["PENDING", "OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"];

@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const { name, number, companyId, isActive, workAddress, homeAddress, latitude, longitude } =
@@ -15,7 +19,6 @@ export async function PUT(
     if (!cleanNumber || !/^\d{10}$/.test(cleanNumber))
       return NextResponse.json({ error: "Valid 10-digit mobile number is required" }, { status: 400 });
 
-    // Parse optional float fields for coordinates (admin-only — never sent to customer APIs)
     let parsedLat: number | null = null;
     let parsedLng: number | null = null;
     if (latitude !== undefined && latitude !== null && latitude !== "") {
@@ -34,10 +37,8 @@ export async function PUT(
         number: cleanNumber,
         companyId,
         ...(isActive !== undefined && { isActive }),
-        // Address fields (editable by admin)
         workAddress: workAddress !== undefined ? (workAddress?.trim() || null) : undefined,
         homeAddress: homeAddress !== undefined ? (homeAddress?.trim() || null) : undefined,
-        // Coordinates — admin-only; never exposed to customer-facing responses
         latitude: parsedLat,
         longitude: parsedLng,
       },
@@ -57,11 +58,13 @@ export async function PUT(
   }
 }
 
-
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     await prisma.user.delete({ where: { id } });

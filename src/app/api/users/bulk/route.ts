@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 interface BulkUserRow {
   name: string;
@@ -8,6 +9,9 @@ interface BulkUserRow {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { users }: { users: BulkUserRow[] } = await req.json();
 

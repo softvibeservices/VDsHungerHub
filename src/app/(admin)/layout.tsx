@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/admin/Sidebar";
 import Header from "../../components/admin/Header"; // Admin top navigation header
 import { useKeyboard } from "@/hooks/useKeyboard";
+import { isAdminOnlyPage } from "@/lib/rbac";
 
 export default function AdminLayout({
   children,
@@ -12,33 +13,51 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   useKeyboard();
 
   useEffect(() => {
+    let cancelled = false;
+
     async function verifyAuth() {
+      setIsAuthChecking(true);
+      setIsAuthorized(false);
       try {
         const res = await fetch("/api/staff/me");
         if (!res.ok) {
-          router.push("/staff-login");
+          router.replace("/staff-login");
           return;
         }
         const data = await res.json();
         if (!data.user) {
-          router.push("/staff-login");
+          router.replace("/staff-login");
           return;
         }
-        setIsAuthorized(true);
+
+        // Role gate — mirrors src/proxy.ts and src/lib/rbac.ts. Re-checked on
+        // every pathname change (not just on first mount) because this
+        // layout persists across client-side navigation within (admin)/.
+        if (isAdminOnlyPage(pathname) && data.user.role !== "ADMIN") {
+          router.replace("/dashboard");
+          return;
+        }
+
+        if (!cancelled) setIsAuthorized(true);
       } catch {
-        router.push("/staff-login");
+        router.replace("/staff-login");
       } finally {
-        setIsAuthChecking(false);
+        if (!cancelled) setIsAuthChecking(false);
       }
     }
+
     verifyAuth();
-  }, [router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [router, pathname]);
 
   if (isAuthChecking) {
     return (

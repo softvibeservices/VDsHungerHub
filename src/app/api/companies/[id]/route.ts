@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const { name, location, address, isActive } = await req.json();
@@ -37,13 +41,15 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
 
-    // Check if company has users
     const userCount = await prisma.user.count({ where: { companyId: id } });
     if (userCount > 0) {
       return NextResponse.json(

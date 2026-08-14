@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const { name, nameGu, isActive, thaliIds } = await req.json();
 
-    // Replace the full set of assigned thalis: disconnect all current members,
-    // then connect exactly the incoming list. This makes the "assign these thalis
-    // to this category" UI behave as a full replace, not an incremental add.
     const current = await prisma.thaliCategory.findUnique({
       where: { id },
       include: { thalis: { select: { id: true } } },
@@ -44,11 +45,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
-    // Thali.categoryId uses onDelete: SetNull, so deleting a category
-    // un-categorizes its thalis rather than deleting them or failing.
     await prisma.thaliCategory.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

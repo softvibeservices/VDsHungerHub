@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const { name, nameGu, quantity, price, isActive, isAddOnAvailable } = await req.json();
@@ -38,9 +42,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     await prisma.product.delete({ where: { id } });
@@ -61,6 +68,9 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const body = await req.json();
@@ -99,4 +109,3 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
-

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { validateSabjiCoverage } from "@/lib/menu-validation";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const { cutoffTime, thaliIds, thaliConfig, sabjiOptions } = await req.json();
@@ -28,8 +32,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       ? thaliConfig
       : (thaliIds || []).map((thaliId: string) => ({ thaliId }));
 
-    // Fetch full thali records (incl. category) — needed for both the
-    // sabjiCount cap AND the new dish-coverage validation below.
     const thalisFromDb = await prisma.thali.findMany({
       where: { id: { in: resolvedConfig.map((t) => t.thaliId) } },
       include: { category: true },
@@ -41,7 +43,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       return { thaliId, minSabjiRequired: Math.min(minSabjiRequired ?? cap, cap) };
     });
 
-    // Client sends flat { categoryId, productId }[] — group them into { categoryId, productIds[] }[]
     const flatSabjiOptions = (sabjiOptions ?? []) as { categoryId: string; productId: string }[];
     const sabjiGroupMap = new Map<string, string[]>();
     for (const { categoryId, productId } of flatSabjiOptions) {
@@ -52,7 +53,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       sabjiGroupMap.entries()
     ).map(([categoryId, productIds]) => ({ categoryId, productIds }));
 
-    // ── server-side dish-coverage validation (safety net, mirrors the client) ──
     const validation = validateSabjiCoverage(thalisFromDb, clampedThaliConfig, sabjiOptionsInput);
     if (!validation.isValid) {
       return NextResponse.json(
@@ -63,9 +63,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         { status: 400 }
       );
     }
-    // ── end validation block ──
 
-    // Convert cutoffTime from IST "HH:MM" to UTC DateTime
     let cutoffTimeUTC: Date | null = null;
     if (cutoffTime && typeof cutoffTime === "string" && cutoffTime.includes(":")) {
       const menuDateIST = existingMenu.date.toISOString().split("T")[0];
@@ -73,7 +71,6 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       cutoffTimeUTC = istTimeToUTC(cutoffTime, menuDateIST);
     }
 
-    // Delete existing relations
     await prisma.dailyMenuThali.deleteMany({ where: { menuId: id } });
     await prisma.dailyMenuSabjiOption.deleteMany({ where: { menuId: id } });
 
@@ -105,9 +102,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     await prisma.dailyMenu.delete({ where: { id } });
@@ -122,9 +122,12 @@ export async function DELETE(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireStaffAuth(req);
+  if (auth.error) return auth.error;
+
   try {
     const { id } = await params;
     const menu = await prisma.dailyMenu.findUnique({

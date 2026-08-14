@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function GET(req: NextRequest) {
+  const auth = await requireStaffAuth(req);
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(req.url);
     const mealType = searchParams.get("mealType");
@@ -19,6 +23,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { name, mealType, cutoffTime, thaliIds, sabjiConfig } = await req.json();
 
@@ -57,6 +64,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await requireStaffAuth(req, { permission: "menu:manage" });
+  if (auth.error) return auth.error;
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -65,9 +75,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Template ID is required" }, { status: 400 });
     }
 
-    await prisma.menuTemplate.delete({
-      where: { id },
-    });
+    await prisma.menuTemplate.delete({ where: { id } });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
