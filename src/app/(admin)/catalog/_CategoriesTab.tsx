@@ -110,7 +110,7 @@ export default function CategoriesTab() {
             row.thalis.map((t) => (
               <span
                 key={t.id}
-                className="text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-150"
+                className="text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200"
               >
                 {t.name}
               </span>

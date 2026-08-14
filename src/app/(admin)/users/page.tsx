@@ -6,6 +6,7 @@ import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
 import Select from "@/components/ui/Select";
+import PageToolbar from "@/components/ui/PageToolbar";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Badge from "@/components/ui/Badge";
@@ -350,32 +351,31 @@ export default function UsersPage() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Users</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Manage tiffin subscribers</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" size="sm" leftIcon={<Upload size={15} />} onClick={() => setBulkOpen(true)}>
-            Bulk Import
-          </Button>
-          <Button
-            variant="primary"
-            leftIcon={<Plus size={16} />}
-            onClick={() => { setEditUser(null); setModalOpen(true); }}
-          >
-            Add User
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap gap-3">
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or number..." className="w-64" />
-        <Select options={companyOptions} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-52" />
-        <Select options={verifiedOptions} value={verifiedFilter} onChange={(e) => setVerifiedFilter(e.target.value)} className="w-48" />
-        <Select options={statusOptions} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-44" />
-      </div>
+    <div className="space-y-6">
+      <PageToolbar
+        filters={
+          <>
+            <SearchInput value={search} onChange={setSearch} placeholder="Search by name or number..." className="w-64" />
+            <Select options={companyOptions} value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} className="w-52" />
+            <Select options={verifiedOptions} value={verifiedFilter} onChange={(e) => setVerifiedFilter(e.target.value)} className="w-48" />
+            <Select options={statusOptions} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-44" />
+          </>
+        }
+        actions={
+          <>
+            <Button variant="secondary" size="sm" leftIcon={<Upload size={15} />} onClick={() => setBulkOpen(true)}>
+              Bulk Import
+            </Button>
+            <Button
+              variant="primary"
+              leftIcon={<Plus size={16} />}
+              onClick={() => { setEditUser(null); setModalOpen(true); }}
+            >
+              Add User
+            </Button>
+          </>
+        }
+      />
 
       <Table
         columns={columns}

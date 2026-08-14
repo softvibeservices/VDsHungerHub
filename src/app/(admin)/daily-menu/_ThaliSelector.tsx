@@ -152,7 +152,7 @@ export default function ThaliSelector({
                         <span className="text-xs font-semibold text-gray-700 leading-tight">
                           {t.name}
                         </span>
-                        <span className="text-[10px] text-gray-450 mt-0.5 font-medium">
+                        <span className="text-[10px] text-gray-400 mt-0.5 font-medium">
                           ₹{t.price} · {t.sabjiCount} {t.sabjiCount === 1 ? "sabji" : "sabjis"}
                         </span>
                       </div>
@@ -205,7 +205,7 @@ export default function ThaliSelector({
                       <span className="text-xs font-semibold text-gray-700 leading-tight">
                         {t.name}
                       </span>
-                      <span className="text-[10px] text-gray-450 mt-0.5">
+                      <span className="text-[10px] text-gray-400 mt-0.5">
                         ₹{t.price} · {t.sabjiCount} {t.sabjiCount === 1 ? "sabji" : "sabjis"}
                       </span>
                     </div>

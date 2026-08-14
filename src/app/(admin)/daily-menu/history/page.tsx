@@ -56,7 +56,7 @@ export default function MenuHistoryPage() {
   }, [page, filter, load]);
 
   return (
-    <div className="max-w-4xl mx-auto space-y-5">
+    <div className="space-y-6">
       <div className="space-y-2">
         <Link
           href="/daily-menu"
@@ -65,7 +65,7 @@ export default function MenuHistoryPage() {
           <ArrowLeft size={13} /> Back to Daily Menu
         </Link>
         <div>
-          <h2 className="text-xl font-extrabold text-gray-900 leading-tight flex items-center gap-2">
+          <h2 className="text-xl font-bold text-gray-900 leading-tight flex items-center gap-2">
             <History size={20} className="text-orange-500" /> Past Menus
           </h2>
           <p className="text-xs text-gray-400 font-medium mt-0.5">
@@ -116,16 +116,16 @@ export default function MenuHistoryPage() {
                   {row.mealType === "LUNCH" ? <Sun size={18} /> : <Moon size={18} />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-extrabold text-gray-800 flex items-center gap-1.5 flex-wrap">
+                  <p className="text-sm font-bold text-gray-800 flex items-center gap-1.5 flex-wrap">
                     {formatDisplayDate(row.date)}
                     <span className="text-[10px] font-bold text-gray-400 uppercase">{row.mealType}</span>
                     {row.date === todayStr && (
-                      <span className="text-[9px] font-extrabold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                      <span className="text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
                         Today
                       </span>
                     )}
                   </p>
-                  <p className="text-[11px] text-gray-450 truncate mt-0.5">
+                  <p className="text-[11px] text-gray-400 truncate mt-0.5">
                     {row.thaliCount} thali{row.thaliCount === 1 ? "" : "s"} · {row.dishCount} dish{row.dishCount === 1 ? "" : "es"} · {row.thaliNames.join(", ")}
                   </p>
                 </div>

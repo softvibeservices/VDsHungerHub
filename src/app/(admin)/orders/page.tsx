@@ -18,11 +18,16 @@ import {
   Truck,
   Sun,
   Moon,
+  UtensilsCrossed,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { getTodayIST, formatCurrency } from "@/lib/utils";
 import SearchInput from "@/components/ui/SearchInput";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import PageToolbar from "@/components/ui/PageToolbar";
+import Tabs from "@/components/ui/Tabs";
 import Badge, { BadgeVariant } from "@/components/ui/Badge";
 import OrderSummaryMatrix from "./_OrderSummaryMatrix";
 
@@ -111,6 +116,9 @@ export default function AdminOrdersPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [lastFetchedAt, setLastFetchedAt] = useState<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Summary Matrix Toggle (default: false / hidden)
+  const [showSummaryMatrix, setShowSummaryMatrix] = useState(false);
 
   // Filter & Sorting state
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
@@ -240,21 +248,26 @@ export default function AdminOrdersPage() {
     }
   }
 
-  async function handleBulkStatusChange(newStatus: OrderStatus) {
-    if (selectedOrderIds.length === 0) return;
+  async function handleGroupStatusChange(targetOrderIds: string[], newStatus: OrderStatus, labelName?: string) {
+    if (targetOrderIds.length === 0) return;
     setUpdatingId("BULK");
     try {
       const res = await fetch("/api/admin/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orderIds: selectedOrderIds,
+          orderIds: targetOrderIds,
           status: newStatus,
         }),
       });
       if (!res.ok) throw new Error("Bulk update failed");
       const json = await res.json();
-      toast.success(`Updated ${json.updatedCount} orders to ${newStatus.toLowerCase()}`);
+      const statusLabel = newStatus.toLowerCase().replace(/_/g, " ");
+      toast.success(
+        labelName
+          ? `Updated ${json.updatedCount} orders for ${labelName} to ${statusLabel}`
+          : `Updated ${json.updatedCount} orders to ${statusLabel}`
+      );
       setSelectedOrderIds([]); // Clear selection
       fetchOrders(); // Refresh table
     } catch {
@@ -262,6 +275,10 @@ export default function AdminOrdersPage() {
     } finally {
       setUpdatingId(null);
     }
+  }
+
+  async function handleBulkStatusChange(newStatus: OrderStatus) {
+    await handleGroupStatusChange(selectedOrderIds, newStatus);
   }
 
   const activeOrders =
@@ -321,6 +338,17 @@ export default function AdminOrdersPage() {
     totalAmount: number;
   }
 
+  interface CompanyOrderGroup {
+    companyId: string;
+    companyName: string;
+    orders: AdminOrder[];
+    totalAmount: number;
+    customerGroups: CustomerOrderGroup[];
+  }
+
+  const [groupByCompany, setGroupByCompany] = useState(false);
+  const [expandedCompanyIds, setExpandedCompanyIds] = useState<Record<string, boolean>>({});
+
   const groupedCustomerOrders: CustomerOrderGroup[] = useMemo(() => {
     const map = new Map<string, CustomerOrderGroup>();
     for (const o of filteredAndSortedOrders) {
@@ -335,6 +363,77 @@ export default function AdminOrdersPage() {
     return Array.from(map.values());
   }, [filteredAndSortedOrders]);
 
+  const groupedCompanyOrders: CompanyOrderGroup[] = useMemo(() => {
+    const map = new Map<string, CompanyOrderGroup>();
+
+    for (const o of filteredAndSortedOrders) {
+      const compId = o.user.company?.id ?? "NO_COMPANY";
+      const compName = o.user.company?.name ?? "Individual Customers (No Company)";
+
+      if (!map.has(compId)) {
+        map.set(compId, {
+          companyId: compId,
+          companyName: compName,
+          orders: [],
+          totalAmount: 0,
+          customerGroups: [],
+        });
+      }
+
+      const group = map.get(compId)!;
+      group.orders.push(o);
+      group.totalAmount += o.totalAmount;
+    }
+
+    for (const group of map.values()) {
+      const custMap = new Map<string, CustomerOrderGroup>();
+      for (const o of group.orders) {
+        const key = o.user.number;
+        if (!custMap.has(key)) {
+          custMap.set(key, { key, user: o.user, orders: [], totalAmount: 0 });
+        }
+        const custGroup = custMap.get(key)!;
+        custGroup.orders.push(o);
+        custGroup.totalAmount += o.totalAmount;
+      }
+      group.customerGroups = Array.from(custMap.values());
+    }
+
+    return Array.from(map.values());
+  }, [filteredAndSortedOrders]);
+
+  const toggleCompanyExpand = (companyId: string) => {
+    setExpandedCompanyIds((prev) => ({
+      ...prev,
+      [companyId]: !prev[companyId],
+    }));
+  };
+
+  const expandAllCompanies = () => {
+    const next: Record<string, boolean> = {};
+    for (const c of groupedCompanyOrders) {
+      next[c.companyId] = true;
+    }
+    setExpandedCompanyIds(next);
+  };
+
+  const collapseAllCompanies = () => {
+    setExpandedCompanyIds({});
+  };
+
+  const allCompaniesExpanded =
+    groupedCompanyOrders.length > 0 &&
+    groupedCompanyOrders.every((c) => expandedCompanyIds[c.companyId]);
+
+  const toggleCompanySelection = (companyOrders: AdminOrder[], isAllSelected: boolean) => {
+    const orderIds = companyOrders.map((o) => o.id);
+    if (isAllSelected) {
+      setSelectedOrderIds((prev) => prev.filter((id) => !orderIds.includes(id)));
+    } else {
+      setSelectedOrderIds((prev) => Array.from(new Set([...prev, ...orderIds])));
+    }
+  };
+
   // Clear selection on filter / tab changes to prevent accidental updates on off-screen items
   useEffect(() => {
     setSelectedOrderIds([]);
@@ -345,6 +444,16 @@ export default function AdminOrdersPage() {
     ? [...data.lunch.orders, ...data.dinner.orders].filter((o) => o.status === "PENDING").length
     : 0;
 
+  const statusCounts = useMemo(() => {
+    const counts = { PENDING: 0, OUT_FOR_DELIVERY: 0, DELIVERED: 0, CANCELLED: 0 };
+    for (const o of activeOrders) {
+      if (counts[o.status] !== undefined) {
+        counts[o.status]++;
+      }
+    }
+    return counts;
+  }, [activeOrders]);
+
   // Determine header checkbox states
   const allVisibleSelected =
     filteredAndSortedOrders.length > 0 &&
@@ -354,165 +463,132 @@ export default function AdminOrdersPage() {
     selectedOrderIds.length > 0 && !allVisibleSelected;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      {/* Page Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="text-orange-500 flex-shrink-0" size={22} />
-            <h2 className="text-xl font-bold text-gray-900 leading-none">Orders</h2>
-          </div>
-          {data && (
-            <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:pt-0">
+    <div className="space-y-4">
+      {/* Live status pills + date/refresh controls */}
+      <PageToolbar
+        filters={
+          data && (
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-extrabold bg-orange-50 text-orange-700 border border-orange-100 px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
                 Total: {data.totalOrders}
               </span>
               <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm border ${
-                pendingCount > 0 
-                  ? "bg-yellow-50 text-yellow-750 border-yellow-200 animate-pulse" 
+                pendingCount > 0
+                  ? "bg-yellow-50 text-yellow-700 border-yellow-200 animate-pulse"
                   : "bg-gray-50 text-gray-500 border-gray-200"
               }`}>
                 Pending: {pendingCount}
               </span>
-              <span className="text-[10px] font-extrabold bg-amber-50 text-amber-700 border border-amber-100 px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
-                Lunch: {data.lunch.count}
-              </span>
-              <span className="text-[10px] font-extrabold bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 rounded-full uppercase tracking-wider shadow-sm">
-                Dinner: {data.dinner.count}
-              </span>
             </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="text-sm border border-gray-250 rounded-xl px-3 py-2 bg-white text-gray-800 font-medium focus:ring-2 focus:ring-orange-500/30 outline-none cursor-pointer shadow-sm hover:border-gray-300 transition-colors"
-          />
-          <button
-            onClick={() => fetchOrders(true)}
-            disabled={refreshing}
-            className="flex items-center gap-1.5 px-4 py-2 bg-white border border-gray-250 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-40 shadow-sm"
-          >
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </button>
-        </div>
-      </div>
+          )
+        }
+        actions={
+          <>
+            <Input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-auto"
+            />
+            <Button
+              variant="secondary"
+              onClick={() => fetchOrders(true)}
+              disabled={refreshing}
+              leftIcon={<RefreshCw size={14} className={refreshing ? "animate-spin" : ""} />}
+            >
+              Refresh
+            </Button>
+            <Button
+              variant={showSummaryMatrix ? "primary" : "secondary"}
+              onClick={() => setShowSummaryMatrix((v) => !v)}
+              leftIcon={<UtensilsCrossed size={14} />}
+            >
+              {showSummaryMatrix ? "Hide Kitchen Summary" : "Kitchen Summary"}
+            </Button>
+          </>
+        }
+      />
 
       {lastFetchedAt && (
-        <p className="text-[11px] text-gray-400 -mt-4 font-medium">
+        <p className="text-[11px] text-gray-400 -mt-3 font-medium">
           Last updated: {new Date(lastFetchedAt).toLocaleTimeString("en-IN")} · Auto-refreshes every 5 min
         </p>
       )}
 
-      {/* Filters and search panel */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-5 space-y-4 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Compact Filters & Search Bar */}
+      <div className="bg-white border border-gray-200 rounded-2xl p-3 space-y-2.5 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-center">
           {/* Search bar */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Search</label>
-            <SearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              placeholder="User, phone or thali..."
-              className="w-full"
-            />
-          </div>
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search customer, phone or thali..."
+            className="w-full"
+          />
 
           {/* Company filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Company</label>
-            <div className="relative">
-              <select
-                value={selectedCompanyId}
-                onChange={(e) => setSelectedCompanyId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 text-gray-900 bg-white rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-colors pr-9 cursor-pointer shadow-sm hover:border-gray-300"
-              >
-                <option value="">All Companies</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                <Building2 size={15} />
-              </div>
-            </div>
-          </div>
-
-          {/* Status filter */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
-            <div className="relative">
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 text-gray-900 bg-white rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-colors pr-9 cursor-pointer shadow-sm hover:border-gray-300"
-              >
-                <option value="">All Statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
-                <option value="DELIVERED">Delivered</option>
-                <option value="CANCELLED">Cancelled</option>
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                <SlidersHorizontal size={15} />
-              </div>
-            </div>
-          </div>
+          <Select
+            value={selectedCompanyId}
+            onChange={(e) => setSelectedCompanyId(e.target.value)}
+            placeholder="All Companies"
+            options={companies.map((c) => ({ value: c.id, label: c.name }))}
+          />
 
           {/* Sorting */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sort By</label>
-            <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="w-full px-3 py-2 text-sm border border-gray-200 text-gray-900 bg-white rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 transition-colors pr-9 cursor-pointer shadow-sm hover:border-gray-300"
-              >
-                <option value="time-desc">Newest First</option>
-                <option value="time-asc">Oldest First</option>
-                <option value="amount-desc">Price: High to Low</option>
-                <option value="amount-asc">Price: Low to High</option>
-                <option value="name-asc">Customer Name (A-Z)</option>
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                <ArrowUpDown size={15} />
-              </div>
-            </div>
+          <Select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as any)}
+            options={[
+              { value: "time-desc", label: "Sort: Newest First" },
+              { value: "time-asc", label: "Sort: Oldest First" },
+              { value: "amount-desc", label: "Sort: Price (High to Low)" },
+              { value: "amount-asc", label: "Sort: Price (Low to High)" },
+              { value: "name-asc", label: "Sort: Customer (A-Z)" },
+            ]}
+          />
+        </div>
+
+        {/* Quick Filter Toggles & Reset */}
+        <div className="flex items-center justify-between gap-3 pt-1 border-t border-gray-100 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setGroupByCompany((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                groupByCompany
+                  ? "bg-orange-500 border-orange-500 text-white shadow-sm"
+                  : "bg-white border-gray-200 text-gray-700 hover:border-orange-300"
+              }`}
+            >
+              <Building2 size={13} />
+              Group by Company
+              {groupByCompany && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-bold ml-0.5">
+                  ({groupedCompanyOrders.length})
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowOnlyWithNotes((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                showOnlyWithNotes
+                  ? "bg-amber-500 border-amber-500 text-white shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:border-amber-300"
+              }`}
+            >
+              <MessageSquare size={13} />
+              Has Cooking Instructions
+              {data && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
+                  {[...data.lunch.orders, ...data.dinner.orders].filter((o) => !!o.note?.trim()).length}
+                </span>
+              )}
+            </button>
           </div>
-        </div>
 
-        {/* Has Instructions Quick Filter Toggle Chip */}
-        <div className="flex items-center gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => setShowOnlyWithNotes((v) => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-              showOnlyWithNotes
-                ? "bg-amber-500 border-amber-500 text-white shadow-sm"
-                : "bg-white border-gray-200 text-gray-600 hover:border-amber-300"
-            }`}
-          >
-            <MessageSquare size={13} />
-            Has Cooking Instructions
-            {data && (
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20">
-                {[...data.lunch.orders, ...data.dinner.orders].filter((o) => !!o.note?.trim()).length}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Filters status and reset action */}
-        {(searchQuery || selectedCompanyId || selectedStatus || showOnlyWithNotes) && (
-          <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-            <p className="text-xs text-gray-500 font-medium">
-              Active filters: showing {filteredAndSortedOrders.length} of {activeOrders.length} orders ({groupedCustomerOrders.length} customers)
-            </p>
+          {(searchQuery || selectedCompanyId || selectedStatus || showOnlyWithNotes) && (
             <button
               onClick={() => {
                 setSearchQuery("");
@@ -520,47 +596,114 @@ export default function AdminOrdersPage() {
                 setSelectedStatus("");
                 setShowOnlyWithNotes(false);
               }}
-              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-bold transition-colors"
+              className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-bold transition-colors cursor-pointer"
             >
               <FilterX size={13} />
               Clear Filters
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Meal type tabs */}
-      <div className="flex gap-1 bg-gray-200/60 p-1 rounded-xl w-fit">
-        {(["LUNCH", "DINNER"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
-              activeTab === tab
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-800"
-            }`}
-          >
-            {tab === "LUNCH" ? (
-              <Sun size={15} className="text-amber-500" />
-            ) : (
-              <Moon size={15} className="text-indigo-500" />
-            )}
-            {tab === "LUNCH" ? "Lunch" : "Dinner"}
-            {data && (
-              <span className="ml-1 text-xs text-gray-400 font-bold">
-                ({tab === "LUNCH" ? data.lunch.count : data.dinner.count})
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Company Wise Bulk Action Bar when a company filter is selected */}
+      {selectedCompanyId && (
+        <div className="bg-orange-50/80 border border-orange-200 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Building2 className="w-4 h-4 text-orange-600 flex-shrink-0" />
+            <div>
+              <p className="text-xs font-bold text-orange-950">
+                Company Status Actions — {companies.find((c) => c.id === selectedCompanyId)?.name}
+              </p>
+              <p className="text-[10px] text-orange-700 font-medium">
+                Apply status update to all {filteredAndSortedOrders.length} orders for this company
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[10px] font-bold text-orange-800 uppercase tracking-wider hidden sm:inline mr-1">
+              Set All Company Orders:
+            </span>
+            <button
+              onClick={() => handleGroupStatusChange(filteredAndSortedOrders.map((o) => o.id), "PENDING", companies.find((c) => c.id === selectedCompanyId)?.name)}
+              disabled={updatingId !== null || filteredAndSortedOrders.length === 0}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold text-yellow-800 bg-yellow-100 hover:bg-yellow-200 active:bg-yellow-300 transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => handleGroupStatusChange(filteredAndSortedOrders.map((o) => o.id), "OUT_FOR_DELIVERY", companies.find((c) => c.id === selectedCompanyId)?.name)}
+              disabled={updatingId !== null || filteredAndSortedOrders.length === 0}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-800 bg-indigo-100 hover:bg-indigo-200 active:bg-indigo-300 transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
+            >
+              🚚 Out for Delivery
+            </button>
+            <button
+              onClick={() => handleGroupStatusChange(filteredAndSortedOrders.map((o) => o.id), "DELIVERED", companies.find((c) => c.id === selectedCompanyId)?.name)}
+              disabled={updatingId !== null || filteredAndSortedOrders.length === 0}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-800 bg-emerald-100 hover:bg-emerald-200 active:bg-emerald-300 transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
+            >
+              ✓ Delivered
+            </button>
+            <button
+              onClick={() => handleGroupStatusChange(filteredAndSortedOrders.map((o) => o.id), "CANCELLED", companies.find((c) => c.id === selectedCompanyId)?.name)}
+              disabled={updatingId !== null || filteredAndSortedOrders.length === 0}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold text-red-800 bg-red-100 hover:bg-red-200 active:bg-red-300 transition-colors shadow-sm disabled:opacity-40 cursor-pointer"
+            >
+              ✕ Cancelled
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Meal & Status Navigation Row */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-1">
+        <Tabs
+          variant="underline"
+          value={selectedStatus || "ALL"}
+          onChange={(val) => setSelectedStatus(val === "ALL" ? "" : val)}
+          items={[
+            { value: "ALL", label: `All Orders (${activeOrders.length})` },
+            { value: "PENDING", label: `Pending (${statusCounts.PENDING})` },
+            { value: "OUT_FOR_DELIVERY", label: `🚚 Out for Delivery (${statusCounts.OUT_FOR_DELIVERY})` },
+            { value: "DELIVERED", label: `✓ Delivered (${statusCounts.DELIVERED})` },
+            { value: "CANCELLED", label: `✕ Cancelled (${statusCounts.CANCELLED})` },
+          ]}
+          className="border-b-0"
+        />
+
+        {/* Meal type switcher */}
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit flex-shrink-0">
+          {(["LUNCH", "DINNER"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === tab
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              {tab === "LUNCH" ? (
+                <Sun size={14} className="text-amber-500" />
+              ) : (
+                <Moon size={14} className="text-indigo-500" />
+              )}
+              {tab === "LUNCH" ? "Lunch" : "Dinner"}
+              {data && (
+                <span className="ml-1 text-[11px] text-gray-400 font-bold">
+                  ({tab === "LUNCH" ? data.lunch.count : data.dinner.count})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Bulk actions bar */}
       {selectedOrderIds.length > 0 && (
         <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-center justify-between gap-4 flex-wrap animate-fadeIn shadow-sm">
           <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-orange-550 text-white text-[11px] flex items-center justify-center font-bold">
+            <span className="w-5 h-5 rounded-full bg-orange-500 text-white text-[11px] flex items-center justify-center font-bold">
               {selectedOrderIds.length}
             </span>
             <p className="text-xs font-bold text-orange-805 uppercase tracking-wider">orders selected</p>
@@ -600,7 +743,7 @@ export default function AdminOrdersPage() {
             </button>
             <button
               onClick={() => setSelectedOrderIds([])}
-              className="px-3 py-1.5 bg-white border border-gray-250 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-bold transition-colors shadow-sm"
+              className="px-3 py-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-lg text-xs font-bold transition-colors shadow-sm"
             >
               Deselect All
             </button>
@@ -608,21 +751,25 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
-      {/* Summary Matrix Panel */}
-      {!loading && filteredAndSortedOrders.length > 0 && (
-        <div className="space-y-3">
-          <OrderSummaryMatrix orders={filteredAndSortedOrders as any} mealType={activeTab} />
+      {/* Summary Matrix Panel - Hidden by default, toggled via Kitchen Summary button */}
+      {showSummaryMatrix && !loading && filteredAndSortedOrders.length > 0 && (
+        <div className="space-y-3 animate-fadeIn">
+          <OrderSummaryMatrix
+            orders={filteredAndSortedOrders as any}
+            mealType={activeTab}
+            onClose={() => setShowSummaryMatrix(false)}
+          />
         </div>
       )}
 
-      {/* CUSTOMER GROUPED ORDERS VIEW */}
+      {/* ORDERS LIST CONTAINER (CUSTOMER VIEW VS COMPANY VIEW) */}
       <div className="space-y-4">
         {loading ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center shadow-sm">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
             <p className="text-xs text-gray-500 mt-2 font-medium">Loading customer orders...</p>
           </div>
-        ) : groupedCustomerOrders.length === 0 ? (
+        ) : filteredAndSortedOrders.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-16 text-center text-gray-400 shadow-sm">
             <p className="font-bold text-gray-700 text-base">
               {activeOrders.length === 0
@@ -636,21 +783,368 @@ export default function AdminOrdersPage() {
                   setSelectedCompanyId("");
                   setSelectedStatus("");
                   setShowOnlyWithNotes(false);
+                  setGroupByCompany(false);
                 }}
-                className="mt-2 text-xs font-bold text-orange-500 hover:text-orange-600 transition-colors"
+                className="mt-2 text-xs font-bold text-orange-500 hover:text-orange-600 transition-colors cursor-pointer"
               >
                 Reset Filters
               </button>
             )}
           </div>
+        ) : groupByCompany ? (
+          /* COMPANY GROUPED VIEW (COLLAPSED BY DEFAULT) */
+          <div className="space-y-4">
+            {/* Company View Toolbar: Count summary + Expand All / Collapse All button */}
+            <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 shadow-sm flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Building2 size={16} className="text-slate-600" />
+                <span className="text-xs font-bold text-slate-800">
+                  Showing {groupedCompanyOrders.length} {groupedCompanyOrders.length === 1 ? "Company" : "Companies"} ({filteredAndSortedOrders.length} total orders)
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={allCompaniesExpanded ? collapseAllCompanies : expandAllCompanies}
+                className="flex items-center gap-1.5 text-xs font-bold text-orange-600 hover:text-orange-700 bg-white border border-orange-200 hover:bg-orange-50 px-3 py-1.5 rounded-lg transition-colors cursor-pointer shadow-sm"
+              >
+                {allCompaniesExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {allCompaniesExpanded ? "Collapse All Companies" : "Expand All Companies"}
+              </button>
+            </div>
+
+            {groupedCompanyOrders.map((compGroup) => {
+              const isExpanded = !!expandedCompanyIds[compGroup.companyId];
+              const companyOrderIds = compGroup.orders.map((o) => o.id);
+              const isAllCompanySelected =
+                companyOrderIds.length > 0 &&
+                companyOrderIds.every((id) => selectedOrderIds.includes(id));
+              const isSomeCompanySelected =
+                companyOrderIds.some((id) => selectedOrderIds.includes(id)) &&
+                !isAllCompanySelected;
+
+              return (
+                <div
+                  key={compGroup.companyId}
+                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-orange-300 transition-all"
+                >
+                  {/* Clickable Company Header Bar (Collapsed by Default) */}
+                  <div
+                    onClick={(e) => {
+                      if ((e.target as HTMLElement).closest("button, input, label, .no-expand")) return;
+                      toggleCompanyExpand(compGroup.companyId);
+                    }}
+                    className="bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none hover:bg-slate-800 transition-colors"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {/* Checkbox for entire company */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="no-expand flex items-center p-1 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isAllCompanySelected}
+                          ref={(el) => {
+                            if (el) el.indeterminate = isSomeCompanySelected;
+                          }}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            toggleCompanySelection(compGroup.orders, isAllCompanySelected);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4.5 h-4.5 rounded text-orange-500 focus:ring-orange-500 border-gray-400 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-orange-400 flex-shrink-0">
+                        <Building2 size={18} />
+                      </div>
+
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-extrabold text-white text-base truncate">
+                            {compGroup.companyName}
+                          </h3>
+                          <span className="text-xs font-bold bg-orange-500/20 text-orange-300 border border-orange-500/30 px-2.5 py-0.5 rounded-full">
+                            {compGroup.orders.length} {compGroup.orders.length === 1 ? "Order" : "Orders"}
+                          </span>
+                          <span className="text-xs text-slate-300 font-medium">
+                            ({compGroup.customerGroups.length} {compGroup.customerGroups.length === 1 ? "customer" : "customers"})
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span className="text-sm font-extrabold text-orange-400">
+                        Total: {formatCurrency(compGroup.totalAmount)}
+                      </span>
+
+                      {/* Company Status Actions */}
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="no-expand flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 shadow-sm"
+                      >
+                        <span className="text-[10px] font-bold text-gray-400 uppercase px-1 hidden sm:inline">
+                          Set All:
+                        </span>
+                        <button
+                          onClick={() => handleGroupStatusChange(compGroup.orders.map((o) => o.id), "PENDING", compGroup.companyName)}
+                          disabled={updatingId !== null}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-yellow-300 hover:bg-yellow-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          Pending
+                        </button>
+                        <button
+                          onClick={() => handleGroupStatusChange(compGroup.orders.map((o) => o.id), "OUT_FOR_DELIVERY", compGroup.companyName)}
+                          disabled={updatingId !== null}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-300 hover:bg-indigo-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          🚚 Out for Delivery
+                        </button>
+                        <button
+                          onClick={() => handleGroupStatusChange(compGroup.orders.map((o) => o.id), "DELIVERED", compGroup.companyName)}
+                          disabled={updatingId !== null}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-300 hover:bg-emerald-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          ✓ Delivered
+                        </button>
+                        <button
+                          onClick={() => handleGroupStatusChange(compGroup.orders.map((o) => o.id), "CANCELLED", compGroup.companyName)}
+                          disabled={updatingId !== null}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-red-300 hover:bg-red-500/20 transition-colors disabled:opacity-50 cursor-pointer"
+                        >
+                          ✕ Cancelled
+                        </button>
+                      </div>
+
+                      {/* Expand / Collapse Chevron */}
+                      <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-gray-300 flex-shrink-0">
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Body: Customers & Orders inside this Company */}
+                  {isExpanded && (
+                    <div className="p-4 space-y-4 bg-gray-50/50 border-t border-gray-200">
+                      {compGroup.customerGroups.map((group) => (
+                        <div
+                          key={group.key}
+                          className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm space-y-0"
+                        >
+                          {/* Customer Header Bar */}
+                          <div className="bg-gradient-to-r from-gray-50 to-orange-50/20 px-5 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-orange-500/10 text-orange-600 font-extrabold flex items-center justify-center text-xs border border-orange-200">
+                                {group.user.name.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <h4 className="font-extrabold text-gray-900 text-sm">{group.user.name}</h4>
+                                  <span className="text-xs text-gray-500 font-mono">+91 {group.user.number}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-xs font-bold bg-orange-100 text-orange-800 px-2.5 py-0.5 rounded-full border border-orange-200">
+                                {group.orders.length} {group.orders.length === 1 ? "Order" : "Orders"}
+                              </span>
+                              <span className="text-sm font-bold text-gray-900">
+                                Total: <span className="text-orange-600">{formatCurrency(group.totalAmount)}</span>
+                              </span>
+
+                              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+                                <button
+                                  onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "PENDING", group.user.name)}
+                                  disabled={updatingId !== null}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-yellow-700 hover:bg-yellow-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  Pending
+                                </button>
+                                <button
+                                  onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "OUT_FOR_DELIVERY", group.user.name)}
+                                  disabled={updatingId !== null}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  🚚 Out for Delivery
+                                </button>
+                                <button
+                                  onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "DELIVERED", group.user.name)}
+                                  disabled={updatingId !== null}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  ✓ Delivered
+                                </button>
+                                <button
+                                  onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "CANCELLED", group.user.name)}
+                                  disabled={updatingId !== null}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 transition-colors disabled:opacity-50 cursor-pointer"
+                                >
+                                  ✕ Cancelled
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Customer Orders */}
+                          <div className="divide-y divide-gray-100">
+                            {group.orders.map((order) => {
+                              const isSelected = selectedOrderIds.includes(order.id);
+                              return (
+                                <div
+                                  key={order.id}
+                                  className={`p-4 transition-colors flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+                                    isSelected ? "bg-orange-50/20" : "hover:bg-gray-50/50"
+                                  }`}
+                                >
+                                  {/* Left: Checkbox + Time + Line items */}
+                                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedOrderIds((prev) => [...prev, order.id]);
+                                        } else {
+                                          setSelectedOrderIds((prev) => prev.filter((id) => id !== order.id));
+                                        }
+                                      }}
+                                      className="w-4 h-4 mt-1 text-orange-500 border-gray-300 rounded focus:ring-orange-500 focus:ring-offset-0 cursor-pointer flex-shrink-0"
+                                    />
+
+                                    <div className="space-y-1.5 flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                          {new Date(order.createdAt).toLocaleTimeString("en-IN", {
+                                            hour: "2-digit",
+                                            minute: "2-digit",
+                                          })}
+                                        </span>
+                                        {order.menu.publicSlug && (
+                                          <span className="text-[10px] text-gray-400 font-mono">#{order.id.slice(-6)}</span>
+                                        )}
+                                      </div>
+
+                                      {/* Line Items */}
+                                      {order.thaliItems && order.thaliItems.length > 0 ? (
+                                        <div className="space-y-1">
+                                          {order.thaliItems.map((ti: any) => (
+                                            <div key={ti.id} className="text-sm font-medium text-gray-900 flex items-center gap-2 flex-wrap">
+                                              <span>
+                                                {ti.quantity}× <strong className="text-gray-900">{ti.thali.name}</strong>
+                                              </span>
+                                              {ti.sabjiProduct && (
+                                                <span className="text-xs bg-orange-50 text-orange-700 border border-orange-200 px-2 py-0.5 rounded-md font-bold">
+                                                  Sabji: {ti.sabjiProduct.name}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                          {order.addonItems && order.addonItems.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 items-center pt-1">
+                                              {order.addonItems.map((ai: any) => (
+                                                <span
+                                                  key={ai.id}
+                                                  className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-bold"
+                                                >
+                                                  +{ai.addonProduct.name} x{ai.quantity} ({formatCurrency((ai.priceSnapshot ?? ai.addonProduct?.price ?? 0) * ai.quantity)})
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <div className="space-y-1">
+                                          <p className="font-bold text-gray-900 text-sm">{order.thali?.name ?? "—"}</p>
+                                          {(order.selectedSabji.length > 0 || order.selectedAddons.length > 0) && (
+                                            <div className="flex flex-wrap gap-1 items-center">
+                                              {order.selectedSabji.map(({ product }: any) => (
+                                                <span key={product.id} className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.5 rounded font-bold">
+                                                  {product.name}
+                                                </span>
+                                              ))}
+                                              {order.selectedAddons.map(({ product, price, quantity }: any) => (
+                                                <span key={product.id} className="text-xs bg-purple-50 text-purple-100 px-1.5 py-0.5 rounded font-bold">
+                                                  +{product.name} {quantity > 1 ? `x${quantity}` : ""} ({formatCurrency(price * (quantity || 1))})
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+
+                                      {/* Cooking Instruction note */}
+                                      {order.note && (
+                                        <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5 max-w-md mt-1">
+                                          <MessageSquare size={12} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                                          <p className="text-xs text-amber-900 font-semibold leading-snug">
+                                            Instruction: {order.note}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Right: Amount + Status pill buttons */}
+                                  <div className="flex flex-col items-end gap-2 self-end md:self-center">
+                                    <span className="font-bold text-gray-900 text-lg">
+                                      {formatCurrency(order.totalAmount)}
+                                    </span>
+
+                                    {/* Status pill button row */}
+                                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-sm">
+                                      {([
+                                        { status: "PENDING",          label: "Pending",            activeClass: "bg-amber-500 text-white shadow-sm font-bold" },
+                                        { status: "OUT_FOR_DELIVERY", label: "🚚 Out for Delivery", activeClass: "bg-indigo-600 text-white shadow-sm font-bold" },
+                                        { status: "DELIVERED",        label: "✓ Delivered",        activeClass: "bg-emerald-600 text-white shadow-sm font-bold" },
+                                        { status: "CANCELLED",        label: "✕ Cancelled",        activeClass: "bg-red-600 text-white shadow-sm font-bold" },
+                                      ] as const).map(({ status: s, label, activeClass }) => (
+                                        <button
+                                          key={s}
+                                          onClick={() => order.status !== s && handleStatusChange(order.id, s)}
+                                          disabled={updatingId !== null}
+                                          title={`Mark as ${s.toLowerCase().replace(/_/g, " ")}`}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer ${
+                                            order.status === s
+                                              ? activeClass
+                                              : "text-gray-600 hover:bg-white hover:text-gray-900 hover:shadow-sm"
+                                          }`}
+                                        >
+                                          {label}
+                                        </button>
+                                      ))}
+                                    </div>
+
+                                    {updatingId === order.id && (
+                                      <div className="flex items-center gap-1 text-[10px] text-orange-500 font-bold">
+                                        <RefreshCw size={10} className="animate-spin" /> Updating…
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* CUSTOMER GROUPED VIEW (DEFAULT) */
           groupedCustomerOrders.map((group) => (
             <div
               key={group.key}
               className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:border-orange-200 transition-all space-y-0"
             >
               {/* Customer Header Bar */}
-              <div className="bg-gradient-to-r from-gray-50 to-orange-50/20 px-5 py-3.5 border-b border-gray-150 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-gradient-to-r from-gray-50 to-orange-50/20 px-5 py-3.5 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-full bg-orange-500/10 text-orange-600 font-extrabold flex items-center justify-center text-sm border border-orange-200">
                     {group.user.name.charAt(0).toUpperCase()}
@@ -668,13 +1162,52 @@ export default function AdminOrdersPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <span className="text-xs font-bold bg-orange-100 text-orange-800 px-2.5 py-1 rounded-full border border-orange-200">
                     {group.orders.length} {group.orders.length === 1 ? "Order" : "Orders"}
                   </span>
-                  <span className="text-sm font-black text-gray-900">
+                  <span className="text-sm font-bold text-gray-900">
                     Total: <span className="text-orange-600">{formatCurrency(group.totalAmount)}</span>
                   </span>
+
+                  {/* Customer Bulk Status Buttons */}
+                  <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase px-1 hidden sm:inline">
+                      Set All:
+                    </span>
+                    <button
+                      onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "PENDING", group.user.name)}
+                      disabled={updatingId !== null}
+                      title="Mark all orders for this customer as Pending"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-yellow-700 hover:bg-yellow-50 active:bg-yellow-100 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      Pending
+                    </button>
+                    <button
+                      onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "OUT_FOR_DELIVERY", group.user.name)}
+                      disabled={updatingId !== null}
+                      title="Mark all orders for this customer as Out for Delivery"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      🚚 Out for Delivery
+                    </button>
+                    <button
+                      onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "DELIVERED", group.user.name)}
+                      disabled={updatingId !== null}
+                      title="Mark all orders for this customer as Delivered"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 hover:bg-emerald-50 active:bg-emerald-100 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      ✓ Delivered
+                    </button>
+                    <button
+                      onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "CANCELLED", group.user.name)}
+                      disabled={updatingId !== null}
+                      title="Mark all orders for this customer as Cancelled"
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-red-700 hover:bg-red-50 active:bg-red-100 transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      ✕ Cancelled
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -722,7 +1255,7 @@ export default function AdminOrdersPage() {
                           {/* Line Items */}
                           {order.thaliItems && order.thaliItems.length > 0 ? (
                             <div className="space-y-1">
-                              {order.thaliItems.map((ti) => (
+                              {order.thaliItems.map((ti: any) => (
                                 <div key={ti.id} className="text-sm font-medium text-gray-900 flex items-center gap-2 flex-wrap">
                                   <span>
                                     {ti.quantity}× <strong className="text-gray-900">{ti.thali.name}</strong>
@@ -736,12 +1269,12 @@ export default function AdminOrdersPage() {
                               ))}
                               {order.addonItems && order.addonItems.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 items-center pt-1">
-                                  {order.addonItems.map((ai) => (
+                                  {order.addonItems.map((ai: any) => (
                                     <span
                                       key={ai.id}
                                       className="text-xs bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-md font-bold"
                                     >
-                                      +{ai.addonProduct.name} x{ai.quantity} ({formatCurrency(ai.priceSnapshot * ai.quantity)})
+                                      +{ai.addonProduct.name} x{ai.quantity} ({formatCurrency((ai.priceSnapshot ?? ai.addonProduct?.price ?? 0) * ai.quantity)})
                                     </span>
                                   ))}
                                 </div>
@@ -752,12 +1285,12 @@ export default function AdminOrdersPage() {
                               <p className="font-bold text-gray-900 text-sm">{order.thali?.name ?? "—"}</p>
                               {(order.selectedSabji.length > 0 || order.selectedAddons.length > 0) && (
                                 <div className="flex flex-wrap gap-1 items-center">
-                                  {order.selectedSabji.map(({ product }) => (
+                                  {order.selectedSabji.map(({ product }: any) => (
                                     <span key={product.id} className="text-xs bg-orange-50 text-orange-700 border border-orange-100 px-1.5 py-0.5 rounded font-bold">
                                       {product.name}
                                     </span>
                                   ))}
-                                  {order.selectedAddons.map(({ product, price, quantity }) => (
+                                  {order.selectedAddons.map(({ product, price, quantity }: any) => (
                                     <span key={product.id} className="text-xs bg-purple-50 text-purple-700 border border-purple-100 px-1.5 py-0.5 rounded font-bold">
                                       +{product.name} {quantity > 1 ? `x${quantity}` : ""} ({formatCurrency(price * (quantity || 1))})
                                     </span>
@@ -853,30 +1386,30 @@ export default function AdminOrdersPage() {
 
                       {/* Right: Amount + Status pill buttons */}
                       <div className="flex flex-col items-end gap-2 self-end md:self-center">
-                        <span className="font-black text-gray-900 text-lg">
+                        <span className="font-bold text-gray-900 text-lg">
                           {formatCurrency(order.totalAmount)}
                         </span>
 
                         {/* Status pill button row */}
-                        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-sm">
                           {([
-                            { status: "PENDING",          label: "Pending",   color: "text-yellow-700 bg-yellow-400" },
-                            { status: "OUT_FOR_DELIVERY", label: "🚚 Delivery", color: "text-indigo-700 bg-indigo-400" },
-                            { status: "DELIVERED",        label: "✓ Done",    color: "text-emerald-700 bg-emerald-400" },
-                            { status: "CANCELLED",        label: "✕ Cancel", color: "text-red-700 bg-red-400" },
-                          ] as const).map(({ status: s, label, color }) => (
+                            { status: "PENDING",          label: "Pending",            activeClass: "bg-amber-500 text-white shadow-sm font-bold" },
+                            { status: "OUT_FOR_DELIVERY", label: "🚚 Out for Delivery", activeClass: "bg-indigo-600 text-white shadow-sm font-bold" },
+                            { status: "DELIVERED",        label: "✓ Delivered",        activeClass: "bg-emerald-600 text-white shadow-sm font-bold" },
+                            { status: "CANCELLED",        label: "✕ Cancelled",        activeClass: "bg-red-600 text-white shadow-sm font-bold" },
+                          ] as const).map(({ status: s, label, activeClass }) => (
                             <button
                               key={s}
                               onClick={() => order.status !== s && handleStatusChange(order.id, s)}
                               disabled={updatingId !== null}
-                              title={s}
-                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all disabled:opacity-50 ${
+                              title={`Mark as ${s.toLowerCase().replace(/_/g, " ")}`}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all disabled:opacity-50 cursor-pointer ${
                                 order.status === s
-                                  ? `${color} shadow-sm text-white`
-                                  : "text-gray-500 hover:bg-white hover:shadow-sm"
+                                  ? activeClass
+                                  : "text-gray-600 hover:bg-white hover:text-gray-900 hover:shadow-sm"
                               }`}
                             >
-                              {updatingId === order.id && order.status !== s ? label : label}
+                              {label}
                             </button>
                           ))}
                         </div>

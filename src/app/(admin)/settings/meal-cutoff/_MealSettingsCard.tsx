@@ -70,8 +70,10 @@ export default function MealSettingsCard({
   };
 
   const handleConfirmClose = () => {
-    setDraft((prev) => ({ ...prev, isOrderingOpen: false }));
+    const updated = { ...draft, isOrderingOpen: false };
+    setDraft(updated);
     setShowCloseConfirm(false);
+    onSave(updated);
   };
 
   const handleSaveClick = () => {

@@ -41,7 +41,7 @@ export default function DishCategoryCard({
           ) : (
             <AlertTriangle size={18} className="text-red-500 flex-shrink-0" />
           )}
-          <span className="text-xs font-black text-gray-800 truncate">{label}</span>
+          <span className="text-xs font-bold text-gray-800 truncate">{label}</span>
         </div>
         {!disabled && (
           <Button
@@ -57,7 +57,7 @@ export default function DishCategoryCard({
       </div>
 
       {/* Row 2: Subtitle (thali names) and status text */}
-      <div className="pl-[26px] text-[10px] text-gray-450 space-y-1">
+      <div className="pl-[26px] text-[10px] text-gray-400 space-y-1">
         <p className="truncate">{thaliNames.join(" · ")}</p>
         <p className={cn("text-[11px] font-bold", isOk ? "text-emerald-600" : "text-red-600")}>
           {selectedCount} of {totalAvailable} dishes added — {isOk ? "ready ✓" : `need at least ${Math.max(minRequired, 1)}`}

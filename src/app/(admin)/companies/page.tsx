@@ -8,6 +8,8 @@ import SearchInput from "@/components/ui/SearchInput";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Modal from "@/components/ui/Modal";
 import Badge from "@/components/ui/Badge";
+import PageToolbar from "@/components/ui/PageToolbar";
+import Tabs from "@/components/ui/Tabs";
 import CompanyModal from "@/components/modals/CompanyModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -260,40 +262,29 @@ export default function CompaniesPage() {
   ];
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Companies</h2>
-          <p className="text-sm text-gray-500 mt-0.5">Manage tiffin client companies</p>
-        </div>
-        <Button
-          variant="primary"
-          leftIcon={<Plus size={16} />}
-          onClick={() => { setEditCompany(null); setModalOpen(true); }}
-        >
-          Add Company
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageToolbar
+        actions={
+          <Button
+            variant="primary"
+            leftIcon={<Plus size={16} />}
+            onClick={() => { setEditCompany(null); setModalOpen(true); }}
+          >
+            Add Company
+          </Button>
+        }
+      />
 
-      {/* Tabs Layout */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-4" aria-label="Tabs">
-          {(["verified", "pending", "flagged"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`py-3 px-1 border-b-2 font-medium text-sm transition-all focus:outline-none capitalize ${
-                tab === t
-                  ? "border-orange-500 text-orange-600 font-semibold"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </nav>
-      </div>
+      <Tabs
+        variant="underline"
+        value={tab}
+        onChange={(v) => setTab(v as typeof tab)}
+        items={[
+          { value: "verified", label: "Verified" },
+          { value: "pending", label: "Pending" },
+          { value: "flagged", label: "Flagged" },
+        ]}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">

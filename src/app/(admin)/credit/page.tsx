@@ -3,9 +3,11 @@
 import { useEffect, useState, useMemo } from "react";
 import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
 import SearchInput from "@/components/ui/SearchInput";
 import Select from "@/components/ui/Select";
 import ToggleSwitch from "@/components/ui/ToggleSwitch";
+import PageToolbar from "@/components/ui/PageToolbar";
 import HistoryModal from "./_HistoryModal";
 import PaymentModal from "./_PaymentModal";
 import { useToast } from "@/hooks/useToast";
@@ -295,7 +297,7 @@ export default function CreditPage() {
             onClick={() => setSelectedUserForHistory(r.id)}
             className="gap-1.5 text-xs font-semibold"
           >
-            <History className="w-3.5 h-3.5 text-[#0F1E3D]" /> Statement
+            <History className="w-3.5 h-3.5" /> Statement
           </Button>
 
           <Button
@@ -304,7 +306,7 @@ export default function CreditPage() {
             onClick={() => handleExportUserPdf(r.id)}
             className="gap-1.5 text-xs font-semibold"
           >
-            <Download className="w-3.5 h-3.5 text-[#0F1E3D]" /> PDF
+            <Download className="w-3.5 h-3.5" /> PDF
           </Button>
 
           <button
@@ -321,141 +323,56 @@ export default function CreditPage() {
 
   return (
     <div className="space-y-4">
-      {/* Top Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black text-[#0F1E3D] flex items-center gap-2">
-            <Wallet className="w-6 h-6 text-[#C9A84C]" /> Admin Credit & Ledger Statement
-          </h1>
-          <p className="text-xs text-gray-500">
-            Track user balances, filter by custom date ranges, record payments, and export PDF statements.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleCopyGroupDigest}
-            className="gap-1.5 text-emerald-700 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100 font-bold text-xs"
-          >
-            <Copy className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Digest
-          </Button>
-
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleBulkExportPdf}
-            className="gap-1.5 bg-[#0F1E3D] hover:bg-[#1B2D5A] text-white border-0 font-bold text-xs"
-          >
-            <Download className="w-3.5 h-3.5 text-[#C9A84C]" /> Export PDF Report
-          </Button>
-        </div>
-      </div>
-
-      {/* Compact Summary Metrics Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Total Outstanding
-            </p>
-            <p className="text-xl font-black text-red-600 mt-0.5">
-              {formatCurrency(totals.totalOwed)}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center text-red-600">
-            <Wallet className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Total Collected
-            </p>
-            <p className="text-xl font-black text-emerald-600 mt-0.5">
-              {formatCurrency(totals.totalCollected)}
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-            <CheckCircle className="w-5 h-5" />
-          </div>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-              Customers Owing
-            </p>
-            <p className="text-xl font-black text-gray-900 mt-0.5">
-              {totals.customersOwing} <span className="text-xs font-normal text-gray-400">/ {totals.userCount}</span>
-            </p>
-          </div>
-          <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
-            <Users className="w-5 h-5" />
-          </div>
-        </div>
-      </div>
-
-      {/* Unified Filter & Date Range Toolbar */}
-      <div className="bg-white p-3.5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
-        {/* Top Row: Inline Date Range & Quick Presets */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-gray-100">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs font-extrabold text-[#0F1E3D] flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-[#C9A84C]" /> Statement Period:
+      <PageToolbar
+        filters={
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-extrabold bg-red-50 text-red-700 border border-red-200 px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+              <Wallet className="w-3.5 h-3.5 text-red-600" />
+              Outstanding: {formatCurrency(totals.totalOwed)}
             </span>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="text-xs px-2.5 py-1.5 border border-gray-250 rounded-lg bg-gray-50 text-gray-900 font-bold outline-none focus:ring-1 focus:ring-[#C9A84C]"
-            />
-            <span className="text-xs text-gray-400 font-bold">to</span>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="text-xs px-2.5 py-1.5 border border-gray-250 rounded-lg bg-gray-50 text-gray-900 font-bold outline-none focus:ring-1 focus:ring-[#C9A84C]"
-            />
+            <span className="text-xs font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+              Collected: {formatCurrency(totals.totalCollected)}
+            </span>
+            <span className="text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 px-3 py-1 rounded-full shadow-sm flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-amber-600" />
+              Owing: {totals.customersOwing} <span className="text-[10px] text-amber-600">/ {totals.userCount}</span>
+            </span>
           </div>
+        }
+        actions={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleCopyGroupDigest}
+              className="gap-1.5 text-emerald-700 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100"
+            >
+              <Copy className="w-3.5 h-3.5 text-emerald-600" /> WhatsApp Digest
+            </Button>
 
-          {/* Quick Presets */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={handlePreset1to15}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleBulkExportPdf}
             >
-              1st – 15th
-            </button>
-            <button
-              onClick={handlePreset16toEnd}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
-            >
-              16th – End
-            </button>
-            <button
-              onClick={handlePresetThisMonth}
-              className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-800 transition-colors"
-            >
-              This Month
-            </button>
-            {(startDate || endDate) && (
-              <button
-                onClick={handleClearDateRange}
-                className="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors flex items-center gap-1"
-              >
-                <FilterX className="w-3.5 h-3.5" /> All Time
-              </button>
-            )}
-          </div>
-        </div>
+              <Download className="w-3.5 h-3.5" />
+              {companyFilter && companies.find((c) => c.id === companyFilter)?.name
+                ? `Export ${companies.find((c) => c.id === companyFilter)?.name} PDF`
+                : groupByCompany
+                ? "Export Company Grouped PDF"
+                : "Export PDF Report"}
+            </Button>
+          </>
+        }
+      />
 
-        {/* Bottom Row: Search, Company Filter, Balance Filter & Sorting */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Ultra-compact Filters & Date Range Toolbar */}
+      <div className="bg-white p-3 md:p-4 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+        {/* Row 1: Search, Company, Balance, Sort */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           <SearchInput
-            placeholder="Search by name or mobile..."
+            placeholder="Search name or mobile..."
             value={search}
             onChange={(val) => setSearch(val)}
           />
@@ -483,33 +400,81 @@ export default function CreditPage() {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             options={[
-              { value: "balance_desc", label: "Highest Balance" },
-              { value: "balance_asc", label: "Lowest Balance" },
-              { value: "name_asc", label: "Name (A to Z)" },
-              { value: "name_desc", label: "Name (Z to A)" },
-              { value: "lastOrder_desc", label: "Most Recent Order" },
+              { value: "balance_desc", label: "Sort: Highest Balance" },
+              { value: "balance_asc", label: "Sort: Lowest Balance" },
+              { value: "name_asc", label: "Sort: Name (A to Z)" },
+              { value: "name_desc", label: "Sort: Name (Z to A)" },
+              { value: "lastOrder_desc", label: "Sort: Recent Order" },
             ]}
           />
         </div>
 
-        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-          <div className="flex items-center gap-2">
+        {/* Row 2: Date Range, Presets, Group by Company Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pt-2 border-t border-gray-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-gray-400" /> Period:
+            </span>
+            <Input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="w-auto text-xs py-1"
+            />
+            <span className="text-xs text-gray-400 font-bold">to</span>
+            <Input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-auto text-xs py-1"
+            />
+
+            <div className="flex items-center gap-1 flex-wrap ml-1">
+              <button
+                onClick={handlePreset1to15}
+                className="px-2 py-0.5 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+              >
+                1st–15th
+              </button>
+              <button
+                onClick={handlePreset16toEnd}
+                className="px-2 py-0.5 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+              >
+                16th–End
+              </button>
+              <button
+                onClick={handlePresetThisMonth}
+                className="px-2 py-0.5 text-xs font-bold rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors cursor-pointer"
+              >
+                This Month
+              </button>
+              {(startDate || endDate) && (
+                <button
+                  onClick={handleClearDateRange}
+                  className="px-2 py-0.5 text-xs font-bold rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <FilterX className="w-3 h-3" /> Clear
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
             <ToggleSwitch
               checked={groupByCompany}
               onChange={(checked: boolean) => setGroupByCompany(checked)}
               label="Group by Company"
             />
+            <span className="text-xs text-gray-400 font-medium">
+              ({rows.length} customers)
+            </span>
           </div>
-
-          <p className="text-xs text-gray-500 font-bold">
-            Showing {rows.length} customers
-          </p>
         </div>
       </div>
 
-      {/* Main Content Table with max height & scroll */}
+      {/* Main Content Table */}
       {groupByCompany && groupedRows ? (
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+        <div className="space-y-4">
           {groupedRows.map((group) => {
             const groupTotalDebit = group.items.reduce((s, i) => s + i.totalDebit, 0);
             const groupTotalPaid = group.items.reduce((s, i) => s + i.totalPaid, 0);
@@ -520,20 +485,33 @@ export default function CreditPage() {
                 key={group.companyName}
                 className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden"
               >
-                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm">
-                    <Building2 className="w-4 h-4 text-[#C9A84C]" /> {group.companyName}
+                    <Building2 className="w-4 h-4 text-orange-500" /> {group.companyName}
                     <span className="text-xs font-normal text-gray-400">
                       ({group.items.length} users)
                     </span>
                   </h3>
 
-                  <div className="text-xs font-semibold flex items-center gap-4 text-gray-600">
-                    <span>Billed: {formatCurrency(groupTotalDebit)}</span>
-                    <span>Paid: {formatCurrency(groupTotalPaid)}</span>
-                    <span className="text-red-600 font-bold">
-                      Outstanding: {formatCurrency(groupBalance)}
-                    </span>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div className="text-xs font-semibold flex items-center gap-3 text-gray-600">
+                      <span>Billed: {formatCurrency(groupTotalDebit)}</span>
+                      <span>Paid: {formatCurrency(groupTotalPaid)}</span>
+                      <span className="text-red-600 font-bold">
+                        Outstanding: {formatCurrency(groupBalance)}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        generateCompanyGroupedOutstandingPdf([group]);
+                        toast.success(`${group.companyName} PDF downloaded`);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold text-slate-800 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg shadow-sm transition-all cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5 text-orange-500" /> Export Company PDF
+                    </button>
                   </div>
                 </div>
 
@@ -543,7 +521,7 @@ export default function CreditPage() {
           })}
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden max-h-[60vh] overflow-y-auto">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <Table columns={columns} data={rows} isLoading={isLoading} />
         </div>
       )}

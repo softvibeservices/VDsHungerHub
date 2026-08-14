@@ -62,7 +62,7 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
       <div className="flex items-center justify-between gap-2 flex-wrap px-0.5">
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-gray-500">Active Date:</span>
-          <span className="text-xs font-black text-orange-600">
+          <span className="text-xs font-bold text-orange-600">
             {formatDisplayDate(selectedDate)}
           </span>
           {selectedDate === todayStr && (
@@ -123,14 +123,14 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
                   isSelected
                     ? "bg-orange-500 border-orange-500 text-white shadow-sm shadow-orange-500/20"
                     : day.isPast
-                    ? "bg-gray-50 border-gray-150 text-gray-400 hover:bg-gray-100"
+                    ? "bg-gray-50 border-gray-200 text-gray-400 hover:bg-gray-100"
                     : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300"
                 )}
               >
                 <span className={cn("text-[9px] font-bold uppercase tracking-wider leading-none", isSelected ? "text-orange-100" : "text-gray-400")}>
                   {day.isToday ? "Today" : day.dayName}
                 </span>
-                <span className="text-base font-black leading-none my-0.5">{day.dayNum}</span>
+                <span className="text-base font-bold leading-none my-0.5">{day.dayNum}</span>
                 <div className="flex items-center justify-center gap-1">
                   <div
                     className={cn(

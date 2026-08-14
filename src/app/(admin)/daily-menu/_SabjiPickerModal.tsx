@@ -218,7 +218,7 @@ export default function SabjiPickerModal({
           )}
           {grouped.map(([letter, items]) => (
             <div key={letter}>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-1 mb-1">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1 mb-1">
                 {letter}
               </p>
               <div className="space-y-1">
@@ -234,7 +234,7 @@ export default function SabjiPickerModal({
                         "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl border text-left text-xs transition-all",
                         isSelected
                           ? "border-orange-400 bg-orange-50/50 text-orange-700 font-bold"
-                          : "border-gray-150 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50",
+                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50",
                         readOnly ? "cursor-not-allowed opacity-70" : "cursor-pointer"
                       )}
                     >

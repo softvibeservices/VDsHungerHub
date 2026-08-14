@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sun, Moon, Zap, Copy, Trash2, BookmarkPlus, Link2, Check, X, AlertTriangle } from "lucide-react";
+import { Sun, Moon, Zap, Copy, Trash2, BookmarkPlus, Link2, Check, X, AlertTriangle, ChevronDown } from "lucide-react";
 import TimeField from "@/components/ui/TimeField";
 import Button from "@/components/ui/Button";
 import SabjiPickerModal from "./_SabjiPickerModal";
@@ -116,6 +116,7 @@ export default function MealColumn({
   const [copiedSlug, setCopiedSlug] = useState(false);
   const [activeDishGroupKey, setActiveDishGroupKey] = useState<string | null>(null);
   const [confirmDeleteTemplateId, setConfirmDeleteTemplateId] = useState<string | null>(null);
+  const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
   const isLunch = mealType === "LUNCH";
   const isPast = selectedDate < todayStr;
 
@@ -260,65 +261,100 @@ export default function MealColumn({
 
       {/* SCROLLABLE MIDDLE ZONE — the only scroll region while browsing this column */}
       <div className="p-4 space-y-4 flex-1 overflow-y-auto">
-        {/* Templates section (unchanged) */}
-        {templates.length > 0 && (
-          <div className="space-y-1.5 bg-gray-50/50 border border-gray-100 p-3 rounded-xl">
-            <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider flex items-center gap-1">
-              <Zap size={11} className="fill-orange-400 text-orange-400" /> Load Template:
-            </p>
-            <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
-              {templates.map((tmpl) => (
-                <div
-                  key={tmpl.id}
-                  className="flex-shrink-0 flex items-center gap-1 bg-white border border-gray-200 hover:border-orange-300 rounded-lg p-1.5 transition-all text-[11px] group"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onLoadTemplate(tmpl)}
-                    className="font-semibold text-gray-700 hover:text-orange-500 text-left cursor-pointer"
-                  >
-                    {tmpl.name}
-                  </button>
-                  {confirmDeleteTemplateId === tmpl.id ? (
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => { onDeleteTemplate(tmpl.id); setConfirmDeleteTemplateId(null); }}
-                        className="text-red-600 hover:text-red-700 cursor-pointer p-0.5 font-bold text-[10px] transition-colors"
-                        title="Confirm delete"
-                      >
-                        <Check size={10} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteTemplateId(null)}
-                        className="text-gray-400 hover:text-gray-600 cursor-pointer p-0.5 transition-colors"
-                        title="Cancel"
-                      >
-                        <X size={10} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDeleteTemplateId(tmpl.id)}
-                      className="text-gray-300 hover:text-red-500 cursor-pointer p-0.5 transition-colors"
-                      title="Delete template"
-                    >
-                      <X size={10} />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Ultra-compact Actions Row: Load Template Dropdown + Copy Past Menu */}
+        <div className="flex items-center gap-2 flex-wrap pb-1">
+          {/* Load Template Popover Dropdown Button */}
+          {templates.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsTemplateMenuOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-orange-50/50 hover:border-orange-300 text-xs font-bold text-gray-700 shadow-sm transition-all cursor-pointer"
+              >
+                <Zap size={13} className="fill-orange-400 text-orange-400" />
+                Load Template ({templates.length})
+                <ChevronDown size={12} className={cn("transition-transform text-gray-400", isTemplateMenuOpen && "rotate-180")} />
+              </button>
 
-        {/* Copy From Action */}
-        <div className="bg-gray-50/30 border border-gray-100 p-3 rounded-xl">
-          <Button variant="secondary" onClick={onOpenCopyFrom} disabled={isPast} leftIcon={<Copy size={13} />} size="md" className="h-[38px] w-full">
-            Copy From Past Menu...
-          </Button>
+              {/* Floating Dropdown Menu */}
+              {isTemplateMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setIsTemplateMenuOpen(false)}
+                  />
+                  <div className="absolute left-0 top-full mt-1.5 w-60 bg-white border border-gray-200 rounded-xl shadow-xl z-30 p-1.5 space-y-1 animate-fadeIn">
+                    <p className="text-[10px] font-extrabold text-gray-400 uppercase tracking-wider px-2.5 py-1 flex items-center justify-between">
+                      <span>Saved Templates</span>
+                      <span className="text-[9px] text-gray-300">Click to apply</span>
+                    </p>
+                    <div className="max-h-48 overflow-y-auto space-y-0.5">
+                      {templates.map((tmpl) => (
+                        <div
+                          key={tmpl.id}
+                          className="flex items-center justify-between gap-2 p-2 hover:bg-orange-50/70 rounded-lg group transition-colors"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onLoadTemplate(tmpl);
+                              setIsTemplateMenuOpen(false);
+                            }}
+                            className="flex-1 text-left text-xs font-bold text-gray-800 hover:text-orange-600 truncate cursor-pointer"
+                          >
+                            {tmpl.name}
+                          </button>
+                          {confirmDeleteTemplateId === tmpl.id ? (
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onDeleteTemplate(tmpl.id);
+                                  setConfirmDeleteTemplateId(null);
+                                }}
+                                className="text-red-600 hover:bg-red-100 p-1 rounded font-bold text-[10px] cursor-pointer"
+                                title="Confirm delete"
+                              >
+                                <Check size={12} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteTemplateId(null)}
+                                className="text-gray-400 hover:bg-gray-100 p-1 rounded cursor-pointer"
+                                title="Cancel"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteTemplateId(tmpl.id)}
+                              className="text-gray-300 hover:text-red-500 p-1 rounded transition-colors cursor-pointer"
+                              title="Delete template"
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Copy From Past Menu Button */}
+          <button
+            type="button"
+            onClick={onOpenCopyFrom}
+            disabled={isPast}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-orange-50/50 hover:border-orange-300 text-xs font-bold text-gray-700 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+          >
+            <Copy size={13} className="text-gray-500" />
+            Copy Past Menu...
+          </button>
         </div>
 
         {/* Step 1 — Thali selector (unchanged) */}
@@ -344,7 +380,7 @@ export default function MealColumn({
               <button
                 type="button"
                 onClick={() => onUpdateDraft({ selectedThaliIds: [], sabjiMap: {}, minSabjiMap: {} })}
-                className="text-[10px] text-gray-450 hover:underline font-bold cursor-pointer"
+                className="text-[10px] text-gray-400 hover:underline font-bold cursor-pointer"
               >
                 Clear All
               </button>
@@ -365,12 +401,28 @@ export default function MealColumn({
 
       {/* STICKY BOTTOM ZONE — always visible, never scrolls away */}
       <div className="flex-shrink-0 border-t border-gray-100 bg-white p-4 space-y-3">
+        {draft.selectedThaliIds.length > 0 && !validation.isValid && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1 animate-fadeIn">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+              <AlertTriangle size={14} className="text-amber-600 flex-shrink-0" />
+              <span>Select required Sabjis before saving:</span>
+            </div>
+            <ul className="text-[11px] font-semibold text-amber-800 list-disc list-inside pl-1 space-y-0.5">
+              {validation.issues.map((issue) => (
+                <li key={issue.key}>
+                  <strong className="text-amber-950">{issue.label}</strong>: needs at least {issue.required} sabji{issue.required > 1 ? "s" : ""} ({issue.configured} selected)
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="flex gap-2">
           <Button
             variant="primary"
-            className={cn("flex-1", isDirty && !isPast && "animate-pulse")}
+            className={cn("flex-1", isDirty && validation.isValid && !isPast && "animate-pulse")}
             isLoading={draft.isSaving}
-            disabled={draft.selectedThaliIds.length === 0 || isPast}
+            disabled={draft.selectedThaliIds.length === 0 || !validation.isValid || isPast}
             onClick={onSave}
           >
             <BookmarkPlus size={15} className="mr-1.5" />

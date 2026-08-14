@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Clock, X, Check, ChevronDown } from "lucide-react";
+import { Clock, X, Check, ChevronDown, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface TimeFieldProps {
@@ -41,6 +41,14 @@ function format12Display(time24: string = "12:00"): string {
   return `${hPad}:${mPad} ${period}`;
 }
 
+// Popular quick preset times
+const QUICK_PRESETS = [
+  { label: "11:30 AM", val: "11:30" },
+  { label: "02:30 PM", val: "14:30" },
+  { label: "07:30 PM", val: "19:30" },
+  { label: "11:45 PM", val: "23:45" },
+];
+
 export default function TimeField({
   label,
   value = "11:30",
@@ -75,11 +83,11 @@ export default function TimeField({
     }
   };
 
-  // Clock Dial Geometry
-  const CENTER = 110;
-  const RADIUS = 82;
+  // Clock Dial Geometry (Center: 100, Radius: 72)
+  const CENTER = 100;
+  const RADIUS = 72;
 
-  // Calculate coordinates for Hour (1 to 12)
+  // Hour Positions (1 to 12)
   const hourPositions = useMemo(() => {
     return [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((h) => {
       const angleDeg = (h % 12) * 30 - 90;
@@ -90,7 +98,7 @@ export default function TimeField({
     });
   }, []);
 
-  // Calculate coordinates for Minute (00 to 55 in steps of 5)
+  // Minute Positions (0 to 55 in steps of 5)
   const minutePositions = useMemo(() => {
     return [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map((m) => {
       const angleDeg = (m / 60) * 360 - 90;
@@ -101,19 +109,18 @@ export default function TimeField({
     });
   }, []);
 
-  // Active target coordinates for current mode & selection
+  // Selected pointer position
   const selectedPos = useMemo(() => {
     if (mode === "HOUR") {
       return hourPositions.find((p) => p.val === hour12) ?? hourPositions[0];
     } else {
-      // Find nearest 5-min step for dial indicator
       const roundedMin = Math.round(minute / 5) * 5 % 60;
       return minutePositions.find((p) => p.val === roundedMin) ?? minutePositions[0];
     }
   }, [mode, hour12, minute, hourPositions, minutePositions]);
 
   return (
-    <div ref={containerRef} className="flex flex-col gap-1 relative">
+    <div ref={containerRef} className="flex flex-col gap-1.5 relative">
       {label && (
         <label htmlFor={id} className="text-xs font-bold text-gray-700 uppercase tracking-wider">
           {label}
@@ -121,7 +128,7 @@ export default function TimeField({
         </label>
       )}
 
-      {/* Time Display Button */}
+      {/* Input Field Display Button */}
       <button
         type="button"
         id={id}
@@ -130,17 +137,17 @@ export default function TimeField({
           setMode("HOUR");
         }}
         className={cn(
-          "w-full flex items-center justify-between px-3.5 py-2.5 text-sm border border-gray-250 bg-white rounded-xl shadow-sm hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition-all cursor-pointer font-bold text-gray-900",
-          isOpen && "border-orange-500 ring-2 ring-orange-500/20",
+          "w-full flex items-center justify-between px-3.5 py-2.5 text-sm border border-gray-200 bg-white rounded-xl shadow-sm hover:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition-all cursor-pointer font-bold text-gray-900",
+          isOpen && "border-orange-500 ring-2 ring-orange-500/30",
           error && "border-red-400 focus:ring-red-500/20",
           className
         )}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center border border-orange-100">
             <Clock size={15} />
           </div>
-          <span className="font-mono text-sm tracking-wide">{format12Display(value)}</span>
+          <span className="font-mono text-sm tracking-wide text-gray-900 font-extrabold">{format12Display(value)}</span>
         </div>
         <ChevronDown size={15} className={cn("text-gray-400 transition-transform", isOpen && "rotate-180")} />
       </button>
@@ -148,64 +155,64 @@ export default function TimeField({
       {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
       {hint && !error && <p className="text-xs text-gray-400 font-medium">{hint}</p>}
 
-      {/* SAMPLE REFERENCE REPLICA: CIRCULAR CLOCK TIME PICKER MODAL/POPOVER */}
+      {/* LIGHT-MODE ELEGANT CIRCULAR CLOCK DIAL POPOVER */}
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 z-50 w-[300px] bg-[#181C27] text-white border border-gray-800 rounded-3xl p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+        <div className="absolute top-full left-0 mt-2 z-50 w-[290px] bg-white border border-slate-200 rounded-3xl p-4 shadow-2xl space-y-3 animate-in fade-in zoom-in-95">
           {/* Header Bar */}
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-400">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
               {mode === "HOUR" ? "SELECT HOUR" : "SELECT MINUTE"}
             </span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 transition-colors"
+              className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           </div>
 
-          {/* Digital Time Box + AM/PM Toggle */}
-          <div className="flex items-center justify-between gap-3">
+          {/* Digital Time Header + AM/PM Toggle */}
+          <div className="flex items-center justify-between gap-2">
             {/* Digital Display Box */}
-            <div className="flex-1 bg-[#10121B] border border-gray-800 rounded-2xl px-4 py-2.5 flex items-center justify-center gap-2 text-2xl font-mono font-black">
+            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-3 py-1.5 flex items-center justify-center gap-1 text-xl font-mono font-black">
               <button
                 type="button"
                 onClick={() => setMode("HOUR")}
                 className={cn(
                   "px-2 py-0.5 rounded-lg transition-colors cursor-pointer",
                   mode === "HOUR"
-                    ? "text-[#A78BFA] bg-[#8B5CF6]/20 ring-1 ring-[#8B5CF6]"
-                    : "text-gray-300 hover:text-white"
+                    ? "text-orange-600 bg-orange-100/80 ring-1 ring-orange-400 font-bold"
+                    : "text-slate-700 hover:text-slate-900"
                 )}
               >
                 {String(hour12).padStart(2, "0")}
               </button>
-              <span className="text-gray-500 font-bold">:</span>
+              <span className="text-slate-400 font-bold">:</span>
               <button
                 type="button"
                 onClick={() => setMode("MINUTE")}
                 className={cn(
                   "px-2 py-0.5 rounded-lg transition-colors cursor-pointer",
                   mode === "MINUTE"
-                    ? "text-[#A78BFA] bg-[#8B5CF6]/20 ring-1 ring-[#8B5CF6]"
-                    : "text-gray-300 hover:text-white"
+                    ? "text-orange-600 bg-orange-100/80 ring-1 ring-orange-400 font-bold"
+                    : "text-slate-700 hover:text-slate-900"
                 )}
               >
                 {String(minute).padStart(2, "0")}
               </button>
             </div>
 
-            {/* Stacked AM / PM Toggle Pills */}
-            <div className="flex flex-col gap-1 bg-[#10121B] border border-gray-800 p-1 rounded-2xl">
+            {/* AM / PM Segmented Pills */}
+            <div className="flex flex-col gap-0.5 bg-slate-100 border border-slate-200 p-0.5 rounded-xl">
               <button
                 type="button"
                 onClick={() => updateTime(hour12, minute, "AM")}
                 className={cn(
-                  "px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer",
+                  "px-2.5 py-0.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer",
                   period === "AM"
-                    ? "bg-[#8B5CF6] text-white shadow-md shadow-[#8B5CF6]/30"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
                 )}
               >
                 AM
@@ -214,10 +221,10 @@ export default function TimeField({
                 type="button"
                 onClick={() => updateTime(hour12, minute, "PM")}
                 className={cn(
-                  "px-3 py-1 text-xs font-bold rounded-xl transition-all cursor-pointer",
+                  "px-2.5 py-0.5 text-[11px] font-extrabold rounded-lg transition-all cursor-pointer",
                   period === "PM"
-                    ? "bg-[#8B5CF6] text-white shadow-md shadow-[#8B5CF6]/30"
-                    : "text-gray-400 hover:text-white"
+                    ? "bg-orange-500 text-white shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
                 )}
               >
                 PM
@@ -225,23 +232,44 @@ export default function TimeField({
             </div>
           </div>
 
-          {/* CIRCULAR ANALOG CLOCK DIAL */}
-          <div className="relative w-[220px] h-[220px] mx-auto bg-[#10121B] rounded-full border border-gray-800/80 shadow-inner flex items-center justify-center select-none">
+          {/* Quick Presets Row */}
+          <div className="flex items-center gap-1 justify-center">
+            {QUICK_PRESETS.map((p) => (
+              <button
+                key={p.val}
+                type="button"
+                onClick={() => {
+                  if (onChange) onChange({ target: { value: p.val } });
+                }}
+                className={cn(
+                  "px-2 py-0.5 text-[10px] font-bold rounded-lg border transition-all cursor-pointer",
+                  value === p.val
+                    ? "bg-orange-500 border-orange-500 text-white"
+                    : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-orange-50 hover:text-orange-600"
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* LIGHT-MODE CIRCULAR ANALOG CLOCK DIAL */}
+          <div className="relative w-[200px] h-[200px] mx-auto bg-slate-50 rounded-full border border-slate-200/90 shadow-inner flex items-center justify-center select-none">
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
               {/* Center Dot */}
-              <circle cx={CENTER} cy={CENTER} r={4} fill="#8B5CF6" />
-              {/* Clock Hand Pointer Line */}
+              <circle cx={CENTER} cy={CENTER} r={4} fill="#F97316" />
+              {/* Clock Hand Line */}
               <line
                 x1={CENTER}
                 y1={CENTER}
                 x2={selectedPos.x}
                 y2={selectedPos.y}
-                stroke="#8B5CF6"
+                stroke="#F97316"
                 strokeWidth={2.5}
                 strokeLinecap="round"
               />
               {/* Pointer Circle at selected node */}
-              <circle cx={selectedPos.x} cy={selectedPos.y} r={18} fill="#8B5CF6" className="shadow-lg" />
+              <circle cx={selectedPos.x} cy={selectedPos.y} r={16} fill="#F97316" className="shadow-md" />
             </svg>
 
             {/* Dial Numbers */}
@@ -256,20 +284,20 @@ export default function TimeField({
                   onClick={() => {
                     if (mode === "HOUR") {
                       updateTime(pos.val, minute, period);
-                      setMode("MINUTE"); // auto switch to minute selection
+                      setMode("MINUTE"); // Auto transition to minute picker
                     } else {
                       updateTime(hour12, pos.val, period);
                     }
                   }}
                   style={{
-                    left: `${pos.x - 16}px`,
-                    top: `${pos.y - 16}px`,
+                    left: `${pos.x - 14}px`,
+                    top: `${pos.y - 14}px`,
                   }}
                   className={cn(
-                    "absolute w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-transform cursor-pointer z-10",
+                    "absolute w-7 h-7 rounded-full flex items-center justify-center text-xs font-extrabold transition-all cursor-pointer z-10",
                     isSelected
                       ? "text-white font-black scale-110"
-                      : "text-gray-300 hover:text-white hover:bg-white/10"
+                      : "text-slate-600 hover:text-orange-600 hover:bg-orange-50"
                   )}
                 >
                   {displayLabel}
@@ -278,13 +306,13 @@ export default function TimeField({
             })}
           </div>
 
-          {/* Confirm Button matching reference image */}
+          {/* Confirm Button */}
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="w-full py-3 bg-[#7C3AED] hover:bg-[#6D28D9] active:bg-[#5B21B6] text-white font-extrabold rounded-2xl text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-[#7C3AED]/25 transition-all cursor-pointer"
+            className="w-full py-2.5 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/20 transition-all cursor-pointer"
           >
-            <Check size={16} />
+            <Check size={15} />
             <span>Confirm {format12Display(value)}</span>
           </button>
         </div>

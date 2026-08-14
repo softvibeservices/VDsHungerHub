@@ -41,18 +41,18 @@ function drawHeader(doc: jsPDF, subtitle: string, periodText?: string) {
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...WHITE);
-  doc.text("ViTa Cuisine", 14, 16);
+  doc.text("VD's Hunger Hub", 14, 16);
 
   // Company Subtitle / Tagline
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...GOLD);
-  doc.text("THINK FOOD, THINK US", 14, 23);
+  doc.text("FRESH & TASTY MEALS EVERYDAY", 14, 23);
 
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(210, 220, 240);
-  doc.text("Restaurant & Cloud Kitchen · Thaltej, Ahmedabad · +91 635 635 0085", 14, 29);
+  doc.text("Restaurant & Tiffin Service · Thaltej, Ahmedabad · +91 635 635 0085", 14, 29);
 
   // Document Type / Date (Right aligned)
   doc.setFontSize(10);
@@ -85,13 +85,13 @@ function drawPageFooter(doc: jsPDF) {
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...GRAY);
   doc.text(
-    "ViTa Cuisine · 19, Ayana Complex, Nr. Zydus Cancer Hospital, Thaltej, Ahmedabad",
+    "VD's Hunger Hub · 19, Ayana Complex, Nr. Zydus Cancer Hospital, Thaltej, Ahmedabad",
     pageWidth / 2,
     pageHeight - 12,
     { align: "center" }
   );
   doc.text(
-    "Contact: +91 635 635 0085 (Restaurant) · +91 635 635 0086 (Delivery) · Email: ViTaCuisine0@gmail.com",
+    "Contact: +91 635 635 0085 (Restaurant) · +91 635 635 0086 (Delivery)",
     pageWidth / 2,
     pageHeight - 7,
     { align: "center" }
@@ -218,7 +218,7 @@ export function generateUserBillPdf(detail: UserLedgerDetail) {
 
   const cleanName = detail.user.name.replace(/[^a-zA-Z0-9]/g, "_");
   const cleanDate = formatDate(new Date()).replace(/\s+/g, "_");
-  doc.save(`ViTa-Statement-${cleanName}-${cleanDate}.pdf`);
+  doc.save(`VDsHungerHub-Statement-${cleanName}-${cleanDate}.pdf`);
 }
 
 export function generateBulkOutstandingPdf(rows: UserLedgerRow[]) {
@@ -230,22 +230,32 @@ export function generateBulkOutstandingPdf(rows: UserLedgerRow[]) {
   const totalOutstanding = rows.reduce((sum, r) => sum + (r.balance > 0 ? r.balance : 0), 0);
   const totalCollected = rows.reduce((sum, r) => sum + r.totalPaid, 0);
 
-  // Summary Card
-  doc.setFillColor(245, 247, 250);
-  doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(14, y, pageWidth - 28, 14, 3, 3, "FD");
+  // Summary Card with 3 clear boxes
+  const cardW = (pageWidth - 28 - 12) / 3;
+  const metrics = [
+    { title: "TOTAL CUSTOMERS", value: `${rows.length} Accounts`, color: NAVY, bg: [241, 245, 249] as [number, number, number] },
+    { title: "TOTAL COLLECTED", value: pdfCurrency(totalCollected), color: GREEN, bg: [240, 253, 244] as [number, number, number] },
+    { title: "TOTAL OUTSTANDING", value: pdfCurrency(totalOutstanding), color: RED, bg: [254, 242, 242] as [number, number, number] },
+  ];
 
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "bold");
-  doc.setTextColor(...NAVY);
-  doc.text(
-    `Total Customers: ${rows.length}   |   Outstanding: ${pdfCurrency(totalOutstanding)}   |   Collected: ${pdfCurrency(totalCollected)}`,
-    pageWidth / 2,
-    y + 9,
-    { align: "center" }
-  );
+  metrics.forEach((m, i) => {
+    const x = 14 + i * (cardW + 6);
+    doc.setFillColor(...m.bg);
+    doc.setDrawColor(226, 232, 240);
+    doc.roundedRect(x, y, cardW, 18, 3, 3, "FD");
 
-  y += 20;
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...GRAY);
+    doc.text(m.title, x + 8, y + 6);
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...m.color);
+    doc.text(m.value, x + 8, y + 13.5);
+  });
+
+  y += 24;
 
   const tableData = rows.map((r, i) => [
     (i + 1).toString(),
@@ -272,13 +282,13 @@ export function generateBulkOutstandingPdf(rows: UserLedgerRow[]) {
     },
     columnStyles: {
       0: { cellWidth: 10 },
-      1: { cellWidth: "auto" },
-      2: { cellWidth: 32 },
+      1: { cellWidth: 34 },
+      2: { cellWidth: 28 },
       3: { cellWidth: 32 },
-      4: { cellWidth: 26, halign: "right" },
-      5: { cellWidth: 26, halign: "right" },
-      6: { cellWidth: 28, halign: "right", fontStyle: "bold", textColor: RED },
-      7: { cellWidth: 26 },
+      4: { cellWidth: 22, halign: "right" },
+      5: { cellWidth: 22, halign: "right" },
+      6: { cellWidth: 24, halign: "right", fontStyle: "bold", textColor: RED },
+      7: { cellWidth: 20 },
     },
     styles: { fontSize: 8, cellPadding: 3, textColor: DARK },
     alternateRowStyles: { fillColor: LGRAY },
@@ -287,7 +297,7 @@ export function generateBulkOutstandingPdf(rows: UserLedgerRow[]) {
   drawPageFooter(doc);
 
   const cleanDate = formatDate(new Date()).replace(/\s+/g, "_");
-  doc.save(`ViTa-Outstanding-Report-${cleanDate}.pdf`);
+  doc.save(`VDsHungerHub-Outstanding-Report-${cleanDate}.pdf`);
 }
 
 export function generateCompanyGroupedOutstandingPdf(
@@ -332,6 +342,14 @@ export function generateCompanyGroupedOutstandingPdf(
       head: [["#", "Name", "Mobile", "Total Billed", "Total Paid", "Balance Due"]],
       body,
       headStyles: { fillColor: [30, 41, 59], textColor: WHITE, fontStyle: "bold", fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 45 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 28, halign: "right" },
+        4: { cellWidth: 28, halign: "right" },
+        5: { cellWidth: 34, halign: "right", fontStyle: "bold", textColor: RED },
+      },
       styles: { fontSize: 8, cellPadding: 2.5, textColor: DARK },
       alternateRowStyles: { fillColor: LGRAY },
     });
@@ -347,5 +365,5 @@ export function generateCompanyGroupedOutstandingPdf(
   drawPageFooter(doc);
 
   const cleanDate = formatDate(new Date()).replace(/\s+/g, "_");
-  doc.save(`ViTa-Company-Outstanding-${cleanDate}.pdf`);
+  doc.save(`VDsHungerHub-Company-Outstanding-${cleanDate}.pdf`);
 }

@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { UtensilsCrossed, Package, Tags } from "lucide-react";
-import { cn } from "@/lib/utils";
+import Tabs from "@/components/ui/Tabs";
 
 const tabs = [
   { href: "/catalog/products", label: "Products", icon: UtensilsCrossed },
@@ -12,26 +11,16 @@ const tabs = [
 ];
 
 export default function CatalogTabs() {
+  const router = useRouter();
   const pathname = usePathname();
+  const active = tabs.find((t) => t.href === pathname)?.href ?? tabs[0].href;
 
   return (
-    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-      {tabs.map(({ href, label, icon: Icon }) => {
-        const isActive = pathname === href;
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer",
-              isActive ? "bg-white text-gray-900 shadow-sm font-bold" : "text-gray-500 hover:text-gray-700"
-            )}
-          >
-            <Icon size={15} />
-            <span>{label}</span>
-          </Link>
-        );
-      })}
-    </div>
+    <Tabs
+      variant="pill"
+      value={active}
+      onChange={(href) => router.push(href)}
+      items={tabs.map((t) => ({ value: t.href, label: t.label, icon: t.icon }))}
+    />
   );
 }

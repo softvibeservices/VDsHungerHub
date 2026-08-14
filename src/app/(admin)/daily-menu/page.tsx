@@ -537,7 +537,7 @@ export default function MenuPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-3">
+    <div className="space-y-6">
       {/* Compact Week Strip Navigation */}
       <WeekStrip
         selectedDate={selectedDate}

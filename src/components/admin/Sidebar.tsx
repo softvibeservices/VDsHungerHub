@@ -147,7 +147,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               <p className="text-white font-extrabold text-sm leading-tight">
                 ViTa Cuisine
               </p>
-              <p className="text-[#C9A84C] text-[10px] font-semibold tracking-widest uppercase">{panelLabel}</p>
+              <p className="text-gray-400 text-[10px] font-semibold tracking-widest uppercase">{panelLabel}</p>
             </div>
           </div>
           <button

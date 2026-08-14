@@ -6,6 +6,7 @@ import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
 import Select from "@/components/ui/Select";
+import PageToolbar from "@/components/ui/PageToolbar";
 import Modal from "@/components/ui/Modal";
 import Input from "@/components/ui/Input";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -284,40 +285,33 @@ export default function ManageStaffPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Manage Staff</h2>
-          <p className="text-xs text-gray-500 mt-1">
-            Create, moderate, and manage permissions of staff members
-          </p>
-        </div>
-        <Button variant="primary" leftIcon={<Plus size={15} />} onClick={handleOpenAdd}>
-          Add Staff Member
-        </Button>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search staff by name or mobile..."
-          className="w-full md:max-w-md"
-        />
-
-        <div className="w-full md:w-48">
-          <Select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={[
-              { value: "ALL", label: "All Statuses" },
-              { value: "ACTIVE", label: "Active Only" },
-              { value: "INACTIVE", label: "Inactive Only" },
-            ]}
-          />
-        </div>
-      </div>
+      <PageToolbar
+        filters={
+          <>
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search staff by name or mobile..."
+              className="w-64"
+            />
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-48"
+              options={[
+                { value: "ALL", label: "All Statuses" },
+                { value: "ACTIVE", label: "Active Only" },
+                { value: "INACTIVE", label: "Inactive Only" },
+              ]}
+            />
+          </>
+        }
+        actions={
+          <Button variant="primary" leftIcon={<Plus size={15} />} onClick={handleOpenAdd}>
+            Add Staff Member
+          </Button>
+        }
+      />
 
       {/* Staff Table */}
       <Table<StaffUser>
@@ -346,7 +340,7 @@ export default function ManageStaffPage() {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {formError && (
-            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs font-medium text-red-650 flex items-center gap-1.5">
+            <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-xs font-medium text-red-600 flex items-center gap-1.5">
               <AlertTriangle size={14} className="shrink-0 text-red-500" />
               <span>{formError}</span>
             </div>

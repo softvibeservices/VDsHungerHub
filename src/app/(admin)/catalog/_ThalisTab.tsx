@@ -145,7 +145,7 @@ export default function ThalisTab() {
       key: "category",
       header: "Category",
       render: (row) => row.category ? (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-150">
+        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
           {row.category.name}
         </span>
       ) : (

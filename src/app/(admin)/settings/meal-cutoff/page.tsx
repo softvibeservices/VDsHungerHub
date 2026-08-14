@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Settings, Loader2 } from "lucide-react";
+import { Settings, Loader2, Clock, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
 import MealSettingsCard from "./_MealSettingsCard";
+import PageToolbar from "@/components/ui/PageToolbar";
 
 interface MealSetting {
   id: string;
@@ -58,7 +59,6 @@ export default function MealCutoffSettingsPage() {
 
       toast.success(`${setting.mealType === "LUNCH" ? "Lunch" : "Dinner"} settings saved!`);
 
-      // Update local state with the returned setting (including updatedAt timestamp)
       setSettings((prev) =>
         prev.map((s) => (s.mealType === setting.mealType ? json.setting ?? setting : s))
       );
@@ -81,17 +81,19 @@ export default function MealCutoffSettingsPage() {
   const dinner = settings.find((s) => s.mealType === "DINNER");
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Page Header */}
-      <div>
-        <h2 className="text-xl font-extrabold text-gray-900 flex items-center gap-2 leading-tight">
-          <Settings size={20} className="text-gray-500" />
-          Cutoff & Ordering Settings
-        </h2>
-        <p className="text-xs text-gray-400 font-medium mt-0.5">
-          Configure default ordering rules and visibility schedules for Lunch and Dinner.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageToolbar
+        filters={
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 flex items-center gap-1.5">
+              <Clock size={13} className="text-orange-500" /> All Times in IST (India Standard Time)
+            </span>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
+              <ShieldCheck size={13} className="text-emerald-600" /> Automated Ordering Enforcement Active
+            </span>
+          </div>
+        }
+      />
 
       {/* Grid containing Settings Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -133,7 +133,7 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category }: 
           <p className="text-sm font-medium text-gray-700 mb-2">
             Assign Thalis <span className="text-gray-400 font-normal text-xs">(a thali belongs to one category at a time)</span>
           </p>
-          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 border border-gray-150 rounded-xl p-2">
+          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 border border-gray-200 rounded-xl p-2">
             {allThalis.length === 0 && <p className="text-xs text-gray-400 italic p-2">No thalis created yet.</p>}
             {allThalis.map((t) => {
               const isChecked = selectedThaliIds.includes(t.id);
@@ -151,7 +151,7 @@ export default function CategoryModal({ isOpen, onClose, onSuccess, category }: 
                   />
                   <span className="text-sm text-gray-800 flex-1">{t.name}</span>
                   {belongsElsewhere && !isChecked && (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-150">
+                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-md border border-amber-200">
                       In another category
                     </span>
                   )}

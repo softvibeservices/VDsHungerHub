@@ -31,7 +31,7 @@ export default function Table<T extends { id: string }>({
   return (
     <div
       className={cn(
-        "bg-white rounded-xl border border-gray-200 overflow-hidden",
+        "bg-white rounded-2xl border border-gray-200 overflow-hidden",
         className
       )}
     >

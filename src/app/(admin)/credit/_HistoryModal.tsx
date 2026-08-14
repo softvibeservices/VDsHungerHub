@@ -5,6 +5,7 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Loader from "@/components/ui/Loader";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import Input from "@/components/ui/Input";
 import { UserLedgerDetail } from "@/types";
 import { formatCurrency, formatMobileNumber } from "@/lib/utils";
 import { formatDateTimeIST } from "@/lib/time";
@@ -176,9 +177,9 @@ export default function HistoryModal({
             </div>
 
             {/* Date Range Selector Toolbar */}
-            <div className="bg-gradient-to-r from-navy-900 to-indigo-900 bg-[#0F1E3D] p-4 rounded-xl text-white space-y-3 shadow-md">
+            <div className="bg-gray-50 border border-gray-200 p-4 rounded-xl space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-xs font-extrabold uppercase tracking-wider text-[#C9A84C] flex items-center gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                   <Calendar className="w-4 h-4" /> Statement Date Range Selector
                 </p>
 
@@ -186,26 +187,26 @@ export default function HistoryModal({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={handlePreset1to15}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white"
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700"
                   >
                     1st – 15th
                   </button>
                   <button
                     onClick={handlePreset16toEnd}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white"
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700"
                   >
                     16th – End
                   </button>
                   <button
                     onClick={handlePresetThisMonth}
-                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-white"
+                    className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-100 transition-colors text-gray-700"
                   >
                     This Month
                   </button>
                   {(startDate || endDate) && (
                     <button
                       onClick={handleClearDateRange}
-                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-200 transition-colors flex items-center gap-1"
+                      className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-red-50 hover:bg-red-100 text-red-600 transition-colors flex items-center gap-1"
                     >
                       <FilterX className="w-3 h-3" /> All Time
                     </button>
@@ -214,24 +215,18 @@ export default function HistoryModal({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-gray-300 mb-1">From Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => handleApplyDateRange(e.target.value, endDate)}
-                    className="w-full text-xs px-3 py-2 rounded-lg bg-white text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-[#C9A84C]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] uppercase font-bold text-gray-300 mb-1">To Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => handleApplyDateRange(startDate, e.target.value)}
-                    className="w-full text-xs px-3 py-2 rounded-lg bg-white text-gray-900 font-semibold outline-none focus:ring-2 focus:ring-[#C9A84C]"
-                  />
-                </div>
+                <Input
+                  label="From Date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleApplyDateRange(e.target.value, endDate)}
+                />
+                <Input
+                  label="To Date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleApplyDateRange(startDate, e.target.value)}
+                />
               </div>
             </div>
 
@@ -239,16 +234,16 @@ export default function HistoryModal({
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
                 <p className="text-xs text-gray-500 font-semibold uppercase">Total Billed</p>
-                <p className="text-lg font-extrabold text-[#0F1E3D] mt-0.5">{formatCurrency(detail.totalDebit)}</p>
+                <p className="text-lg font-bold text-gray-900 mt-0.5">{formatCurrency(detail.totalDebit)}</p>
               </div>
               <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl text-center">
                 <p className="text-xs text-gray-500 font-semibold uppercase">Total Paid</p>
-                <p className="text-lg font-extrabold text-emerald-700 mt-0.5">{formatCurrency(detail.totalPaid)}</p>
+                <p className="text-lg font-bold text-emerald-700 mt-0.5">{formatCurrency(detail.totalPaid)}</p>
               </div>
               <div className="p-3 bg-red-50/60 border border-red-200 rounded-xl text-center">
                 <p className="text-xs text-gray-500 font-semibold uppercase">Period Balance</p>
                 <p
-                  className={`text-lg font-extrabold mt-0.5 ${
+                  className={`text-lg font-bold mt-0.5 ${
                     detail.balance > 0 ? "text-red-700" : "text-emerald-700"
                   }`}
                 >
@@ -264,7 +259,7 @@ export default function HistoryModal({
                   Transaction Entries ({detail.timeline.length})
                 </h4>
                 {(startDate || endDate) && (
-                  <span className="text-xs text-[#0F1E3D] font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                  <span className="text-xs text-gray-700 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
                     Filtered by Date Range
                   </span>
                 )}

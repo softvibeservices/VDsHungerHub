@@ -94,7 +94,7 @@ export default function AdminLayout({
   if (isAuthChecking) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-900 text-white space-y-4">
-        <div className="w-10 h-10 border-4 border-[#C9A84C] border-t-transparent rounded-full animate-spin" />
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         <p className="text-sm font-semibold text-gray-300">Verifying Admin Permissions…</p>
       </div>
     );
@@ -120,7 +120,9 @@ export default function AdminLayout({
       {/* Main content */}
       <div className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${sidebarOpen ? "lg:ml-[260px]" : "lg:ml-0"}`}>
         <Header onMenuToggle={() => setSidebarOpen((v) => !v)} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-12">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-12">
+          <div className="max-w-[1440px] mx-auto w-full">{children}</div>
+        </main>
 
         {/* Keyboard Shortcuts Hint Bar */}
         <div className="hidden md:flex items-center justify-center gap-4 py-1.5 bg-gray-50 border-t border-gray-200 text-[10px] text-gray-400 font-medium">

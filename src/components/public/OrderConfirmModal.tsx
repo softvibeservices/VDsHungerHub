@@ -70,7 +70,7 @@ export default function OrderConfirmModal({
             </p>
             <p className="font-bold text-gray-900 text-sm sm:text-base truncate">{user.name}</p>
             <p className="text-xs sm:text-sm text-gray-600 truncate">{user.companyName}</p>
-            <p className="text-xs sm:text-sm text-gray-450">+91 {user.number}</p>
+            <p className="text-xs sm:text-sm text-gray-400">+91 {user.number}</p>
             {deliveryAddress && (
               <div className="border-t border-orange-200/60 pt-2 mt-2">
                 <p className="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-0.5">Delivery To:</p>
@@ -123,7 +123,7 @@ export default function OrderConfirmModal({
                   <div key={addon.id} className="flex justify-between items-center text-sm">
                     <span className="text-gray-700">
                       {addon.name}{" "}
-                      <span className="text-xs text-gray-450 font-normal">
+                      <span className="text-xs text-gray-400 font-normal">
                         x{addon.quantity}
                       </span>
                     </span>

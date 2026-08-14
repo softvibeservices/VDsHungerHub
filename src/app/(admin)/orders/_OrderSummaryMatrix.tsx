@@ -11,16 +11,17 @@
  * All data is computed from the orders array passed as props — no API calls.
  */
 
-import { UtensilsCrossed, PackagePlus, Soup } from "lucide-react";
+import { UtensilsCrossed, PackagePlus, Soup, ChevronUp } from "lucide-react";
 import { buildSummaryMatrix } from "@/lib/order-aggregation";
 import type { AggregateOrder } from "@/lib/order-aggregation";
 
 interface Props {
   orders: AggregateOrder[];
   mealType: "LUNCH" | "DINNER";
+  onClose?: () => void;
 }
 
-export default function OrderSummaryMatrix({ orders, mealType }: Props) {
+export default function OrderSummaryMatrix({ orders, mealType, onClose }: Props) {
   const matrix = buildSummaryMatrix(orders);
 
   if (orders.length === 0) return null;
@@ -32,9 +33,20 @@ export default function OrderSummaryMatrix({ orders, mealType }: Props) {
         <h3 className="font-extrabold text-gray-900 text-sm">
           {mealType === "LUNCH" ? "Lunch" : "Dinner"} Summary Matrix
         </h3>
-        <span className="ml-auto text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-          {orders.length} orders
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider ml-1">
+          ({orders.length} orders)
         </span>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto flex items-center gap-1 text-xs text-gray-400 hover:text-gray-700 hover:bg-gray-100 px-2 py-1 rounded-lg transition-colors font-bold cursor-pointer"
+            title="Hide summary matrix"
+          >
+            <ChevronUp size={15} />
+            <span className="hidden sm:inline">Hide</span>
+          </button>
+        )}
       </div>
 
       {/* Thali Counts */}

@@ -52,14 +52,14 @@ export default function SabjiPicker({
   const isAtCap = !adminMode && selected.length >= maxCount;
 
   return (
-    <div className="space-y-2 bg-gray-50 border border-gray-150 p-3.5 rounded-xl">
+    <div className="space-y-2 bg-gray-50 border border-gray-200 p-3.5 rounded-xl">
       {label && (
         <div className="flex items-center justify-between">
           <p className="text-xs font-bold text-gray-700">{label}</p>
           <button
             type="button"
             onClick={selectAll}
-            className="text-xs text-orange-500 hover:text-orange-650 font-semibold cursor-pointer"
+            className="text-xs text-orange-500 hover:text-orange-600 font-semibold cursor-pointer"
           >
             Select All ({products.length})
           </button>
@@ -85,7 +85,7 @@ export default function SabjiPicker({
                   isSelected
                     ? "bg-orange-100 border-orange-400 text-orange-700"
                     : isDisabled
-                    ? "bg-gray-50 border-gray-150 text-gray-350 opacity-40 cursor-not-allowed"
+                    ? "bg-gray-50 border-gray-200 text-gray-400 opacity-40 cursor-not-allowed"
                     : "bg-white border-gray-200 text-gray-600 hover:border-orange-300"
                 }`}
               >
@@ -111,7 +111,7 @@ export default function SabjiPicker({
           <button
             type="button"
             onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-650 cursor-pointer"
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
           >
             <X size={15} />
           </button>
