@@ -8,8 +8,8 @@ export function buildWhatsAppBillText(row: {
   lastOrderAt: string | null;
 }): string {
   const lines = [
-    `🍽️ *VD's Hunger Hub — Bill Summary*`,
-    `_Fresh & Tasty Meals Everyday_`,
+    `🍽️ *ViTa Cuisine — Bill Summary*`,
+    `_Think Food, Think Us_`,
     ``,
     `👤 Customer: *${row.name}*`,
     `📊 Total Billed: ${formatCurrency(row.totalDebit)}`,
@@ -40,14 +40,14 @@ export function buildWhatsAppDigestText(
 ): string {
   const owingRows = rows.filter((r) => r.balance > 0);
   if (owingRows.length === 0) {
-    return "🍽️ *VD's Hunger Hub — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉\n\n_Fresh & Tasty Meals Everyday_";
+    return "🍽️ *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉\n\n_Think Food, Think Us_";
   }
 
   const grandTotal = owingRows.reduce((sum, r) => sum + r.balance, 0);
 
   const lines = [
-    `🍽️ *VD's Hunger Hub — Outstanding Balance Summary*`,
-    `_Fresh & Tasty Meals Everyday_`,
+    `🍽️ *ViTa Cuisine — Outstanding Balance Summary*`,
+    `_Think Food, Think Us_`,
     `📅 Date: ${formatDate(new Date())}`,
     `💰 Total Outstanding: *${formatCurrency(grandTotal)}* across ${owingRows.length} customers`,
     ``,
@@ -72,7 +72,7 @@ export function buildWhatsAppCompanyDigestText(
     .filter((g) => g.items.length > 0);
 
   if (nonEmptyGroups.length === 0) {
-    return "🍽️ *VD's Hunger Hub — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉";
+    return "🍽️ *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉";
   }
 
   const grandTotal = nonEmptyGroups.reduce(
@@ -81,8 +81,8 @@ export function buildWhatsAppCompanyDigestText(
   );
 
   const lines = [
-    `🍽️ *VD's Hunger Hub — Outstanding Balance Summary*`,
-    `_Fresh & Tasty Meals Everyday_`,
+    `🍽️ *ViTa Cuisine — Outstanding Balance Summary*`,
+    `_Think Food, Think Us_`,
     `📅 ${formatDate(new Date())}`,
     `💰 Total Outstanding: *${formatCurrency(grandTotal)}*`,
     ``,

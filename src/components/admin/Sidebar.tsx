@@ -133,7 +133,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           ${isOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* Logo & Sidebar Toggle Hamburger */}
+        {/* Logo & Sidebar Header */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
             <Image
@@ -144,18 +144,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               className="object-contain rounded-full flex-shrink-0"
             />
             <div>
-              <p className="text-white font-extrabold text-sm leading-tight">
+              <p className="text-white font-extrabold text-sm leading-tight tracking-wide">
                 ViTa Cuisine
               </p>
               <p className="text-gray-400 text-[10px] font-semibold tracking-widest uppercase">{panelLabel}</p>
             </div>
           </div>
+          {/* Mobile-only Close Button */}
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-1.5 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer"
-            title="Hide Sidebar"
+            className="lg:hidden text-gray-400 hover:text-white p-1.5 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer"
+            title="Close Sidebar"
           >
-            <Menu size={20} />
+            <X size={18} />
           </button>
         </div>
 

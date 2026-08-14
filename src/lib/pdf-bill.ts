@@ -41,13 +41,13 @@ function drawHeader(doc: jsPDF, subtitle: string, periodText?: string) {
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...WHITE);
-  doc.text("VD's Hunger Hub", 14, 16);
+  doc.text("ViTa Cuisine", 14, 16);
 
   // Company Subtitle / Tagline
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...GOLD);
-  doc.text("FRESH & TASTY MEALS EVERYDAY", 14, 23);
+  doc.text("THINK FOOD, THINK US", 14, 23);
 
   doc.setFontSize(7.5);
   doc.setFont("helvetica", "normal");
@@ -85,7 +85,7 @@ function drawPageFooter(doc: jsPDF) {
   doc.setFont("helvetica", "normal");
   doc.setTextColor(...GRAY);
   doc.text(
-    "VD's Hunger Hub · 19, Ayana Complex, Nr. Zydus Cancer Hospital, Thaltej, Ahmedabad",
+    "ViTa Cuisine · 19, Ayana Complex, Nr. Zydus Cancer Hospital, Thaltej, Ahmedabad",
     pageWidth / 2,
     pageHeight - 12,
     { align: "center" }
