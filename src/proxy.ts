@@ -8,7 +8,6 @@ import {
 } from "@/lib/rbac";
 
 const PUBLIC_PATHS = [
-  "/",
   "/login",
   "/register",
   "/verify",
@@ -22,7 +21,7 @@ const PUBLIC_PATHS = [
   "/api/auth/logout",
   "/menu",          // CUSTOMER ordering page (/menu and /menu/[slug] public share links)
   "/api/public",    // public menu data API
-];
+] as const;
 
 // Routes under /api/customer that are allowed to run with NO session
 // (they are the auth flows themselves — everything else must be logged in)
@@ -37,10 +36,10 @@ const CUSTOMER_PUBLIC_SUBROUTES = [
   "/api/customer/registration/status",
   "/api/customer/products",
   "/api/customer/refresh", // CRITICAL: must be reachable when access token is expired
-];
+] as const;
 
 function isPublicCustomerRoute(pathname: string) {
-  return CUSTOMER_PUBLIC_SUBROUTES.some((p) => pathname.startsWith(p));
+  return matchesAny(pathname, CUSTOMER_PUBLIC_SUBROUTES);
 }
 
 function isJwtSyntacticallyValid(token: string): boolean {
@@ -69,7 +68,7 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public paths
-  if (pathname === "/" || PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+  if (pathname === "/" || matchesAny(pathname, PUBLIC_PATHS)) {
     return NextResponse.next();
   }
 
@@ -97,7 +96,9 @@ export function proxy(request: NextRequest) {
     !pathname.startsWith("/api/customer") &&
     !pathname.startsWith("/api/staff/otp") &&
     !pathname.startsWith("/api/staff/login-password") &&
-    !pathname.startsWith("/api/staff/set-password");
+    !pathname.startsWith("/api/staff/set-password") &&
+    !pathname.startsWith("/api/staff/me") &&
+    !pathname.startsWith("/api/staff/logout");
 
   if (isProtectedPage || isProtectedApi) {
     const token = request.cookies.get(STAFF_SESSION_COOKIE)?.value;
