@@ -1,11 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/admin/Sidebar";
 import Header from "../../components/admin/Header"; // Admin top navigation header
 import { useKeyboard } from "@/hooks/useKeyboard";
 import { isAdminOnlyPage } from "@/lib/rbac";
+
+interface StaffUser {
+  id: string;
+  name: string;
+  mobile: string;
+  role: "ADMIN" | "STAFF";
+  permissions: string[];
+}
 
 export default function AdminLayout({
   children,
@@ -17,16 +25,33 @@ export default function AdminLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const currentUserRef = useRef<StaffUser | null>(null);
   useKeyboard();
 
   useEffect(() => {
     let cancelled = false;
 
     async function verifyAuth() {
-      setIsAuthChecking(true);
-      setIsAuthorized(false);
+      const hasExistingUser = currentUserRef.current !== null;
+
+      // Only show full-screen auth checking on initial layout load
+      if (!hasExistingUser) {
+        setIsAuthChecking(true);
+        setIsAuthorized(false);
+      }
+
+      // Synchronous role gate check if user payload is already cached
+      if (hasExistingUser && currentUserRef.current) {
+        if (isAdminOnlyPage(pathname) && currentUserRef.current.role !== "ADMIN") {
+          router.replace("/dashboard");
+          return;
+        }
+      }
+
       try {
         const res = await fetch("/api/staff/me");
+        if (cancelled) return;
+
         if (!res.ok) {
           router.replace("/staff-login");
           return;
@@ -37,19 +62,26 @@ export default function AdminLayout({
           return;
         }
 
-        // Role gate — mirrors src/proxy.ts and src/lib/rbac.ts. Re-checked on
-        // every pathname change (not just on first mount) because this
-        // layout persists across client-side navigation within (admin)/.
+        currentUserRef.current = data.user;
+
+        // Role gate check with fresh user data
         if (isAdminOnlyPage(pathname) && data.user.role !== "ADMIN") {
           router.replace("/dashboard");
           return;
         }
 
-        if (!cancelled) setIsAuthorized(true);
+        if (!cancelled) {
+          setIsAuthorized(true);
+          setIsAuthChecking(false);
+        }
       } catch {
-        router.replace("/staff-login");
+        if (!cancelled) {
+          router.replace("/staff-login");
+        }
       } finally {
-        if (!cancelled) setIsAuthChecking(false);
+        if (!cancelled && !hasExistingUser) {
+          setIsAuthChecking(false);
+        }
       }
     }
 
