@@ -9,9 +9,9 @@ const PAGE_SIZE = 20;
  * GET /api/menu/history?mealType=LUNCH|DINNER&page=1
  *
  * Returns every DailyMenu ever published, newest first, with enough
- * summary data (thali names, dish count, public link) to power the
- * "Past Menus & Links" admin page. Unlike /api/menu/summary this is
- * NOT limited to a date window — it's the permanent record.
+ * summary data (thali names, dish count) to power the admin
+ * "Past Menus" page. Unlike /api/menu/summary this is NOT limited to
+ * a date window — it's the permanent record.
  */
 export async function GET(req: NextRequest) {
   const session = await verifyStaffSession(req);
@@ -47,14 +47,12 @@ export async function GET(req: NextRequest) {
       id: string;
       date: Date;
       mealType: string;
-      publicSlug: string | null;
       thalis: { thali: { name: string } }[];
       sabjiOptions: { productId: string }[];
     }) => ({
       id: m.id,
       date: m.date.toISOString().split("T")[0],
       mealType: m.mealType,
-      publicSlug: m.publicSlug,
       thaliCount: m.thalis.length,
       thaliNames: m.thalis.map((t: { thali: { name: string } }) => t.thali.name),
       dishCount: new Set(m.sabjiOptions.map((s: { productId: string }) => s.productId)).size,

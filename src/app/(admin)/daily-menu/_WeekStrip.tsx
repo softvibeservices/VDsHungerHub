@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo } from "react";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface DaySummary {
@@ -95,6 +96,16 @@ export default function WeekStrip({ selectedDate, todayStr, summaries, onSelect,
           >
             7 Days Forward <ChevronRight size={13} />
           </button>
+
+          {/* ── NEW: direct entry point into Menu History (Req: findability fix) ── */}
+          <span className="w-px h-4 bg-gray-200 mx-0.5" aria-hidden="true" />
+          <Link
+            href="/daily-menu/history"
+            className="flex items-center gap-1 text-[11px] font-bold text-gray-500 hover:text-orange-600 cursor-pointer px-2 py-0.5 rounded-lg hover:bg-orange-50"
+            title="View every past menu"
+          >
+            <History size={13} /> History
+          </Link>
         </div>
       </div>
 
