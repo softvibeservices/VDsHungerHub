@@ -73,9 +73,18 @@ export async function POST(req: NextRequest) {
       return { thaliId, minSabjiRequired: Math.min(minSabjiRequired ?? cap, cap) };
     });
 
-    const sabjiOptionsInput = (sabjiOptions ?? []) as { categoryId: string; productIds: string[] }[];
+    // Client sends flat { categoryId, productId }[] — group them into { categoryId, productIds[] }[]
+    const flatSabjiOptions = (sabjiOptions ?? []) as { categoryId: string; productId: string }[];
+    const sabjiGroupMap = new Map<string, string[]>();
+    for (const { categoryId, productId } of flatSabjiOptions) {
+      if (!sabjiGroupMap.has(categoryId)) sabjiGroupMap.set(categoryId, []);
+      sabjiGroupMap.get(categoryId)!.push(productId);
+    }
+    const sabjiOptionsInput: { categoryId: string; productIds: string[] }[] = Array.from(
+      sabjiGroupMap.entries()
+    ).map(([categoryId, productIds]) => ({ categoryId, productIds }));
 
-    // ── NEW: server-side dish-coverage validation (safety net, mirrors the client) ──
+    // ── server-side dish-coverage validation (safety net, mirrors the client) ──
     const validation = validateSabjiCoverage(thalisFromDb, clampedThaliConfig, sabjiOptionsInput);
     if (!validation.isValid) {
       return NextResponse.json(
