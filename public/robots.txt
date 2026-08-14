@@ -1,0 +1,13 @@
+# robots.txt for ViTa Cuisine
+# Controls how search engine and AI crawlers access this site.
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /staff
+Disallow: /api/admin
+Disallow: /api/staff
+Disallow: /verify
+
+# Sitemap location
+Sitemap: https://vitacuisine.com/sitemap.xml

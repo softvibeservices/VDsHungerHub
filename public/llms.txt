@@ -1,0 +1,23 @@
+# ViTa Cuisine
+
+> ViTa Cuisine is a restaurant and cloud kitchen based in Thaltej, Ahmedabad, offering corporate meal plans, birthday and party orders, family pack meals, and bulk catering services. Tagline: "Think Food, Think Us."
+
+ViTa Cuisine prepares fresh, home-style and restaurant-quality meals for individuals, families, and businesses across Ahmedabad. The kitchen specializes in reliable bulk and recurring food service alongside individual restaurant orders.
+
+## Services
+
+- [Corporate Meal Plans](/menu): Daily/weekly meal subscriptions for offices and teams.
+- [Birthday & Party Orders](/menu): Custom food orders for birthdays and celebrations.
+- [Family Pack Meals](/menu): Ready-to-eat meal packs sized for families.
+- [Bulk Catering Services](/menu): Large-order catering for events and functions.
+
+## Contact
+
+- Phone (Restaurant): +91 635 635 0085
+- Phone (Delivery): +91 635 635 0086
+- Email: ViTaCuisine0@gmail.com
+- Address: 19, Ayana Complex, Nr. Zydus Cancer Hospital, Zydus Hospital Road, Thaltej, Ahmedabad - 380059, Gujarat, India
+
+## Notes
+
+- This file follows the llms.txt convention (https://llmstxt.org) to help AI assistants and language models quickly understand what ViTa Cuisine offers and link to the right pages when answering questions about the business.
