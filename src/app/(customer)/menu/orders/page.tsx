@@ -5,7 +5,7 @@ import { formatCurrency } from "@/lib/utils";
 import {
   UtensilsCrossed, Clock, CheckCircle2, Package, XCircle, Truck,
   AlertCircle, ChevronDown, ChevronUp, Filter, Search,
-  Calendar, Loader2, MessageSquare
+  Calendar, Loader2, MessageSquare, RefreshCw
 } from "lucide-react";
 
 type OrderStatus = "PENDING" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
@@ -209,13 +209,6 @@ export default function UserOrdersPage() {
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mt-1 font-medium">
-            {total > 0 && !loading ? (
-              <>Showing {orders.length} of {total} order{total > 1 ? "s" : ""} · Page {page} of {totalPages}</>
-            ) : (
-              "Track your thali orders and history"
-            )}
-          </p>
         </div>
       </div>
 
@@ -272,23 +265,36 @@ export default function UserOrdersPage() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowFilters((v) => !v)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer self-start sm:self-auto ${
-            hasFilters
-              ? "bg-orange-50 border-orange-300 text-orange-700 shadow-sm"
-              : "bg-white border-gray-200 text-gray-700 hover:border-orange-300 hover:text-orange-600"
-          }`}
-        >
-          <Filter size={15} />
-          <span>More Filters</span>
-          {hasFilters && (
-            <span className="w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-extrabold flex items-center justify-center">
-              ✓
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          <button
+            type="button"
+            onClick={() => loadOrders(page)}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-orange-50 hover:border-orange-300 text-gray-700 hover:text-orange-600 text-xs font-bold transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+            title="Refresh order status & list"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin text-orange-500" : ""} />
+            <span>Refresh</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+              hasFilters
+                ? "bg-orange-50 border-orange-300 text-orange-700 shadow-sm"
+                : "bg-white border-gray-200 text-gray-700 hover:border-orange-300 hover:text-orange-600"
+            }`}
+          >
+            <Filter size={15} />
+            <span>More Filters</span>
+            {hasFilters && (
+              <span className="w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-extrabold flex items-center justify-center">
+                ✓
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Advanced Filter panel (optional expansion) */}
