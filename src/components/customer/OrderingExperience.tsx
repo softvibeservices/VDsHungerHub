@@ -983,15 +983,41 @@ export default function OrderingExperience({ userId, menu }: Props) {
         )}
 
         {thaliLines.length === 0 && (
-          <div className="bg-white rounded-3xl border border-gray-100 p-10 text-center space-y-4 shadow-sm">
-            <ShoppingCart size={40} className="mx-auto text-gray-200" />
-            <p className="font-bold text-gray-700 text-base">Your cart is empty</p>
-            <button
-              onClick={() => setView("browse")}
-              className="inline-flex items-center gap-1.5 text-xs font-extrabold text-orange-600 hover:text-orange-700 cursor-pointer bg-orange-50 px-4 py-2 rounded-xl"
-            >
-              ← Browse Menu &amp; Add Thali
-            </button>
+          <div className="bg-white rounded-3xl border border-gray-100 p-6 space-y-4 shadow-sm">
+            <div className="flex items-center gap-3 border-b border-gray-100 pb-3">
+              <div className="w-10 h-10 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center flex-shrink-0">
+                <UtensilsCrossed size={20} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-gray-900 text-sm">Select a Thali to Add</h3>
+                <p className="text-xs text-gray-500 font-medium">Choose your meal combination to start your order</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              {menu.thalis.map(({ thali }) => (
+                <button
+                  key={thali.id}
+                  type="button"
+                  onClick={() => {
+                    addThaliLine(thali);
+                    toast.success(`Added ${thali.name}`);
+                  }}
+                  disabled={isOrderingClosed}
+                  className="p-3.5 bg-white border border-orange-200 rounded-2xl flex items-center justify-between hover:border-orange-500 hover:shadow-md transition-all text-left group cursor-pointer"
+                >
+                  <div className="flex-1 min-w-0 pr-3">
+                    <span className="font-extrabold text-sm text-gray-900 block truncate">{thali.name}</span>
+                    {thali.nameGu && (
+                      <span className="text-xs text-gray-500 font-medium block truncate mt-0.5">{thali.nameGu}</span>
+                    )}
+                  </div>
+                  <span className="text-xs font-black text-orange-600 bg-orange-50 px-3.5 py-2 rounded-xl group-hover:bg-orange-500 group-hover:text-white transition-colors flex-shrink-0">
+                    + {formatCurrency(thali.price)}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1089,12 +1115,27 @@ export default function OrderingExperience({ userId, menu }: Props) {
         </h3>
 
         {thaliLines.length === 0 ? (
-          <div className="text-center py-8 text-gray-400 text-sm space-y-2">
-            <ShoppingCart className="mx-auto opacity-30" size={32} />
-            <p className="font-medium text-gray-500">Your cart is empty</p>
-            <button onClick={() => setView("browse")} className="text-xs text-orange-600 font-bold cursor-pointer">
-              ← Back to Menu
-            </button>
+          <div className="py-2 space-y-2.5">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Quick Add Thali:</p>
+            <div className="space-y-2">
+              {menu.thalis.map(({ thali }) => (
+                <button
+                  key={thali.id}
+                  type="button"
+                  onClick={() => {
+                    addThaliLine(thali);
+                    toast.success(`Added ${thali.name}`);
+                  }}
+                  disabled={isOrderingClosed}
+                  className="w-full p-2.5 bg-orange-50/50 hover:bg-orange-100/70 border border-orange-200 rounded-xl flex items-center justify-between transition-colors text-left group cursor-pointer"
+                >
+                  <span className="font-bold text-xs text-gray-900 truncate">{thali.name}</span>
+                  <span className="text-xs font-extrabold text-orange-600 group-hover:text-orange-700 ml-2 flex-shrink-0">
+                    + {formatCurrency(thali.price)}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           <>
