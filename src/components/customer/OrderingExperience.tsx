@@ -333,7 +333,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // ── Thali helpers ───────────────────────────────────────────────────────────
   const addThaliLine = (thali: Thali) => {
-    if (!userId) { window.location.href = "/register"; return; }
+    if (!userId) { window.location.href = "/login"; return; }
     if (totalThaliQty >= MAX_THALI) { toast.error(`Maximum ${MAX_THALI} thali per order`); return; }
 
     const categorySabji = menu.sabjiOptions.filter((s) => s.categoryId === thali.categoryId);
@@ -398,7 +398,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // FIX #4: per-product add-on limit (not a shared combined total)
   const updateAddon = (product: Product, delta: number) => {
-    if (!userId) { window.location.href = "/register"; return; }
+    if (!userId) { window.location.href = "/login"; return; }
     setAddonLines((prev) => {
       const existing = prev.find((l) => l.productId === product.id);
       const currentQty = existing?.quantity ?? 0;
@@ -422,7 +422,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // ── Submit ──────────────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!userId) { window.location.href = "/register"; return; }
+    if (!userId) { window.location.href = "/login"; return; }
     if (thaliLines.length === 0) { toast.error("Add at least one thali to place order"); return; }
 
     // Validate sabji selection (only for thalis that require it)
