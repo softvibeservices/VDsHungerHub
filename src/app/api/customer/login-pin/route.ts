@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Check 3-lockout escalation (OTP-only mode) ────────────────────────────
+    // ── Check 3-lockout escalation ────────────────────────────────────────────
     // Count how many times pinLockedUntil was set in last 24h by checking RateLimitEvents
     const lockoutCount = await prisma.rateLimitEvent.count({
       where: {
@@ -115,12 +115,10 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // If >= 15 events in 24h (3 lockouts × 5 attempts), force OTP-only
     if (lockoutCount >= 15) {
       return NextResponse.json(
         {
-          error: "Too many failed PIN attempts. Please use OTP login for the next 24 hours.",
-          forceOtp: true,
+          error: "Too many failed PIN attempts. Please click 'Forgot PIN?' below to reset your PIN.",
         },
         { status: 403 }
       );

@@ -10,12 +10,12 @@ import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
 
-type Method = "otp" | "password";
+type Method = "password" | "reset-password";
 type Step = "mobile" | "otp" | "set-password";
 
 export default function StaffLoginPage() {
   const router = useRouter();
-  const [method, setMethod] = useState<Method>("otp");
+  const [method, setMethod] = useState<Method>("password");
   const [step, setStep] = useState<Step>("mobile");
   const [isForgotPassword, setIsForgotPassword] = useState(false);
 
@@ -48,7 +48,7 @@ export default function StaffLoginPage() {
     checkSession();
   }, [router]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  const handleSendResetOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -72,9 +72,9 @@ export default function StaffLoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to send OTP. Please try again.");
+        setError(data.error || "Failed to send reset OTP. Please try again.");
       } else {
-        toast.success(data.message || "OTP sent successfully.");
+        toast.success(data.message || "Reset OTP sent successfully.");
         setStep("otp");
       }
     } catch {
@@ -84,7 +84,7 @@ export default function StaffLoginPage() {
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyResetOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
@@ -105,13 +105,9 @@ export default function StaffLoginPage() {
 
       if (!res.ok) {
         setError(data.error || "Verification failed. Please try again.");
-      } else if (data.mustSetPassword || isForgotPassword) {
+      } else {
         toast.success("OTP verified! Please set your new password below.");
         setStep("set-password");
-      } else {
-        toast.success("Logged in successfully!");
-        router.push(data.redirectTo || "/dashboard");
-        router.refresh();
       }
     } catch {
       setError("Network error. Please check your connection.");
@@ -233,33 +229,9 @@ export default function StaffLoginPage() {
                   setStep("mobile");
                   setError("");
                 }}
-                className="text-[11px] underline text-orange-600 hover:text-orange-800"
+                className="text-[11px] underline text-orange-600 hover:text-orange-800 cursor-pointer"
               >
                 Cancel
-              </button>
-            </div>
-          )}
-
-          {/* Login Method Switcher */}
-          {step !== "set-password" && step !== "otp" && (
-            <div className="flex bg-gray-100 rounded-xl p-1 text-xs font-semibold">
-              <button
-                type="button"
-                onClick={() => { setMethod("otp"); setIsForgotPassword(false); setError(""); }}
-                className={`flex-1 py-2 rounded-lg transition-colors cursor-pointer ${
-                  method === "otp" && !isForgotPassword ? "bg-white shadow-sm text-orange-600 font-bold" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                OTP Login
-              </button>
-              <button
-                type="button"
-                onClick={() => { setMethod("password"); setIsForgotPassword(false); setError(""); }}
-                className={`flex-1 py-2 rounded-lg transition-colors cursor-pointer ${
-                  method === "password" || isForgotPassword ? "bg-white shadow-sm text-orange-600 font-bold" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Password Login
               </button>
             </div>
           )}
@@ -270,98 +242,8 @@ export default function StaffLoginPage() {
             </div>
           )}
 
-          {/* OTP Flow - Step 1: Mobile */}
-          {method === "otp" && step === "mobile" && (
-            <form onSubmit={handleSendOtp} className="space-y-4">
-              <div className="space-y-1">
-                <label htmlFor="mobile" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                  Mobile Number
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold select-none">
-                    +91
-                  </span>
-                  <input
-                    id="mobile"
-                    type="tel"
-                    maxLength={10}
-                    placeholder="Enter 10-digit mobile"
-                    value={mobile}
-                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                    className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || mobile.length !== 10}
-                className="w-full py-3 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow shadow-orange-500/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Phone size={16} />
-                )}
-                <span>Send OTP Code</span>
-              </button>
-            </form>
-          )}
-
-          {/* OTP Flow - Step 2: Code Verification */}
-          {method === "otp" && step === "otp" && (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label htmlFor="otp" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
-                    Verification Code
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setStep("mobile");
-                      setOtp("");
-                      setError("");
-                    }}
-                    className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
-                  >
-                    Change number
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Enter the 6-digit OTP code sent to <span className="font-semibold text-gray-700">+91 {mobile}</span>
-                </p>
-                <input
-                  id="otp"
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="••••••"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  className="w-full py-3 border border-gray-200 rounded-xl text-lg font-bold font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || otp.length !== 6}
-                className="w-full py-3 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow shadow-orange-500/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <KeyRound size={16} />
-                )}
-                <span>{isForgotPassword ? "Verify OTP & Reset Password" : "Verify & Login"}</span>
-              </button>
-            </form>
-          )}
-
-          {/* Password Flow */}
-          {method === "password" && step === "mobile" && (
+          {/* Password Login Flow */}
+          {method === "password" && step === "mobile" && !isForgotPassword && (
             <form onSubmit={handlePasswordLogin} className="space-y-4">
               <div className="space-y-1">
                 <label htmlFor="pwd-mobile" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
@@ -392,11 +274,11 @@ export default function StaffLoginPage() {
                   type="button"
                   onClick={() => {
                     setIsForgotPassword(true);
-                    setMethod("otp");
+                    setMethod("reset-password");
                     setStep("mobile");
                     setError("");
                   }}
-                  className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors"
+                  className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors cursor-pointer"
                 >
                   Forgot Password?
                 </button>
@@ -414,7 +296,7 @@ export default function StaffLoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
@@ -430,12 +312,102 @@ export default function StaffLoginPage() {
                 ) : (
                   <Lock size={16} />
                 )}
-                <span>Sign In with Password</span>
+                <span>Sign In</span>
               </button>
             </form>
           )}
 
-          {/* Force / Reset Password Creation */}
+          {/* Reset Password Flow - Step 1: Send Reset OTP */}
+          {isForgotPassword && step === "mobile" && (
+            <form onSubmit={handleSendResetOtp} className="space-y-4">
+              <div className="space-y-1">
+                <label htmlFor="mobile" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                  Registered Mobile Number
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-gray-400 font-semibold select-none">
+                    +91
+                  </span>
+                  <input
+                    id="mobile"
+                    type="tel"
+                    maxLength={10}
+                    placeholder="Enter 10-digit mobile"
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || mobile.length !== 10}
+                className="w-full py-3 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow shadow-orange-500/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isLoading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Phone size={16} />
+                )}
+                <span>Send Reset OTP Code</span>
+              </button>
+            </form>
+          )}
+
+          {/* Reset Password Flow - Step 2: Code Verification */}
+          {isForgotPassword && step === "otp" && (
+            <form onSubmit={handleVerifyResetOtp} className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label htmlFor="otp" className="text-xs font-bold text-gray-400 uppercase tracking-wider block">
+                    Verification Code
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("mobile");
+                      setOtp("");
+                      setError("");
+                    }}
+                    className="text-xs font-semibold text-orange-500 hover:text-orange-600 transition-colors cursor-pointer"
+                  >
+                    Change number
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500">
+                  Enter the 6-digit OTP code sent to <span className="font-semibold text-gray-700">+91 {mobile}</span>
+                </p>
+                <input
+                  id="otp"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="••••••"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="w-full py-3 border border-gray-200 rounded-xl text-lg font-bold font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || otp.length !== 6}
+                className="w-full py-3 bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-bold rounded-xl text-sm shadow-sm hover:shadow shadow-orange-500/10 disabled:opacity-50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isLoading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <KeyRound size={16} />
+                )}
+                <span>Verify OTP & Set Password</span>
+              </button>
+            </form>
+          )}
+
+          {/* Set New Password */}
           {step === "set-password" && (
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div className="text-center space-y-1 bg-orange-50/60 p-3 rounded-2xl border border-orange-100">
@@ -497,7 +469,7 @@ export default function StaffLoginPage() {
                 <button
                   type="button"
                   onClick={() => router.push("/dashboard")}
-                  className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors text-center block"
+                  className="w-full py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 transition-colors text-center block cursor-pointer"
                 >
                   Skip for now
                 </button>

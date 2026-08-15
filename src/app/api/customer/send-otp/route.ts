@@ -45,7 +45,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["REGISTER", "LOGIN", "FORGOT_PIN"].includes(purpose)) {
+    if (purpose === "LOGIN") {
+      return NextResponse.json(
+        { error: "OTP login is disabled. Please log in with your PIN or click Forgot PIN to reset." },
+        { status: 400 }
+      );
+    }
+
+    if (!["REGISTER", "FORGOT_PIN"].includes(purpose)) {
       return NextResponse.json({ error: "Invalid purpose" }, { status: 400 });
     }
 

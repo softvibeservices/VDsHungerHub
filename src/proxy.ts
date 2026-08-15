@@ -32,7 +32,6 @@ const CUSTOMER_PUBLIC_SUBROUTES = [
   "/api/customer/send-otp",
   "/api/customer/verify-otp",
   "/api/customer/login-pin",
-  "/api/customer/login-otp/verify",
   "/api/customer/forgot-pin",
   "/api/customer/companies",
   "/api/customer/registration/status",

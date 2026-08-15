@@ -206,25 +206,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (purpose === "LOGIN") {
-      const user = await prisma.user.findFirst({
-        where: { number: mobile, isVerified: true },
-        select: { id: true, status: true },
-      });
-      if (!user) {
-        return NextResponse.json({ error: "User not found" }, { status: 404 });
-      }
-
-      if (user.status !== "ACTIVE") {
-        return NextResponse.json(
-          { error: "Account is blocked or inactive. Please contact support." },
-          { status: 403 }
-        );
-      }
-
-      // Issue pre-auth token; actual session is created by the caller
-      // after a short redirect so the client can call /api/customer/login-otp/verify
-      const preAuthToken = signPreAuthToken(user.id);
-      return NextResponse.json({ verified: true, preAuthToken });
+      return NextResponse.json(
+        { error: "OTP login is disabled. Please log in with your PIN or use Forgot PIN to reset." },
+        { status: 400 }
+      );
     }
 
     if (purpose === "FORGOT_PIN") {
