@@ -410,7 +410,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = req.nextUrl;
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-    const limit = Math.min(50, parseInt(searchParams.get("limit") ?? "20"));
+    const limit = Math.min(50, parseInt(searchParams.get("limit") ?? "15"));
     const skip = (page - 1) * limit;
 
     // ── FIX #6: filter params ─────────────────────────────────────────────────
@@ -443,7 +443,7 @@ export async function GET(req: NextRequest) {
       };
     }
 
-    const [orders, total] = await Promise.all([
+    const [orders, total, aggregate] = await Promise.all([
       prisma.order.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -471,9 +471,15 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.order.count({ where }),
+      prisma.order.aggregate({
+        where,
+        _sum: { totalAmount: true },
+      }),
     ]);
 
-    return NextResponse.json({ orders, total, page, limit });
+    const filteredTotalAmount = aggregate._sum.totalAmount ?? 0;
+
+    return NextResponse.json({ orders, total, page, limit, filteredTotalAmount });
   } catch (error) {
     console.error("[CUSTOMER ORDERS GET]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

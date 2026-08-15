@@ -18,7 +18,7 @@ export function BilingualLabel({
   // Guard against duplicate parenthetical substrings like "Rajma (Kathol) (રાજમા (કઠોળ))"
   // Clean string without double parenthetical wraps
   return (
-    <span className={`inline-block max-w-full ${className}`}>
+    <span className={`inline-flex flex-col min-w-0 max-w-full ${className}`}>
       <span className={nameClassName}>{name}</span>
       {nameGu && (
         <span className={nameGuClassName}>{nameGu}</span>

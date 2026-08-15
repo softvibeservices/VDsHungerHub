@@ -250,6 +250,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
   // Inline quick-add thali tray state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [sabjiRefExpanded, setSabjiRefExpanded] = useState(false);
 
   // Fetch add-on products
   useEffect(() => {
@@ -534,145 +535,156 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ────────────────────────────────────────────────────────────────────────────
   if (view === "browse") {
     return (
-      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-6 pb-40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-40">
         {/* Page header */}
         <div className="space-y-1">
-          <h1 className="text-2xl font-extrabold text-gray-900">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
             {menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"} Menu
           </h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 font-medium">
             {new Date(menu.date).toLocaleDateString("en-IN", {
-              timeZone: "Asia/Kolkata", weekday: "long", day: "numeric", month: "long"
+              timeZone: "Asia/Kolkata", weekday: "long", day: "numeric", month: "long", year: "numeric"
             })}
           </p>
         </div>
 
         {closedBanner}
 
-        {/* Categories with sabjis visible up front */}
-        {Array.from(categorized.entries()).map(([catId, dmts]) => {
-          // Get sabjis for this category
-          const catName = dmts[0]?.thali.category?.name ?? "Thali";
-          const catNameGu = dmts[0]?.thali.category?.nameGu;
-          const sabjisForCat = menu.sabjiOptions.filter((s) => s.categoryId === catId && catId !== "__none__");
+        {/* Today's Menu Grid across full screen */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from(categorized.entries()).map(([catId, dmts]) => {
+            const catName = dmts[0]?.thali.category?.name ?? "Thali";
+            const catNameGu = dmts[0]?.thali.category?.nameGu;
+            const sabjisForCat = menu.sabjiOptions.filter((s) => s.categoryId === catId && catId !== "__none__");
 
-          return (
-            <div key={catId} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Category header */}
-              <div className="bg-gradient-to-r from-orange-500 to-amber-500 px-5 py-3.5">
-                <div className="flex items-center gap-2">
-                  <h2 className="font-bold text-white text-base">{catName}</h2>
-                  {catNameGu && <span className="text-orange-100 text-sm">({catNameGu})</span>}
-                </div>
-                {/* Today's sabjis — visible immediately, no click needed */}
-                {sabjisForCat.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className="text-xs text-orange-100 font-medium mr-1 self-center">Today&apos;s Sabji:</span>
-                    {sabjisForCat.map((s) => (
-                      <span
-                        key={s.productId}
-                        className="text-xs bg-white/20 backdrop-blur text-white px-2.5 py-1 rounded-full font-medium border border-white/25 inline-flex items-center"
-                      >
-                        <BilingualLabel
-                          name={s.product.name}
-                          nameGu={s.product.nameGu}
-                          nameClassName="font-medium text-white truncate text-xs"
-                          nameGuClassName="text-[10px] text-orange-100 font-normal truncate -mt-0.5 opacity-90"
-                        />
-                      </span>
-                    ))}
-                  </div>
-                )}
-                {sabjisForCat.length === 0 && (
-                  <p className="text-xs text-orange-100 mt-1.5 opacity-80">No sabji options configured for today</p>
-                )}
-              </div>
-
-              {/* Thali options in this category */}
-              <div className="divide-y divide-gray-50">
-                {dmts.map(({ thali }) => (
-                  <div key={thali.id} className="p-4 flex items-start justify-between gap-3 hover:bg-orange-50/30 transition-colors">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-gray-900 text-sm">{thali.name}</span>
-                        {thali.nameGu && (
-                          <span className="text-xs text-gray-400">({thali.nameGu})</span>
-                        )}
-                        {thali.sabjiCount > 0 && (
-                          <span className="text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-100 px-2 py-0.5 rounded-full">
-                            {thali.sabjiCount} Sabji Choice{thali.sabjiCount > 1 ? "s" : ""}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-orange-600 font-extrabold text-sm mt-0.5">{formatCurrency(thali.price)}</p>
-                      {thali.items.length > 0 && (
-                        <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                          {thali.items.map((i) => i.itemName).join(" · ")}
-                        </p>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => handleSelectThali(thali)}
-                      disabled={isOrderingClosed}
-                      className="flex-shrink-0 flex items-center gap-1 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-                    >
-                      Select <ChevronRight size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Sabji-less / single-item meals (Dal Fry, Jeera Rice etc.) */}
-        {sabjilessThalis.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="bg-gradient-to-r from-slate-600 to-slate-700 px-5 py-3.5">
-              <h2 className="font-bold text-white text-base">Single Item Meals</h2>
-              <p className="text-xs text-slate-300 mt-0.5">No sabji choice needed — standalone dishes</p>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {sabjilessThalis.map(({ thali }) => (
-                <div key={thali.id} className="p-4 flex items-start justify-between gap-3 hover:bg-slate-50/50 transition-colors">
-                  <div className="flex-1 min-w-0">
+            return (
+              <div key={catId} className="bg-white rounded-3xl shadow-sm border border-orange-100 overflow-hidden flex flex-col justify-between">
+                <div>
+                  {/* Category header */}
+                  <div className="bg-gradient-to-r from-orange-500 to-amber-500 p-5 text-white space-y-3">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-gray-900 text-sm">{thali.name}</span>
-                      {thali.nameGu && <span className="text-xs text-gray-400">({thali.nameGu})</span>}
+                      <h2 className="font-extrabold text-white text-lg">{catName}</h2>
+                      {catNameGu && <span className="text-orange-100 text-sm font-semibold">({catNameGu})</span>}
                     </div>
-                    <p className="text-orange-600 font-extrabold text-sm mt-0.5">{formatCurrency(thali.price)}</p>
-                    {thali.items.length > 0 && (
-                      <p className="text-xs text-gray-400 mt-1">{thali.items.map((i) => i.itemName).join(" · ")}</p>
+
+                    {/* Today's Sabji Header Section - High Visibility Formatting (Req #5) */}
+                    {sabjisForCat.length > 0 && (
+                      <div className="space-y-1.5 pt-1 border-t border-white/20">
+                        <p className="text-xs font-bold text-orange-100 tracking-wide uppercase flex items-center gap-1">
+                          <span>🍳 Today&apos;s Special Sabji Options:</span>
+                        </p>
+                        <div className="flex flex-wrap gap-2 pt-0.5">
+                          {sabjisForCat.map((s) => (
+                            <div
+                              key={s.productId}
+                              className="bg-white/95 text-gray-900 px-3 py-1.5 rounded-xl text-xs font-bold shadow-sm border border-white flex flex-col"
+                            >
+                              <span className="text-orange-600 font-extrabold leading-tight">{s.product.name}</span>
+                              {s.product.nameGu && (
+                                <span className="text-[10px] text-gray-500 font-semibold leading-tight opacity-90">{s.product.nameGu}</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {sabjisForCat.length === 0 && (
+                      <p className="text-xs text-orange-100 opacity-90 italic">No sabji choices required for this menu</p>
                     )}
                   </div>
-                  <button
-                    onClick={() => handleSelectThali(thali)}
-                    disabled={isOrderingClosed}
-                    className="flex-shrink-0 flex items-center gap-1 px-4 py-2.5 bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-                  >
-                    Select <ChevronRight size={14} />
-                  </button>
+
+                  {/* Thali options in this category */}
+                  <div className="divide-y divide-gray-100">
+                    {dmts.map(({ thali }) => (
+                      <div key={thali.id} className="p-5 flex items-start justify-between gap-4 hover:bg-orange-50/20 transition-colors">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-extrabold text-gray-900 text-base">{thali.name}</span>
+                            {thali.nameGu && (
+                              <span className="text-xs text-gray-400 font-medium">({thali.nameGu})</span>
+                            )}
+                            {thali.sabjiCount > 0 && (
+                              <span className="text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-200 px-2.5 py-0.5 rounded-full">
+                                Pick {thali.sabjiCount} Sabji{thali.sabjiCount > 1 ? "s" : ""}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-orange-600 font-black text-base mt-1">{formatCurrency(thali.price)}</p>
+                          {thali.items.length > 0 && (
+                            <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">
+                              {thali.items.map((i) => i.itemName).join(" · ")}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleSelectThali(thali)}
+                          disabled={isOrderingClosed}
+                          className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-orange-500/20 cursor-pointer"
+                        >
+                          Select <ChevronRight size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              </div>
+            );
+          })}
+
+          {/* Standalone dishes / Single item meals */}
+          {sabjilessThalis.length > 0 && (
+            <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col justify-between">
+              <div>
+                <div className="bg-gradient-to-r from-slate-700 to-slate-800 p-5 text-white">
+                  <h2 className="font-extrabold text-white text-lg">Single Item Meals</h2>
+                  <p className="text-xs text-slate-300 mt-1 font-medium">No sabji selection required</p>
+                </div>
+                <div className="divide-y divide-gray-100">
+                  {sabjilessThalis.map(({ thali }) => (
+                    <div key={thali.id} className="p-5 flex items-start justify-between gap-4 hover:bg-slate-50 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-gray-900 text-base">{thali.name}</span>
+                          {thali.nameGu && <span className="text-xs text-gray-400 font-medium">({thali.nameGu})</span>}
+                        </div>
+                        <p className="text-orange-600 font-black text-base mt-1">{formatCurrency(thali.price)}</p>
+                        {thali.items.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-1.5 leading-relaxed">{thali.items.map((i) => i.itemName).join(" · ")}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectThali(thali)}
+                        disabled={isOrderingClosed}
+                        className="flex-shrink-0 flex items-center gap-1.5 px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm cursor-pointer"
+                      >
+                        Select <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Sticky bottom bar — shows cart preview during browse */}
         {thaliLines.length > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3.5 shadow-2xl shadow-black/10 z-40">
-            <div className="max-w-3xl mx-auto flex items-center gap-4">
-              <div className="flex-1">
-                <div className="text-xs text-gray-500 font-semibold">
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-200 px-6 py-4 shadow-2xl shadow-black/15 z-40">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs text-gray-500 font-bold">
                   {totalThaliQty} Thali{totalThaliQty > 1 ? "s" : ""} selected
-                </div>
-                <div className="text-lg font-extrabold text-gray-900">{formatCurrency(grandTotal)}</div>
+                </p>
+                <p className="text-xl font-black text-gray-900">{formatCurrency(grandTotal)}</p>
               </div>
               <button
+                type="button"
                 onClick={() => setView("order")}
-                className="flex-shrink-0 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/30 text-sm flex items-center gap-2"
+                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/30 text-sm flex items-center gap-2 cursor-pointer"
               >
-                <ShoppingCart size={16} /> View Cart
+                <ShoppingCart size={16} /> View Cart &amp; Place Order
               </button>
             </div>
           </div>
@@ -685,12 +697,13 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ORDER VIEW — cart + sabji pickers + add-ons + address + submit
   // ────────────────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-5xl mx-auto px-4 md:px-6 py-6 lg:grid lg:grid-cols-[1fr_380px] lg:gap-6 lg:items-start pb-40">
-      <div className="space-y-5">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:grid lg:grid-cols-[1fr_400px] lg:gap-8 lg:items-start pb-40">
+      <div className="space-y-6">
         {/* Back to menu */}
         <button
+          type="button"
           onClick={() => setView("browse")}
-          className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-600 transition-colors font-medium group"
+          className="flex items-center gap-2 text-sm text-gray-600 hover:text-orange-600 transition-colors font-bold group cursor-pointer"
         >
           <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
           Back to Menu
@@ -698,34 +711,83 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
         {closedBanner}
 
-        {/* FIX #8: Delivery Address */}
+        {/* Compact & Unobtrusive Today's Sabji Reference */}
+        <div className="bg-amber-50/80 border border-amber-200/80 rounded-2xl p-3 shadow-sm transition-all">
+          <button
+            type="button"
+            onClick={() => setSabjiRefExpanded((v) => !v)}
+            className="w-full flex items-center justify-between text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-2 min-w-0 pr-2">
+              <span className="text-sm">🥘</span>
+              <span className="text-xs font-bold text-amber-950 whitespace-nowrap">Today&apos;s Sabji Reference</span>
+              <span className="hidden sm:inline-block text-[11px] text-amber-800/80 truncate">
+                ({Array.from(categorized.entries()).map(([catId, dmts]) => {
+                  const catName = dmts[0]?.thali.category?.name ?? "Thali";
+                  const sabjis = menu.sabjiOptions.filter((s) => s.categoryId === catId && catId !== "__none__").map((s) => s.product.name);
+                  return sabjis.length > 0 ? `${catName}: ${sabjis.join(", ")}` : null;
+                }).filter(Boolean).join(" | ")})
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0 text-amber-800 text-xs font-bold bg-amber-100/80 px-2.5 py-1 rounded-xl hover:bg-amber-200/80 transition-colors">
+              <span>{sabjiRefExpanded ? "Hide" : "View"}</span>
+              {sabjiRefExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </div>
+          </button>
+
+          {sabjiRefExpanded && (
+            <div className="mt-3 pt-3 border-t border-amber-200/60 grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fadeIn">
+              {Array.from(categorized.entries()).map(([catId, dmts]) => {
+                const catName = dmts[0]?.thali.category?.name ?? "Thali";
+                const sabjisForCat = menu.sabjiOptions.filter((s) => s.categoryId === catId && catId !== "__none__");
+                if (sabjisForCat.length === 0) return null;
+                return (
+                  <div key={`ref_${catId}`} className="bg-white/90 rounded-xl p-3 border border-amber-200/50 space-y-1.5 shadow-2xs">
+                    <p className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider">{catName} Sabjis:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {sabjisForCat.map((s) => (
+                        <span key={s.productId} className="bg-amber-100/70 text-amber-950 font-bold px-2.5 py-1 rounded-lg text-xs">
+                          {s.product.name} {s.product.nameGu ? `(${s.product.nameGu})` : ""}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Delivery Address */}
         {userId && (
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-gray-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <MapPin size={16} className="text-orange-500" />
+                <MapPin size={18} className="text-orange-500" />
                 <span className="text-sm font-bold text-gray-900">Delivery Address</span>
               </div>
               <button
+                type="button"
                 onClick={() => setShowAddressSheet(true)}
-                className="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors"
+                className="text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
               >
-                {selectedAddress ? "Change" : "Add Address"}
+                {selectedAddress ? "Change Address" : "Add Address"}
               </button>
             </div>
-            <div className="px-4 py-3">
+            <div className="p-5">
               {selectedAddress ? (
-                <div className="flex items-start gap-2">
-                  <div className="mt-0.5 text-lg">{selectedAddress.type === "WORK" ? "🏢" : "🏠"}</div>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 text-xl">{selectedAddress.type === "WORK" ? "🏢" : "🏠"}</div>
                   <div>
-                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-0.5">{selectedAddress.type}</p>
-                    <p className="text-sm text-gray-800">{formatAddress(selectedAddress)}</p>
+                    <p className="text-xs font-extrabold text-gray-500 uppercase tracking-wider mb-0.5">{selectedAddress.type}</p>
+                    <p className="text-sm text-gray-800 font-medium leading-relaxed">{formatAddress(selectedAddress)}</p>
                   </div>
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => setShowAddressSheet(true)}
-                  className="w-full flex items-center gap-2 py-2 text-sm text-orange-600 font-medium hover:text-orange-700 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-3 text-sm text-orange-600 font-bold hover:text-orange-700 transition-colors border border-dashed border-orange-300 rounded-2xl bg-orange-50/50 cursor-pointer"
                 >
                   <Plus size={16} /> Add a delivery address to continue
                 </button>
@@ -736,13 +798,15 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
         {/* Selected Thalis & Sabji Choices */}
         {thaliLines.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden">
-            <div className="p-4 bg-orange-50/50 border-b border-orange-100 flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-sm border border-orange-100 overflow-hidden">
+            <div className="p-4 bg-orange-50/60 border-b border-orange-100 flex items-center justify-between">
               <h3 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                <ShoppingCart size={16} className="text-orange-500" />
+                <ShoppingCart size={18} className="text-orange-500" />
                 Selected Thalis &amp; Sabji Choices ({thaliLines.length})
               </h3>
-              <span className="text-xs font-semibold text-orange-700">{totalThaliQty} Thali(s)</span>
+              <span className="text-xs font-extrabold text-orange-800 bg-orange-100 px-3 py-1 rounded-full">
+                {totalThaliQty} Thali(s)
+              </span>
             </div>
 
             <div className="divide-y divide-gray-100">
@@ -757,39 +821,41 @@ export default function OrderingExperience({ userId, menu }: Props) {
                 const isComplete = line.thali.sabjiCount === 0 || selectedCount >= requiredCount;
 
                 return (
-                  <div key={line.lineId} className="p-4 space-y-3 bg-white hover:bg-orange-50/20 transition-colors">
+                  <div key={line.lineId} className="p-5 space-y-3 bg-white hover:bg-orange-50/20 transition-colors">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-5 h-5 rounded-full bg-orange-100 text-orange-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                        <span className="w-6 h-6 rounded-full bg-orange-500 text-white text-xs font-extrabold flex items-center justify-center flex-shrink-0">
                           {index + 1}
                         </span>
-                        <span className="font-bold text-sm text-gray-900 truncate">{line.thali.name}</span>
+                        <div className="min-w-0">
+                          <span className="font-bold text-base text-gray-900 truncate block">{line.thali.name}</span>
+                          {line.thali.nameGu && <span className="text-xs text-gray-400 font-medium block">{line.thali.nameGu}</span>}
+                        </div>
                       </div>
 
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        {/* FIX #5: disable minus at qty=1 */}
                         <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
                           <button
                             type="button"
                             onClick={() => updateThaliQty(line.lineId, -1)}
                             disabled={line.quantity <= 1}
                             aria-label="Decrease quantity"
-                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors text-gray-600"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 cursor-pointer"
                           >
-                            <Minus size={12} />
+                            <Minus size={13} />
                           </button>
-                          <span className="text-xs font-bold w-5 text-center text-gray-900">{line.quantity}</span>
+                          <span className="text-xs font-bold w-6 text-center text-gray-900">{line.quantity}</span>
                           <button
                             type="button"
                             onClick={() => updateThaliQty(line.lineId, 1)}
                             aria-label="Increase quantity"
-                            className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 transition-colors text-gray-600"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 transition-colors text-gray-600 cursor-pointer"
                           >
-                            <Plus size={12} />
+                            <Plus size={13} />
                           </button>
                         </div>
 
-                        <span className="text-sm font-extrabold text-orange-600 min-w-16 text-right">
+                        <span className="text-base font-black text-orange-600 min-w-16 text-right">
                           {formatCurrency(line.thali.price * line.quantity)}
                         </span>
 
@@ -797,32 +863,32 @@ export default function OrderingExperience({ userId, menu }: Props) {
                           type="button"
                           onClick={() => removeThaliLine(line.lineId)}
                           aria-label="Remove this thali"
-                          className="text-gray-400 hover:text-red-500 transition-colors p-1 rounded-lg hover:bg-red-50"
+                          className="text-gray-400 hover:text-red-500 transition-colors p-1.5 rounded-xl hover:bg-red-50 cursor-pointer"
                         >
-                          <Trash2 size={15} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
 
-                    {/* Sabji selector — only for thalis that require sabji */}
+                    {/* Sabji selector */}
                     {line.thali.sabjiCount > 0 && sabjiForCategory.length > 0 && (
-                      <div className="bg-gray-50 rounded-xl p-3 space-y-2 border border-gray-100">
+                      <div className="bg-orange-50/50 rounded-2xl p-4 space-y-2 border border-orange-100">
                         <div className="flex items-center justify-between">
-                          <label className="text-xs font-bold text-gray-700">
+                          <label className="text-xs font-bold text-gray-800">
                             Select Sabji for Thali #{index + 1}:
-                            <span className="text-[10px] text-gray-500 font-semibold ml-1">(Pick {requiredCount})</span>
+                            <span className="text-[11px] text-gray-500 font-medium ml-1">(Pick {requiredCount})</span>
                           </label>
                           {isComplete ? (
-                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded-full border border-emerald-200">
                               ✓ Selected ({selectedCount}/{requiredCount})
                             </span>
                           ) : (
-                            <span className="text-[10px] font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-md border border-red-100">
-                              ⚠️ Select {requiredCount - selectedCount} more
+                            <span className="text-[10px] font-bold text-red-600 bg-red-100 px-2.5 py-0.5 rounded-full border border-red-200">
+                              ⚠️ Pick {requiredCount - selectedCount} more
                             </span>
                           )}
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 pt-1">
                           {sabjiForCategory.map((s) => {
                             const isSelected = line.sabjiProductIds?.includes(s.productId);
                             return (
@@ -830,19 +896,23 @@ export default function OrderingExperience({ userId, menu }: Props) {
                                 key={s.productId}
                                 type="button"
                                 onClick={() => updateThaliSabji(line.lineId, s.productId)}
-                                className={`text-xs px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
+                                className={`text-xs px-3.5 py-2 rounded-xl border transition-all flex items-center gap-2 cursor-pointer ${
                                   isSelected
-                                    ? "border-orange-500 bg-orange-500 text-white font-bold shadow-sm"
-                                    : "border-gray-200 bg-white text-gray-700 hover:border-orange-300 hover:bg-orange-50/50 font-medium"
+                                    ? "border-orange-500 bg-orange-500 text-white font-bold shadow-md shadow-orange-500/20"
+                                    : "border-gray-200 bg-white text-gray-800 hover:border-orange-300 hover:bg-orange-50 font-medium"
                                 }`}
                               >
-                                {isSelected && <CheckCircle2 size={13} className="text-white flex-shrink-0" />}
-                                <BilingualLabel
-                                  name={s.product.name}
-                                  nameGu={s.product.nameGu}
-                                  nameClassName={`font-medium text-xs truncate ${isSelected ? "text-white font-bold" : "text-gray-800"}`}
-                                  nameGuClassName={`text-[10px] truncate -mt-0.5 ${isSelected ? "text-orange-100 opacity-90" : "text-gray-400"}`}
-                                />
+                                {isSelected && <CheckCircle2 size={14} className="text-white flex-shrink-0" />}
+                                <div className="flex flex-col text-left">
+                                  <span className={isSelected ? "text-white font-bold" : "text-gray-900 font-semibold"}>
+                                    {s.product.name}
+                                  </span>
+                                  {s.product.nameGu && (
+                                    <span className={`text-[10px] ${isSelected ? "text-orange-100" : "text-gray-400"}`}>
+                                      {s.product.nameGu}
+                                    </span>
+                                  )}
+                                </div>
                               </button>
                             );
                           })}
@@ -850,7 +920,6 @@ export default function OrderingExperience({ userId, menu }: Props) {
                       </div>
                     )}
 
-                    {/* FIX #3: show "No sabji needed" for sabji-less thalis */}
                     {line.thali.sabjiCount === 0 && (
                       <p className="text-xs text-gray-400 italic">No sabji selection needed for this dish</p>
                     )}
@@ -859,29 +928,30 @@ export default function OrderingExperience({ userId, menu }: Props) {
               })}
             </div>
 
-            {/* Inline Quick Add Thali Tray */}
-            <div className="px-4 py-3 border-t border-gray-100 bg-orange-50/40">
+            {/* Inline Quick Add Thali Tray with Sabji Reference & Fix for Price Overlap (Image #3 & Req #7) */}
+            <div className="px-5 py-4 border-t border-gray-100 bg-orange-50/30">
               {!showQuickAdd ? (
                 <button
                   type="button"
                   onClick={() => setShowQuickAdd(true)}
-                  className="flex items-center gap-2 text-xs font-bold text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
+                  className="flex items-center gap-2 text-xs font-extrabold text-orange-600 hover:text-orange-700 transition-colors cursor-pointer"
                 >
-                  <Plus size={14} /> Add another thali
+                  <Plus size={15} /> Add another thali to this order
                 </button>
               ) : (
-                <div className="space-y-2.5 animate-fadeIn">
+                <div className="space-y-3 animate-fadeIn">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-gray-700">Select a thali to add:</span>
+                    <span className="text-xs font-bold text-gray-800">Select a thali to add:</span>
                     <button
                       type="button"
                       onClick={() => setShowQuickAdd(false)}
-                      className="text-xs text-gray-400 hover:text-gray-600 font-semibold px-2 py-0.5 rounded-lg hover:bg-gray-100 transition-colors"
+                      className="text-xs text-gray-400 hover:text-gray-600 font-bold px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
                     >
                       Cancel ×
                     </button>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* Clean cards with no text overlap */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {menu.thalis.map(({ thali }) => (
                       <button
                         key={thali.id}
@@ -892,17 +962,15 @@ export default function OrderingExperience({ userId, menu }: Props) {
                           toast.success(`Added ${thali.name}`);
                         }}
                         disabled={isOrderingClosed}
-                        className="p-2.5 bg-white border border-orange-200 rounded-xl flex items-center justify-between hover:border-orange-400 hover:shadow-md transition-all text-left group cursor-pointer"
+                        className="p-3 bg-white border border-orange-200 rounded-2xl flex items-center justify-between hover:border-orange-400 hover:shadow-md transition-all text-left group cursor-pointer"
                       >
-                        <div className="min-w-0 pr-2">
-                          <BilingualLabel
-                            name={thali.name}
-                            nameGu={thali.nameGu}
-                            nameClassName="font-bold text-xs text-gray-800 truncate"
-                            nameGuClassName="text-[10px] text-gray-400 truncate -mt-0.5"
-                          />
+                        <div className="flex-1 min-w-0 pr-3">
+                          <span className="font-extrabold text-xs text-gray-900 block truncate">{thali.name}</span>
+                          {thali.nameGu && (
+                            <span className="text-[11px] text-gray-500 font-medium block truncate mt-0.5">{thali.nameGu}</span>
+                          )}
                         </div>
-                        <span className="text-xs font-extrabold text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg group-hover:bg-orange-500 group-hover:text-white transition-colors flex-shrink-0">
+                        <span className="text-xs font-extrabold text-orange-600 bg-orange-50 px-3 py-1.5 rounded-xl group-hover:bg-orange-500 group-hover:text-white transition-colors flex-shrink-0">
                           + {formatCurrency(thali.price)}
                         </span>
                       </button>
@@ -915,36 +983,36 @@ export default function OrderingExperience({ userId, menu }: Props) {
         )}
 
         {thaliLines.length === 0 && (
-          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center space-y-3">
-            <ShoppingCart size={32} className="mx-auto text-gray-200" />
-            <p className="font-medium text-gray-500">Your cart is empty</p>
+          <div className="bg-white rounded-3xl border border-gray-100 p-10 text-center space-y-4 shadow-sm">
+            <ShoppingCart size={40} className="mx-auto text-gray-200" />
+            <p className="font-bold text-gray-700 text-base">Your cart is empty</p>
             <button
               onClick={() => setView("browse")}
-              className="inline-flex items-center gap-1 text-sm text-orange-600 font-bold hover:text-orange-700"
+              className="inline-flex items-center gap-1.5 text-xs font-extrabold text-orange-600 hover:text-orange-700 cursor-pointer bg-orange-50 px-4 py-2 rounded-xl"
             >
-              ← Browse Menu
+              ← Browse Menu &amp; Add Thali
             </button>
           </div>
         )}
 
         {/* Add-ons */}
         {addonProducts.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
             <button
               type="button"
-              className="w-full p-4 flex items-center justify-between text-left cursor-pointer"
+              className="w-full p-5 flex items-center justify-between text-left cursor-pointer"
               onClick={() => setAddonsExpanded((v) => !v)}
             >
               <div className="flex items-center gap-2">
-                <PackagePlus size={18} className="text-orange-500" />
-                <span className="font-bold text-gray-900 text-sm">Add Extra Items</span>
+                <PackagePlus size={20} className="text-orange-500" />
+                <span className="font-extrabold text-gray-900 text-sm">Add Extra Items &amp; Beverages</span>
                 {totalAddonQty > 0 && (
-                  <span className="text-xs bg-orange-100 text-orange-700 font-bold px-2.5 py-0.5 rounded-full">
+                  <span className="text-xs bg-orange-100 text-orange-800 font-extrabold px-3 py-0.5 rounded-full">
                     {totalAddonQty} item{totalAddonQty > 1 ? "s" : ""}
                   </span>
                 )}
               </div>
-              {addonsExpanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+              {addonsExpanded ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
             </button>
 
             {addonsExpanded && (
@@ -953,11 +1021,10 @@ export default function OrderingExperience({ userId, menu }: Props) {
                   const line = addonLines.find((l) => l.productId === product.id);
                   const currentQty = line?.quantity ?? 0;
                   return (
-                    <div key={product.id} className="px-4 py-3 flex items-center justify-between">
+                    <div key={product.id} className="px-5 py-3.5 flex items-center justify-between">
                       <div>
                         <span className="text-sm font-semibold text-gray-800">{product.name}</span>
                         <span className="text-xs text-orange-600 font-extrabold ml-2">{formatCurrency(product.price)}</span>
-                        {/* Show per-item cap indicator when approaching limit */}
                         {currentQty >= 25 && (
                           <span className="ml-2 text-[10px] text-amber-600 font-bold bg-amber-50 px-1.5 py-0.5 rounded">
                             {currentQty}/{MAX_QTY_PER_ADDON_ITEM}
@@ -965,25 +1032,24 @@ export default function OrderingExperience({ userId, menu }: Props) {
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 bg-gray-100 rounded-xl p-1">
-                        {/* FIX #5: disable minus at 0 (line doesn't exist yet) */}
                         <button
                           type="button"
                           onClick={() => updateAddon(product, -1)}
                           disabled={currentQty === 0}
                           aria-label={`Decrease ${product.name}`}
-                          className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent transition-colors text-gray-600"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-600 cursor-pointer"
                         >
-                          <Minus size={12} />
+                          <Minus size={13} />
                         </button>
-                        <span className="text-xs font-bold w-5 text-center text-gray-900">{currentQty}</span>
+                        <span className="text-xs font-bold w-6 text-center text-gray-900">{currentQty}</span>
                         <button
                           type="button"
                           onClick={() => updateAddon(product, 1)}
                           disabled={isOrderingClosed || currentQty >= MAX_QTY_PER_ADDON_ITEM}
                           aria-label={`Increase ${product.name}`}
-                          className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-600"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-orange-200 hover:text-orange-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-gray-600 cursor-pointer"
                         >
-                          <Plus size={12} />
+                          <Plus size={13} />
                         </button>
                       </div>
                     </div>
@@ -996,7 +1062,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
         {/* Special Instructions */}
         {thaliLines.length > 0 && (
-          <div className="bg-white rounded-2xl p-4 border border-gray-100 space-y-2">
+          <div className="bg-white rounded-3xl p-5 border border-gray-100 space-y-2 shadow-sm">
             <label className="text-xs font-bold text-gray-700 block">
               Special Instructions (Optional)
             </label>
@@ -1006,19 +1072,19 @@ export default function OrderingExperience({ userId, menu }: Props) {
               maxLength={200}
               rows={2}
               placeholder="E.g., Less spicy, deliver at 1:00 PM..."
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none text-gray-700 placeholder-gray-300"
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none text-gray-800 placeholder-gray-300"
             />
-            <p className="text-xs text-gray-400 text-right">{note.length}/200</p>
+            <p className="text-xs text-gray-400 text-right font-medium">{note.length}/200</p>
           </div>
         )}
       </div>
 
       {/* Desktop Order Summary Sidebar */}
       <div className="hidden lg:block sticky top-24 bg-white rounded-3xl shadow-sm border border-gray-100 p-6 space-y-5">
-        <h3 className="font-bold text-gray-900 text-base border-b border-gray-100 pb-3 flex items-center justify-between">
+        <h3 className="font-extrabold text-gray-900 text-base border-b border-gray-100 pb-3 flex items-center justify-between">
           <span>Order Summary</span>
           {thaliLines.length > 0 && (
-            <span className="text-xs font-normal text-gray-400">{totalThaliQty} thalis</span>
+            <span className="text-xs font-bold text-orange-600 bg-orange-50 px-2.5 py-0.5 rounded-full">{totalThaliQty} thalis</span>
           )}
         </h3>
 
@@ -1026,7 +1092,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
           <div className="text-center py-8 text-gray-400 text-sm space-y-2">
             <ShoppingCart className="mx-auto opacity-30" size={32} />
             <p className="font-medium text-gray-500">Your cart is empty</p>
-            <button onClick={() => setView("browse")} className="text-xs text-orange-500 font-bold">
+            <button onClick={() => setView("browse")} className="text-xs text-orange-600 font-bold cursor-pointer">
               ← Back to Menu
             </button>
           </div>
@@ -1042,19 +1108,17 @@ export default function OrderingExperience({ userId, menu }: Props) {
                   <div key={l.lineId} className="pt-2 first:pt-0 space-y-1">
                     <div className="flex justify-between items-start text-sm">
                       <p className="font-bold text-gray-800 truncate pr-2">{l.quantity}× {l.thali.name}</p>
-                      <span className="font-bold text-gray-900 flex-shrink-0">{formatCurrency(l.thali.price * l.quantity)}</span>
+                      <span className="font-black text-gray-900 flex-shrink-0">{formatCurrency(l.thali.price * l.quantity)}</span>
                     </div>
                     {sabjiNames.length > 0 ? (
-                      <p className="text-[11px] text-orange-700 font-semibold bg-orange-50 px-2 py-0.5 rounded-md inline-block">
+                      <p className="text-[11px] text-orange-800 font-bold bg-orange-100 px-2 py-0.5 rounded-md inline-block">
                         Sabji: {sabjiNames.join(", ")}
                       </p>
                     ) : l.thali.sabjiCount > 0 ? (
-                      // Only show warning if sabji IS required but not selected
-                      <p className="text-[11px] text-red-500 font-bold bg-red-50 px-2 py-0.5 rounded-md inline-block">
+                      <p className="text-[11px] text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded-md inline-block">
                         ⚠️ Sabji required
                       </p>
                     ) : (
-                      // FIX #3: sabji-less thali → neutral message, never a warning
                       <p className="text-[11px] text-gray-400 italic">No sabji needed</p>
                     )}
                   </div>
@@ -1063,8 +1127,8 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
               {addonLines.map((l) => (
                 <div key={l.productId} className="pt-2 flex justify-between items-center text-sm">
-                  <span className="text-gray-600 font-medium">{l.quantity}× {l.name}</span>
-                  <span className="font-semibold text-gray-800">{formatCurrency(l.price * l.quantity)}</span>
+                  <span className="text-gray-600 font-semibold">{l.quantity}× {l.name}</span>
+                  <span className="font-bold text-gray-900">{formatCurrency(l.price * l.quantity)}</span>
                 </div>
               ))}
             </div>
@@ -1072,22 +1136,20 @@ export default function OrderingExperience({ userId, menu }: Props) {
             <div className="border-t border-gray-100 pt-4 space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-500 font-bold">Total Amount</span>
-                <span className="text-2xl font-extrabold text-orange-600">{formatCurrency(grandTotal)}</span>
+                <span className="text-2xl font-black text-orange-600">{formatCurrency(grandTotal)}</span>
               </div>
 
-              {/* FIX #8: address hint when missing */}
               {!selectedAddressId && userId && (
-                <p className="text-xs text-amber-600 font-medium bg-amber-50 px-3 py-2 rounded-xl">
-                  📍 Add a delivery address above to continue
+                <p className="text-xs text-amber-700 font-semibold bg-amber-50 px-3 py-2 rounded-xl border border-amber-100">
+                  📍 Add a delivery address to continue
                 </p>
               )}
 
-              {/* FIX #8: opens confirm modal instead of submitting directly */}
               <button
                 type="button"
                 onClick={() => setShowConfirm(true)}
                 disabled={submitting || isOrderingClosed || thaliLines.length === 0 || (!selectedAddressId && !!userId)}
-                className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-500/20 text-sm flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-500/25 text-sm flex items-center justify-center gap-2 cursor-pointer"
               >
                 Review &amp; Place Order
                 {!submitting && <CheckCircle2 size={18} />}
@@ -1099,20 +1161,20 @@ export default function OrderingExperience({ userId, menu }: Props) {
 
       {/* Mobile sticky footer */}
       {thaliLines.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3.5 shadow-2xl shadow-black/10 lg:hidden z-40">
-          <div className="max-w-2xl mx-auto flex items-center gap-4">
-            <div className="flex-1">
-              <div className="text-xs text-gray-500 font-semibold">
-                {totalThaliQty} Thali{totalThaliQty > 1 ? "s" : ""}{totalAddonQty > 0 ? ` + ${totalAddonQty} Add-on` : ""}
-              </div>
-              <div className="text-lg font-extrabold text-gray-900">{formatCurrency(grandTotal)}</div>
+        <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 px-4 py-3.5 shadow-2xl shadow-black/15 lg:hidden z-40">
+          <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-gray-500 font-bold">
+                {totalThaliQty} Thali{totalThaliQty > 1 ? "s" : ""}{totalAddonQty > 0 ? ` + ${totalAddonQty} Extra` : ""}
+              </p>
+              <p className="text-lg font-black text-gray-900">{formatCurrency(grandTotal)}</p>
             </div>
             <button
               id="place-order-btn"
               type="button"
               onClick={() => setShowConfirm(true)}
               disabled={submitting || isOrderingClosed || thaliLines.length === 0 || (!selectedAddressId && !!userId)}
-              className="flex-shrink-0 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-500/30 text-sm flex items-center gap-2 cursor-pointer"
+              className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-orange-500/30 text-sm flex items-center gap-2 cursor-pointer"
             >
               {submitting ? "Placing..." : "Review Order"}
               {!submitting && <CheckCircle2 size={16} />}
