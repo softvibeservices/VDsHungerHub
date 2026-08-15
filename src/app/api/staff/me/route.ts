@@ -7,16 +7,22 @@ export async function GET(req: NextRequest) {
     // Return 200 with user: null — the staff-login page uses this to
     // check whether someone is already logged in, and a 401 would cause
     // noisy console errors on every visit to the login page.
-    return NextResponse.json({ user: null }, { status: 200 });
+    return NextResponse.json(
+      { user: null },
+      { status: 200, headers: { "Cache-Control": "no-store" } }
+    );
   }
-  return NextResponse.json({
-    user: {
-      id: session.staffId,
-      name: session.name,
-      mobile: session.mobile,
-      number: session.mobile, // Compatibility alias
-      role: session.role,
-      permissions: session.permissions,
+  return NextResponse.json(
+    {
+      user: {
+        id: session.staffId,
+        name: session.name,
+        mobile: session.mobile,
+        number: session.mobile, // Compatibility alias
+        role: session.role,
+        permissions: session.permissions,
+      },
     },
-  });
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }

@@ -9,6 +9,8 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import ThaliModal from "@/components/modals/ThaliModal";
 import { useToast } from "@/hooks/useToast";
 import { formatCurrency } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
 
 interface ThaliItem { id: string; itemName: string; sortOrder: number }
 interface Thali {
@@ -27,6 +29,9 @@ interface Thali {
 
 export default function ThalisTab() {
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const canManageMenu = hasPermission(currentUser, "menu:manage");
+
   const [thalis, setThalis] = useState<Thali[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -54,6 +59,7 @@ export default function ThalisTab() {
   }, []);
 
   const handleToggle = async (thali: Thali) => {
+    if (!canManageMenu) return;
     // Optimistic UI update
     setThalis((prev) =>
       prev.map((t) => (t.id === thali.id ? { ...t, isActive: !t.isActive } : t))
@@ -77,6 +83,7 @@ export default function ThalisTab() {
   };
 
   const handleInlinePriceSave = async (id: string, newPrice: number) => {
+    if (!canManageMenu) return;
     setEditingPriceId(null);
     if (isNaN(newPrice) || newPrice < 0) {
       toast.error("Please enter a valid price");
@@ -110,7 +117,7 @@ export default function ThalisTab() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !canManageMenu) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/thalis/${deleteId}`, { method: "DELETE" });
@@ -157,7 +164,7 @@ export default function ThalisTab() {
       header: "Price",
       render: (row) => (
         <div onClick={(e) => e.stopPropagation()}>
-          {editingPriceId === row.id ? (
+          {canManageMenu && editingPriceId === row.id ? (
             <input
               autoFocus
               type="number"
@@ -174,9 +181,11 @@ export default function ThalisTab() {
             />
           ) : (
             <span
-              className="font-semibold text-gray-900 cursor-pointer hover:text-orange-600 hover:underline px-1 py-0.5 rounded transition-colors"
-              onClick={() => setEditingPriceId(row.id)}
-              title="Click to edit price"
+              className={`font-semibold text-gray-900 px-1 py-0.5 rounded transition-colors ${
+                canManageMenu ? "cursor-pointer hover:text-orange-600 hover:underline" : ""
+              }`}
+              onClick={canManageMenu ? () => setEditingPriceId(row.id) : undefined}
+              title={canManageMenu ? "Click to edit price" : undefined}
             >
               {formatCurrency(row.price)}
             </span>
@@ -227,27 +236,34 @@ export default function ThalisTab() {
       width: "w-28",
       render: (row) => (
         <div className="flex gap-1">
-          <button
-            onClick={() => handleToggle(row)}
-            className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-          >
-            {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
-          </button>
-          <button
-            onClick={() => {
-              setEditThali(row);
-              setModalOpen(true);
-            }}
-            className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            onClick={() => setDeleteId(row.id)}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Trash2 size={15} />
-          </button>
+          {canManageMenu && (
+            <>
+              <button
+                onClick={() => handleToggle(row)}
+                className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                title={row.isActive ? "Deactivate" : "Activate"}
+              >
+                {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+              </button>
+              <button
+                onClick={() => {
+                  setEditThali(row);
+                  setModalOpen(true);
+                }}
+                className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                title="Edit"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                onClick={() => setDeleteId(row.id)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Delete"
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
         </div>
       ),
     },
@@ -260,16 +276,18 @@ export default function ThalisTab() {
           <h3 className="text-lg font-bold text-gray-900">Thalis</h3>
           <p className="text-xs text-gray-500 mt-0.5">Manage meal combinations</p>
         </div>
-        <Button
-          variant="primary"
-          leftIcon={<Plus size={16} />}
-          onClick={() => {
-            setEditThali(null);
-            setModalOpen(true);
-          }}
-        >
-          Add Thali
-        </Button>
+        {canManageMenu && (
+          <Button
+            variant="primary"
+            leftIcon={<Plus size={16} />}
+            onClick={() => {
+              setEditThali(null);
+              setModalOpen(true);
+            }}
+          >
+            Add Thali
+          </Button>
+        )}
       </div>
 
       <Table
@@ -278,9 +296,65 @@ export default function ThalisTab() {
         isLoading={isLoading}
         emptyMessage="No thalis found"
         emptySubMessage="Create your first meal combination"
+        mobileCardRender={(row) => (
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
+                {row.nameGu && <p className="text-xs text-gray-400 font-normal">{row.nameGu}</p>}
+                {row.category && (
+                  <span className="inline-block text-[10px] px-2 py-0.5 mt-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                    {row.category.name}
+                  </span>
+                )}
+              </div>
+              <ActiveBadge isActive={row.isActive} />
+            </div>
+            {row.description && <p className="text-xs text-gray-500">{row.description}</p>}
+            <div className="flex justify-between items-center text-xs text-gray-600">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                {sabjiLabel(row.sabjiCount)}
+              </span>
+              <span className="font-bold text-gray-900 text-sm">{formatCurrency(row.price)}</span>
+            </div>
+            {row.items.length > 0 && (
+              <p className="text-xs text-gray-500">
+                <strong>Fixed:</strong> {row.items.map((i) => i.itemName).join(", ")}
+              </p>
+            )}
+            {canManageMenu && (
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => handleToggle(row)}
+                  className="flex-1 py-1.5 px-3 text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+                  <span>{row.isActive ? "Deactivate" : "Activate"}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditThali(row);
+                    setModalOpen(true);
+                  }}
+                  className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg cursor-pointer"
+                  title="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => setDeleteId(row.id)}
+                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       />
 
-      {modalOpen && (
+      {modalOpen && canManageMenu && (
         <ThaliModal
           isOpen={modalOpen}
           onClose={() => {
@@ -292,7 +366,7 @@ export default function ThalisTab() {
         />
       )}
 
-      {deleteId && (
+      {deleteId && canManageMenu && (
         <ConfirmDialog
           isOpen={!!deleteId}
           onClose={() => setDeleteId(null)}

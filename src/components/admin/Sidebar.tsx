@@ -29,6 +29,8 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   label: string;
   roles: ("ADMIN" | "STAFF")[];
+  /** If set, a STAFF user additionally needs this permission to see the item (ADMIN always passes). */
+  permission?: string;
 }
 
 interface NavSection {
@@ -54,8 +56,8 @@ const navSections: NavSection[] = [
   {
     label: "People",
     items: [
-      { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN"] },
-      { href: "/users", icon: Users, label: "Users", roles: ["ADMIN"] },
+      { href: "/companies", icon: Building2, label: "Companies", roles: ["ADMIN", "STAFF"], permission: "companies:moderate" },
+      { href: "/users", icon: Users, label: "Users", roles: ["ADMIN", "STAFF"], permission: "users:moderate" },
       { href: "/staff", icon: UserCheck, label: "Staff", roles: ["ADMIN"] },
     ],
   },
@@ -98,11 +100,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     try {
       const res = await fetch("/api/staff/logout", { method: "POST" });
       if (!res.ok) throw new Error("Logout failed");
-      toast.success("Logged out successfully");
-      router.push("/staff-login");
-      router.refresh();
+
+      toast.success("Signed out successfully");
+      router.replace("/staff-login");
     } catch {
-      toast.error("Logout failed. Please try again.");
+      toast.error("Failed to sign out. Please try again.");
     } finally {
       setLoggingOut(false);
       setLogoutConfirmOpen(false);
@@ -118,35 +120,30 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         .toUpperCase()
     : "VD";
 
-  const panelLabel =
-    currentUser?.role === "ADMIN"
-      ? "Admin Panel"
-      : currentUser?.role === "STAFF"
-      ? "Staff Panel"
-      : "Panel";
+  const panelLabel = currentUser?.role === "ADMIN" ? "Admin Panel" : "Staff Panel";
 
   return (
     <>
       <aside
-        className={`
-          fixed top-0 left-0 z-30 h-full w-[260px] bg-gray-900 flex flex-col
-          transition-transform duration-300 ease-in-out
-          ${isOpen ? "translate-x-0" : "-translate-x-full"}
-        `}
+        className={cn(
+          "fixed top-0 left-0 bottom-0 z-30 w-[260px] bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-300 ease-in-out",
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        )}
       >
-        {/* Logo & Sidebar Header */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
+        {/* Header — Brand logo + title */}
+        <div className="h-16 px-4 border-b border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image
-              src="/vita-Logo.png"
-              alt="ViTa Cuisine"
-              width={38}
-              height={38}
-              className="object-contain rounded-full flex-shrink-0"
+              src="/images/vita-logo.svg"
+              alt="ViTa Cuisine Logo"
+              width={36}
+              height={36}
+              className="rounded-xl shrink-0"
+              priority
             />
             <div>
-              <p className="text-white font-extrabold text-sm leading-tight tracking-wide">
-                ViTa Cuisine
+              <p className="font-extrabold text-white text-sm tracking-tight flex items-center gap-1 leading-tight">
+                ViTa <span className="text-orange-500 font-black">Cuisine</span>
               </p>
               <p className="text-gray-400 text-[10px] font-semibold tracking-widest uppercase">{panelLabel}</p>
             </div>
@@ -165,7 +162,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-4">
           {navSections.map((section) => {
             const visibleItems = currentUser
-              ? section.items.filter((item) => (item.roles as string[]).includes(currentUser.role))
+              ? section.items.filter((item) => {
+                  if (!(item.roles as string[]).includes(currentUser.role)) return false;
+                  if (item.permission && currentUser.role !== "ADMIN") {
+                    return Array.isArray(currentUser.permissions) && currentUser.permissions.includes(item.permission);
+                  }
+                  return true;
+                })
               : section.items;
             if (visibleItems.length === 0) return null;
             return (

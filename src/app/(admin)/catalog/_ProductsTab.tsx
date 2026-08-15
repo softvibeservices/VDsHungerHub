@@ -13,7 +13,8 @@ import BulkProductModal from "@/components/modals/BulkProductModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatCurrency } from "@/lib/utils";
-
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
 
 interface Product {
   id: string;
@@ -29,6 +30,9 @@ interface Product {
 
 export default function ProductsTab() {
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const canManageMenu = hasPermission(currentUser, "menu:manage");
+
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -63,6 +67,7 @@ export default function ProductsTab() {
   }, [debouncedSearch, activeFilter]);
 
   const handleToggle = async (product: Product) => {
+    if (!canManageMenu) return;
     // Optimistic UI update
     setProducts((prev) =>
       prev.map((p) => (p.id === product.id ? { ...p, isActive: !p.isActive } : p))
@@ -86,6 +91,7 @@ export default function ProductsTab() {
   };
 
   const handleInlinePriceSave = async (id: string, newPrice: number) => {
+    if (!canManageMenu) return;
     setEditingPriceId(null);
     if (isNaN(newPrice) || newPrice < 0) {
       toast.error("Please enter a valid price");
@@ -119,7 +125,7 @@ export default function ProductsTab() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !canManageMenu) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/products/${deleteId}`, { method: "DELETE" });
@@ -156,7 +162,7 @@ export default function ProductsTab() {
       header: "Price",
       render: (row) => (
         <div onClick={(e) => e.stopPropagation()}>
-          {editingPriceId === row.id ? (
+          {canManageMenu && editingPriceId === row.id ? (
             <input
               autoFocus
               type="number"
@@ -173,9 +179,11 @@ export default function ProductsTab() {
             />
           ) : (
             <span
-              className="font-semibold text-gray-900 cursor-pointer hover:text-orange-600 hover:underline px-1 py-0.5 rounded transition-colors"
-              onClick={() => setEditingPriceId(row.id)}
-              title="Click to edit price"
+              className={`font-semibold text-gray-900 px-1 py-0.5 rounded transition-colors ${
+                canManageMenu ? "cursor-pointer hover:text-orange-600 hover:underline" : ""
+              }`}
+              onClick={canManageMenu ? () => setEditingPriceId(row.id) : undefined}
+              title={canManageMenu ? "Click to edit price" : undefined}
             >
               {formatCurrency(row.price)}
             </span>
@@ -195,27 +203,34 @@ export default function ProductsTab() {
       width: "w-28",
       render: (row) => (
         <div className="flex gap-1">
-          <button
-            onClick={() => handleToggle(row)}
-            className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
-          >
-            {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
-          </button>
-          <button
-            onClick={() => {
-              setEditProduct(row);
-              setModalOpen(true);
-            }}
-            className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            onClick={() => setDeleteId(row.id)}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-          >
-            <Trash2 size={15} />
-          </button>
+          {canManageMenu && (
+            <>
+              <button
+                onClick={() => handleToggle(row)}
+                className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                title={row.isActive ? "Deactivate" : "Activate"}
+              >
+                {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+              </button>
+              <button
+                onClick={() => {
+                  setEditProduct(row);
+                  setModalOpen(true);
+                }}
+                className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                title="Edit"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                onClick={() => setDeleteId(row.id)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Delete"
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
         </div>
       ),
     },
@@ -234,25 +249,27 @@ export default function ProductsTab() {
           <h3 className="text-lg font-bold text-gray-900">Products</h3>
           <p className="text-xs text-gray-500 mt-0.5">Sabji items used to build thalis</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            leftIcon={<Upload size={16} />}
-            onClick={() => setBulkModalOpen(true)}
-          >
-            Bulk Upload
-          </Button>
-          <Button
-            variant="primary"
-            leftIcon={<Plus size={16} />}
-            onClick={() => {
-              setEditProduct(null);
-              setModalOpen(true);
-            }}
-          >
-            Add Product
-          </Button>
-        </div>
+        {canManageMenu && (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              leftIcon={<Upload size={16} />}
+              onClick={() => setBulkModalOpen(true)}
+            >
+              Bulk Upload
+            </Button>
+            <Button
+              variant="primary"
+              leftIcon={<Plus size={16} />}
+              onClick={() => {
+                setEditProduct(null);
+                setModalOpen(true);
+              }}
+            >
+              Add Product
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -266,9 +283,52 @@ export default function ProductsTab() {
         isLoading={isLoading}
         emptyMessage="No products found"
         emptySubMessage="Add sabji items to use in thali creation"
+        mobileCardRender={(row) => (
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
+                {row.nameGu && <p className="text-xs text-gray-400 font-normal">{row.nameGu}</p>}
+              </div>
+              <ActiveBadge isActive={row.isActive} />
+            </div>
+            <div className="flex justify-between items-center text-xs text-gray-600">
+              <span>Qty: <strong>{row.quantity}</strong></span>
+              <span className="font-bold text-gray-900 text-sm">{formatCurrency(row.price)}</span>
+            </div>
+            {canManageMenu && (
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => handleToggle(row)}
+                  className="flex-1 py-1.5 px-3 text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+                  <span>{row.isActive ? "Deactivate" : "Activate"}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditProduct(row);
+                    setModalOpen(true);
+                  }}
+                  className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg cursor-pointer"
+                  title="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => setDeleteId(row.id)}
+                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       />
 
-      {modalOpen && (
+      {modalOpen && canManageMenu && (
         <ProductModal
           isOpen={modalOpen}
           onClose={() => {
@@ -280,15 +340,15 @@ export default function ProductsTab() {
         />
       )}
 
-      {bulkModalOpen && (
+      {bulkModalOpen && canManageMenu && (
         <BulkProductModal
           isOpen={bulkModalOpen}
           onClose={() => setBulkModalOpen(false)}
           onSuccess={fetchProducts}
         />
       )}
-      
-      {deleteId && (
+
+      {deleteId && canManageMenu && (
         <ConfirmDialog
           isOpen={!!deleteId}
           onClose={() => setDeleteId(null)}

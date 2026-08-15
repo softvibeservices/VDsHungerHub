@@ -8,6 +8,8 @@ import { ActiveBadge } from "@/components/ui/Badge";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import CategoryModal from "@/components/modals/CategoryModal";
 import { useToast } from "@/hooks/useToast";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
 
 interface CategoryThali {
   id: string;
@@ -27,6 +29,9 @@ interface Category {
 
 export default function CategoriesTab() {
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const canManageMenu = hasPermission(currentUser, "menu:manage");
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -53,6 +58,7 @@ export default function CategoriesTab() {
   }, []);
 
   const handleToggle = async (cat: Category) => {
+    if (!canManageMenu) return;
     setCategories((prev) =>
       prev.map((c) => (c.id === cat.id ? { ...c, isActive: !c.isActive } : c))
     );
@@ -73,7 +79,7 @@ export default function CategoriesTab() {
   };
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !canManageMenu) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/thali-categories/${deleteId}`, { method: "DELETE" });
@@ -130,27 +136,34 @@ export default function CategoriesTab() {
       width: "w-28",
       render: (row) => (
         <div className="flex gap-1">
-          <button
-            onClick={() => handleToggle(row)}
-            className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg cursor-pointer animate-none"
-          >
-            {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
-          </button>
-          <button
-            onClick={() => {
-              setEditCategory(row);
-              setModalOpen(true);
-            }}
-            className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg cursor-pointer"
-          >
-            <Pencil size={15} />
-          </button>
-          <button
-            onClick={() => setDeleteId(row.id)}
-            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer"
-          >
-            <Trash2 size={15} />
-          </button>
+          {canManageMenu && (
+            <>
+              <button
+                onClick={() => handleToggle(row)}
+                className="p-1.5 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg cursor-pointer"
+                title={row.isActive ? "Deactivate" : "Activate"}
+              >
+                {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+              </button>
+              <button
+                onClick={() => {
+                  setEditCategory(row);
+                  setModalOpen(true);
+                }}
+                className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg cursor-pointer"
+                title="Edit"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                onClick={() => setDeleteId(row.id)}
+                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg cursor-pointer"
+                title="Delete"
+              >
+                <Trash2 size={15} />
+              </button>
+            </>
+          )}
         </div>
       ),
     },
@@ -165,16 +178,18 @@ export default function CategoriesTab() {
             Group thalis that share the same sabji choices (e.g. Small / Medium / Full Gujarati Thali)
           </p>
         </div>
-        <Button
-          variant="primary"
-          leftIcon={<Plus size={16} />}
-          onClick={() => {
-            setEditCategory(null);
-            setModalOpen(true);
-          }}
-        >
-          Add Category
-        </Button>
+        {canManageMenu && (
+          <Button
+            variant="primary"
+            leftIcon={<Plus size={16} />}
+            onClick={() => {
+              setEditCategory(null);
+              setModalOpen(true);
+            }}
+          >
+            Add Category
+          </Button>
+        )}
       </div>
 
       <Table
@@ -183,9 +198,60 @@ export default function CategoriesTab() {
         isLoading={isLoading}
         emptyMessage="No categories found"
         emptySubMessage="Create a category to group thalis with shared sabji options"
+        mobileCardRender={(row) => (
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
+                {row.nameGu && <p className="text-xs text-gray-400 font-normal">{row.nameGu}</p>}
+              </div>
+              <ActiveBadge isActive={row.isActive} />
+            </div>
+            {row.thalis.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {row.thalis.map((t) => (
+                  <span
+                    key={t.id}
+                    className="text-[11px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200"
+                  >
+                    {t.name}
+                  </span>
+                ))}
+              </div>
+            )}
+            {canManageMenu && (
+              <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => handleToggle(row)}
+                  className="flex-1 py-1.5 px-3 text-xs font-semibold bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {row.isActive ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+                  <span>{row.isActive ? "Deactivate" : "Activate"}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setEditCategory(row);
+                    setModalOpen(true);
+                  }}
+                  className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg cursor-pointer"
+                  title="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => setDeleteId(row.id)}
+                  className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       />
 
-      {modalOpen && (
+      {modalOpen && canManageMenu && (
         <CategoryModal
           isOpen={modalOpen}
           onClose={() => {
@@ -197,7 +263,7 @@ export default function CategoriesTab() {
         />
       )}
 
-      {deleteId && (
+      {deleteId && canManageMenu && (
         <ConfirmDialog
           isOpen={!!deleteId}
           onClose={() => setDeleteId(null)}

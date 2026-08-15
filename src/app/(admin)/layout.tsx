@@ -2,18 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import toast from "react-hot-toast";
 import Sidebar from "@/components/admin/Sidebar";
 import Header from "../../components/admin/Header"; // Admin top navigation header
 import { useKeyboard } from "@/hooks/useKeyboard";
-import { isAdminOnlyPage } from "@/lib/rbac";
-
-interface StaffUser {
-  id: string;
-  name: string;
-  mobile: string;
-  role: "ADMIN" | "STAFF";
-  permissions: string[];
-}
+import { useCurrentUserWithRefresh } from "@/hooks/useCurrentUser";
+import { isAdminOnlyPage, requiredPermissionForPage } from "@/lib/rbac";
+import { hasPermission } from "@/lib/rbac-client";
 
 export default function AdminLayout({
   children,
@@ -25,71 +20,69 @@ export default function AdminLayout({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const currentUserRef = useRef<StaffUser | null>(null);
+  const [currentUser, refreshCurrentUser] = useCurrentUserWithRefresh();
+  const hasLoadedOnce = useRef(false);
+  const prevPermissionsKey = useRef<string | null>(null);
   useKeyboard();
 
+  // Initial auth gate: wait for the first /api/staff/me response before
+  // rendering anything, exactly as before.
   useEffect(() => {
     let cancelled = false;
-
-    async function verifyAuth() {
-      const hasExistingUser = currentUserRef.current !== null;
-
-      // Only show full-screen auth checking on initial layout load
-      if (!hasExistingUser) {
-        setIsAuthChecking(true);
-        setIsAuthorized(false);
+    (async () => {
+      setIsAuthChecking(true);
+      await refreshCurrentUser();
+      if (!cancelled) {
+        hasLoadedOnce.current = true;
+        setIsAuthChecking(false);
       }
-
-      // Synchronous role gate check if user payload is already cached
-      if (hasExistingUser && currentUserRef.current) {
-        if (isAdminOnlyPage(pathname) && currentUserRef.current.role !== "ADMIN") {
-          router.replace("/dashboard");
-          return;
-        }
-      }
-
-      try {
-        const res = await fetch("/api/staff/me");
-        if (cancelled) return;
-
-        if (!res.ok) {
-          router.replace("/staff-login");
-          return;
-        }
-        const data = await res.json();
-        if (!data.user) {
-          router.replace("/staff-login");
-          return;
-        }
-
-        currentUserRef.current = data.user;
-
-        // Role gate check with fresh user data
-        if (isAdminOnlyPage(pathname) && data.user.role !== "ADMIN") {
-          router.replace("/dashboard");
-          return;
-        }
-
-        if (!cancelled) {
-          setIsAuthorized(true);
-          setIsAuthChecking(false);
-        }
-      } catch {
-        if (!cancelled) {
-          router.replace("/staff-login");
-        }
-      } finally {
-        if (!cancelled && !hasExistingUser) {
-          setIsAuthChecking(false);
-        }
-      }
-    }
-
-    verifyAuth();
+    })();
     return () => {
       cancelled = true;
     };
-  }, [router, pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Re-run the authorization decision whenever EITHER the route changes OR
+  // the live user data changes (permission/role edited by an admin,
+  // account deactivated/deleted, etc. — picked up by the polling/focus
+  // refetch inside useCurrentUserWithRefresh without the user navigating).
+  useEffect(() => {
+    if (!hasLoadedOnce.current) return;
+
+    if (!currentUser) {
+      setIsAuthorized(false);
+      router.replace("/staff-login");
+      return;
+    }
+
+    if (isAdminOnlyPage(pathname) && currentUser.role !== "ADMIN") {
+      setIsAuthorized(false);
+      toast.error("You no longer have access to that section.");
+      router.replace("/dashboard");
+      return;
+    }
+
+    const requiredPermission = requiredPermissionForPage(pathname);
+    if (requiredPermission && !hasPermission(currentUser, requiredPermission)) {
+      setIsAuthorized(false);
+      toast.error("You no longer have access to that section.");
+      router.replace("/dashboard");
+      return;
+    }
+
+    setIsAuthorized(true);
+
+    // Detect an in-place permission change (admin edited this staff
+    // member's permissions while they stayed on an ALLOWED page) and let
+    // them know, without forcing a redirect since the current page is
+    // still valid for them.
+    const key = JSON.stringify([currentUser.role, [...(currentUser.permissions ?? [])].sort()]);
+    if (prevPermissionsKey.current !== null && prevPermissionsKey.current !== key) {
+      toast.success("Your permissions were updated by an admin.");
+    }
+    prevPermissionsKey.current = key;
+  }, [currentUser, pathname, router]);
 
   if (isAuthChecking) {
     return (

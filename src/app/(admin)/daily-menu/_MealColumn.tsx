@@ -66,6 +66,7 @@ interface MealColumnProps {
   templates: MenuTemplate[];
   selectedDate: string;
   todayStr: string;
+  readOnly?: boolean;
   onUpdateDraft: (partial: Partial<MealDraft>) => void;
   onSave: () => void;
   onDelete: () => void;
@@ -105,6 +106,7 @@ export default function MealColumn({
   templates,
   selectedDate,
   todayStr,
+  readOnly,
   onUpdateDraft,
   onSave,
   onDelete,
@@ -119,6 +121,7 @@ export default function MealColumn({
   const [isTemplateMenuOpen, setIsTemplateMenuOpen] = useState(false);
   const isLunch = mealType === "LUNCH";
   const isPast = selectedDate < todayStr;
+  const isReadOnly = isPast || Boolean(readOnly);
 
   const toggleThali = (thaliId: string) => {
     const next = draft.selectedThaliIds.includes(thaliId)
@@ -346,52 +349,56 @@ export default function MealColumn({
           )}
 
           {/* Copy From Past Menu Button */}
-          <button
-            type="button"
-            onClick={onOpenCopyFrom}
-            disabled={isPast}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-orange-50/50 hover:border-orange-300 text-xs font-bold text-gray-700 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
-          >
-            <Copy size={13} className="text-gray-500" />
-            Copy Past Menu...
-          </button>
+          {!isReadOnly && (
+            <button
+              type="button"
+              onClick={onOpenCopyFrom}
+              disabled={isReadOnly}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gray-200 bg-gray-50 hover:bg-orange-50/50 hover:border-orange-300 text-xs font-bold text-gray-700 shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+            >
+              <Copy size={13} className="text-gray-500" />
+              Copy Past Menu...
+            </button>
+          )}
         </div>
 
         {/* Step 1 — Thali selector (unchanged) */}
         <div className="space-y-2">
           <div className="flex justify-between items-baseline">
             <p className="text-xs font-bold text-gray-600">Step 1 — Select Thalis</p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const allIds = thalis.map((t) => t.id);
-                  const minSabjiMap = { ...draft.minSabjiMap };
-                  thalis.forEach((t) => {
-                    if (minSabjiMap[t.id] === undefined) minSabjiMap[t.id] = t.sabjiCount ?? 1;
-                  });
-                  onUpdateDraft({ selectedThaliIds: allIds, minSabjiMap });
-                }}
-                className="text-[10px] text-orange-500 hover:underline font-bold cursor-pointer"
-              >
-                Select All
-              </button>
-              <span className="text-[10px] text-gray-300">|</span>
-              <button
-                type="button"
-                onClick={() => onUpdateDraft({ selectedThaliIds: [], sabjiMap: {}, minSabjiMap: {} })}
-                className="text-[10px] text-gray-400 hover:underline font-bold cursor-pointer"
-              >
-                Clear All
-              </button>
-            </div>
+            {!isReadOnly && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allIds = thalis.map((t) => t.id);
+                    const minSabjiMap = { ...draft.minSabjiMap };
+                    thalis.forEach((t) => {
+                      if (minSabjiMap[t.id] === undefined) minSabjiMap[t.id] = t.sabjiCount ?? 1;
+                    });
+                    onUpdateDraft({ selectedThaliIds: allIds, minSabjiMap });
+                  }}
+                  className="text-[10px] text-orange-500 hover:underline font-bold cursor-pointer"
+                >
+                  Select All
+                </button>
+                <span className="text-[10px] text-gray-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdateDraft({ selectedThaliIds: [], sabjiMap: {}, minSabjiMap: {} })}
+                  className="text-[10px] text-gray-400 hover:underline font-bold cursor-pointer"
+                >
+                  Clear All
+                </button>
+              </div>
+            )}
           </div>
 
           <ThaliSelector
             allThalis={thalis}
             selectedThaliIds={draft.selectedThaliIds}
-            onToggle={toggleThali}
-            onSelectCategory={handleSelectCategory}
+            onToggle={isReadOnly ? () => {} : toggleThali}
+            onSelectCategory={isReadOnly ? () => {} : handleSelectCategory}
             sabjiMap={draft.sabjiMap}
             minSabjiMap={draft.minSabjiMap}
             onManageSabji={setActiveDishGroupKey}
@@ -401,7 +408,7 @@ export default function MealColumn({
 
       {/* STICKY BOTTOM ZONE — always visible, never scrolls away */}
       <div className="flex-shrink-0 border-t border-gray-100 bg-white p-4 space-y-3">
-        {draft.selectedThaliIds.length > 0 && !validation.isValid && (
+        {draft.selectedThaliIds.length > 0 && !validation.isValid && !isReadOnly && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-2.5 space-y-1 animate-fadeIn">
             <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
               <AlertTriangle size={14} className="text-amber-600 flex-shrink-0" />
@@ -417,43 +424,45 @@ export default function MealColumn({
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button
-            variant="primary"
-            className={cn("flex-1", isDirty && validation.isValid && !isPast && "animate-pulse")}
-            isLoading={draft.isSaving}
-            disabled={draft.selectedThaliIds.length === 0 || !validation.isValid || isPast}
-            onClick={onSave}
-          >
-            <BookmarkPlus size={15} className="mr-1.5" />
-            {draft.existingId ? "Update" : "Save"} {isLunch ? "Lunch" : "Dinner"}
-          </Button>
+        {!isReadOnly && (
+          <div className="flex gap-2">
+            <Button
+              variant="primary"
+              className={cn("flex-1", isDirty && validation.isValid && !isReadOnly && "animate-pulse")}
+              isLoading={draft.isSaving}
+              disabled={draft.selectedThaliIds.length === 0 || !validation.isValid || isReadOnly}
+              onClick={onSave}
+            >
+              <BookmarkPlus size={15} className="mr-1.5" />
+              {draft.existingId ? "Update" : "Save"} {isLunch ? "Lunch" : "Dinner"}
+            </Button>
 
-          {draft.existingId && (
-            <>
-              <button
-                onClick={onOpenSaveTemplate}
-                title="Save as template"
-                className="p-2.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 border border-gray-200 hover:border-orange-200 rounded-xl transition-colors cursor-pointer"
-              >
-                <BookmarkPlus size={16} />
-              </button>
-              <button
-                onClick={onDelete}
-                disabled={draft.isDeleting}
-                title="Delete menu"
-                className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-xl transition-colors cursor-pointer"
-              >
-                <Trash2 size={16} />
-              </button>
-            </>
-          )}
-        </div>
+            {draft.existingId && (
+              <>
+                <button
+                  onClick={onOpenSaveTemplate}
+                  title="Save as template"
+                  className="p-2.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 border border-gray-200 hover:border-orange-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  <BookmarkPlus size={16} />
+                </button>
+                <button
+                  onClick={onDelete}
+                  disabled={draft.isDeleting}
+                  title="Delete menu"
+                  className="p-2.5 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-gray-200 hover:border-red-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
-        {isPast && (
+        {isReadOnly && (
           <div className="flex items-center justify-center gap-1.5 p-2 bg-amber-50 border border-amber-100 rounded-xl text-xs font-semibold text-amber-700">
             <AlertTriangle size={14} />
-            Past date — view only mode
+            {isPast ? "Past date — view only mode" : "View only mode"}
           </div>
         )}
       </div>
@@ -469,8 +478,9 @@ export default function MealColumn({
           selected={draft.sabjiMap[activeGroup.key] ?? []}
           maxCount={activeGroup.sabjiCount}
           minRequired={activeGroupMinRequired}
-          readOnly={isPast}
+          readOnly={isReadOnly}
           onMinChange={(n) => {
+            if (isReadOnly) return;
             const updatedMinMap = { ...draft.minSabjiMap };
             activeGroup.thalis.forEach((t) => {
               updatedMinMap[t.id] = Math.min(n, t.sabjiCount);

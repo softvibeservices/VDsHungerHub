@@ -16,6 +16,8 @@ import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatMobileNumber } from "@/lib/utils";
 import { formatDateTimeIST } from "@/lib/time";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
 
 interface Company { id: string; name: string }
 interface BanHistoryEntry {
@@ -46,6 +48,10 @@ interface User {
 
 export default function UsersPage() {
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const isAdmin = currentUser?.role === "ADMIN";
+  const canModerateUsers = hasPermission(currentUser, "users:moderate");
+
   const [users, setUsers] = useState<User[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
@@ -54,7 +60,6 @@ export default function UsersPage() {
   const [companyFilter, setCompanyFilter] = useState("");
   const [verifiedFilter, setVerifiedFilter] = useState(""); // "" | "verified" | "unverified"
   const [statusFilter, setStatusFilter] = useState(""); // "" | "ACTIVE" | "BLOCKED" | "BANNED"
-  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null);
   const debouncedSearch = useDebounce(search, 300);
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -89,16 +94,6 @@ export default function UsersPage() {
     }
   };
 
-  const fetchCurrentUser = async () => {
-    try {
-      const res = await fetch("/api/staff/me");
-      if (res.ok) {
-        const json = await res.json();
-        setCurrentUser(json.user);
-      }
-    } catch {}
-  };
-
   const fetchCompanies = async () => {
     const res = await fetch("/api/companies?limit=500");
     const json = await res.json();
@@ -125,7 +120,6 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchCompanies();
-    fetchCurrentUser();
   }, []);
 
   useEffect(() => {
@@ -134,7 +128,7 @@ export default function UsersPage() {
   }, [debouncedSearch, companyFilter, verifiedFilter, statusFilter]);
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !isAdmin) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/users/${deleteId}`, { method: "DELETE" });
@@ -152,6 +146,14 @@ export default function UsersPage() {
 
   const handleUserAction = async () => {
     if (!actionUser || !actionType) return;
+    if ((actionType === "BAN" || actionType === "UNBAN") && !isAdmin) {
+      toast.error("Ban actions require ADMIN role");
+      return;
+    }
+    if ((actionType === "BLOCK" || actionType === "UNBLOCK") && !canModerateUsers) {
+      toast.error("Block actions require users:moderate permission");
+      return;
+    }
     setActionLoading(true);
     try {
       const endpoint = `/api/admin/users/${actionUser.id}/${actionType.toLowerCase()}`;
@@ -257,40 +259,48 @@ export default function UsersPage() {
       width: "w-28",
       render: (row) => (
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => { setEditUser(row); setModalOpen(true); }}
-            className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
-            title="Edit user"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={() => setDeleteId(row.id)}
-            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete user"
-          >
-            <Trash2 size={14} />
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => { setEditUser(row); setModalOpen(true); }}
+                className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                title="Edit user"
+              >
+                <Pencil size={14} />
+              </button>
+              <button
+                onClick={() => setDeleteId(row.id)}
+                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Delete user"
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
+
           <button
             onClick={() => { setBanHistoryUser(row); fetchBanHistory(row.id); }}
-            className="p-1 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+            className="p-1 text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer"
             title="View Ban History"
           >
             <History size={14} />
           </button>
+
           {row.status === "ACTIVE" && (
             <>
-              <button
-                onClick={() => { setActionUser(row); setActionType("BLOCK"); setReason(""); }}
-                className="p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                title="Block User"
-              >
-                <ShieldOff size={14} />
-              </button>
-              {currentUser?.role === "ADMIN" && (
+              {canModerateUsers && (
+                <button
+                  onClick={() => { setActionUser(row); setActionType("BLOCK"); setReason(""); }}
+                  className="p-1 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                  title="Block User"
+                >
+                  <ShieldOff size={14} />
+                </button>
+              )}
+              {isAdmin && (
                 <button
                   onClick={() => { setActionUser(row); setActionType("BAN"); setReason(""); }}
-                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                   title="Ban User"
                 >
                   <Lock size={14} />
@@ -298,19 +308,22 @@ export default function UsersPage() {
               )}
             </>
           )}
+
           {row.status === "BLOCKED" && (
             <>
-              <button
-                onClick={() => { setActionUser(row); setActionType("UNBLOCK"); }}
-                className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                title="Unblock User"
-              >
-                <ShieldCheck size={14} />
-              </button>
-              {currentUser?.role === "ADMIN" && (
+              {canModerateUsers && (
+                <button
+                  onClick={() => { setActionUser(row); setActionType("UNBLOCK"); }}
+                  className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
+                  title="Unblock User"
+                >
+                  <ShieldCheck size={14} />
+                </button>
+              )}
+              {isAdmin && (
                 <button
                   onClick={() => { setActionUser(row); setActionType("BAN"); setReason(""); }}
-                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                   title="Ban User"
                 >
                   <Lock size={14} />
@@ -318,10 +331,11 @@ export default function UsersPage() {
               )}
             </>
           )}
-          {row.status === "BANNED" && currentUser?.role === "ADMIN" && (
+
+          {row.status === "BANNED" && isAdmin && (
             <button
               onClick={() => { setActionUser(row); setActionType("UNBAN"); }}
-              className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+              className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
               title="Unban User"
             >
               <CheckCircle size={14} />
@@ -362,18 +376,20 @@ export default function UsersPage() {
           </>
         }
         actions={
-          <>
-            <Button variant="secondary" size="sm" leftIcon={<Upload size={15} />} onClick={() => setBulkOpen(true)}>
-              Bulk Import
-            </Button>
-            <Button
-              variant="primary"
-              leftIcon={<Plus size={16} />}
-              onClick={() => { setEditUser(null); setModalOpen(true); }}
-            >
-              Add User
-            </Button>
-          </>
+          isAdmin ? (
+            <>
+              <Button variant="secondary" size="sm" leftIcon={<Upload size={15} />} onClick={() => setBulkOpen(true)}>
+                Bulk Import
+              </Button>
+              <Button
+                variant="primary"
+                leftIcon={<Plus size={16} />}
+                onClick={() => { setEditUser(null); setModalOpen(true); }}
+              >
+                Add User
+              </Button>
+            </>
+          ) : undefined
         }
       />
 
@@ -383,28 +399,128 @@ export default function UsersPage() {
         isLoading={isLoading}
         emptyMessage="No users found"
         emptySubMessage={search ? "Try a different search" : "Add users or bulk import via CSV"}
+        mobileCardRender={(row) => (
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
+                <p className="text-xs text-gray-500 font-mono">{formatMobileNumber(row.number)}</p>
+                {row.company && (
+                  <span className="inline-block text-[10px] px-2 py-0.5 mt-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200">
+                    {row.company.name}
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-col items-end gap-1">
+                {row.status === "BANNED" ? (
+                  <Badge variant="danger" label="Banned" />
+                ) : row.status === "BLOCKED" ? (
+                  <Badge variant="warning" label="Blocked" />
+                ) : (
+                  <Badge variant="success" label="Active" />
+                )}
+                {row.isVerified ? (
+                  <span className="text-[10px] text-green-700 font-medium">✓ Verified</span>
+                ) : (
+                  <span className="text-[10px] text-amber-700 font-medium">Pending</span>
+                )}
+              </div>
+            </div>
+            {row.workAddress && (
+              <p className="text-xs text-gray-500 line-clamp-2">
+                <strong>Address:</strong> {row.workAddress}
+              </p>
+            )}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
+              <button
+                onClick={() => { setBanHistoryUser(row); fetchBanHistory(row.id); }}
+                className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer"
+                title="Ban History"
+              >
+                <History size={16} />
+              </button>
+              {canModerateUsers && row.status === "ACTIVE" && (
+                <button
+                  onClick={() => { setActionUser(row); setActionType("BLOCK"); setReason(""); }}
+                  className="px-2 py-1 text-xs font-semibold text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md cursor-pointer"
+                >
+                  Block
+                </button>
+              )}
+              {canModerateUsers && row.status === "BLOCKED" && (
+                <button
+                  onClick={() => { setActionUser(row); setActionType("UNBLOCK"); }}
+                  className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-md cursor-pointer"
+                >
+                  Unblock
+                </button>
+              )}
+              {isAdmin && (row.status === "ACTIVE" || row.status === "BLOCKED") && (
+                <button
+                  onClick={() => { setActionUser(row); setActionType("BAN"); setReason(""); }}
+                  className="px-2 py-1 text-xs font-semibold text-red-700 bg-red-50 hover:bg-red-100 rounded-md cursor-pointer"
+                >
+                  Ban
+                </button>
+              )}
+              {isAdmin && row.status === "BANNED" && (
+                <button
+                  onClick={() => { setActionUser(row); setActionType("UNBAN"); }}
+                  className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-md cursor-pointer"
+                >
+                  Unban
+                </button>
+              )}
+              {isAdmin && (
+                <>
+                  <button
+                    onClick={() => { setEditUser(row); setModalOpen(true); }}
+                    className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg cursor-pointer"
+                    title="Edit"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => setDeleteId(row.id)}
+                    className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"
+                    title="Delete"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       />
 
       {!isLoading && total > 0 && (
         <p className="text-xs text-gray-400">Showing {users.length} of {total} users</p>
       )}
 
-      <UserModal
-        isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); setEditUser(null); }}
-        onSuccess={fetchUsers}
-        user={editUser}
-        companies={companies}
-      />
-      <BulkUserModal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={fetchUsers} />
-      
-      <ConfirmDialog
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleDelete}
-        isLoading={isDeleting}
-        message="Delete this user? This cannot be undone."
-      />
+      {isAdmin && modalOpen && (
+        <UserModal
+          isOpen={modalOpen}
+          onClose={() => { setModalOpen(false); setEditUser(null); }}
+          onSuccess={fetchUsers}
+          user={editUser}
+          companies={companies}
+        />
+      )}
+
+      {isAdmin && bulkOpen && (
+        <BulkUserModal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={fetchUsers} />
+      )}
+
+      {isAdmin && deleteId && (
+        <ConfirmDialog
+          isOpen={!!deleteId}
+          onClose={() => setDeleteId(null)}
+          onConfirm={handleDelete}
+          isLoading={isDeleting}
+          message="Delete this user? This cannot be undone."
+        />
+      )}
 
       {/* Block/Ban Action Modal */}
       {actionUser && actionType && (

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { requireStaffAuth } from "@/lib/staff-auth";
 
 export async function GET(req: NextRequest) {
-  const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
+  const auth = await requireStaffAuth(req, { permission: "companies:moderate" });
   if (auth.error) return auth.error;
 
   try {

@@ -284,14 +284,14 @@ export default function ManageStaffPage() {
             <>
               <button
                 onClick={() => handleOpenEdit(row)}
-                className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
+                className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
                 title="Edit staff member"
               >
                 <Pencil size={14} />
               </button>
               <button
                 onClick={() => setToggleConfirmStaff(row)}
-                className={`p-1 rounded-lg transition-colors ${
+                className={`p-1 rounded-lg transition-colors cursor-pointer ${
                   row.status === "ACTIVE"
                     ? "text-gray-400 hover:text-red-600 hover:bg-red-50"
                     : "text-gray-400 hover:text-emerald-600 hover:bg-emerald-50"
@@ -302,7 +302,7 @@ export default function ManageStaffPage() {
               </button>
               <button
                 onClick={() => setDeleteConfirmStaff(row)}
-                className="p-1 text-gray-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                className="p-1 text-gray-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                 title="Delete staff member"
               >
                 <Trash2 size={14} />
@@ -351,6 +351,73 @@ export default function ManageStaffPage() {
         isLoading={loading}
         emptyMessage="No staff members found matching criteria."
         emptySubMessage="Add your first staff member to get started."
+        mobileCardRender={(row) => (
+          <div className="p-4 space-y-3">
+            <div className="flex justify-between items-start gap-2">
+              <div>
+                <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
+                <p className="text-xs text-gray-500 font-mono">{formatMobileNumber(row.mobile)}</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Badge
+                  variant={row.role === "ADMIN" ? "warning" : "neutral"}
+                  label={row.role === "ADMIN" ? "Admin" : "Staff"}
+                />
+                <Badge
+                  variant={row.status === "ACTIVE" ? "success" : "inactive"}
+                  label={row.status === "ACTIVE" ? "Active" : "Inactive"}
+                />
+              </div>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Permissions:</p>
+              {row.role === "ADMIN" ? (
+                <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                  <Shield size={12} /> Full Admin
+                </span>
+              ) : row.permissions.length === 0 ? (
+                <span className="text-xs text-gray-400 italic">No permissions</span>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {row.permissions.map((p) => (
+                    <span key={p} className="text-[10px] bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded font-medium">
+                      {p}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            {row.role !== "ADMIN" && (
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => handleOpenEdit(row)}
+                  className="p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-lg cursor-pointer"
+                  title="Edit"
+                >
+                  <Pencil size={16} />
+                </button>
+                <button
+                  onClick={() => setToggleConfirmStaff(row)}
+                  className={`p-2 rounded-lg cursor-pointer ${
+                    row.status === "ACTIVE"
+                      ? "text-gray-600 hover:text-red-600 hover:bg-red-50"
+                      : "text-gray-600 hover:text-emerald-600 hover:bg-emerald-50"
+                  }`}
+                  title={row.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                >
+                  {row.status === "ACTIVE" ? <UserMinus size={16} /> : <UserCheck size={16} />}
+                </button>
+                <button
+                  onClick={() => setDeleteConfirmStaff(row)}
+                  className="p-2 text-gray-600 hover:text-red-700 hover:bg-red-50 rounded-lg cursor-pointer"
+                  title="Delete"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       />
 
       {/* Add/Edit Modal using Shared Modal Component */}

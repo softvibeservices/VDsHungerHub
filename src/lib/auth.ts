@@ -8,6 +8,7 @@ export interface TokenPayload {
   number: string;
   name: string;
   role: AppRole;
+  permissions?: string[];
 }
 
 export type AdminTokenPayload = TokenPayload;

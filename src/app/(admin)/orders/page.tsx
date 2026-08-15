@@ -30,6 +30,8 @@ import PageToolbar from "@/components/ui/PageToolbar";
 import Tabs from "@/components/ui/Tabs";
 import Badge, { BadgeVariant } from "@/components/ui/Badge";
 import OrderSummaryMatrix from "./_OrderSummaryMatrix";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -108,6 +110,9 @@ const ORDER_STATUS_BADGE: Record<OrderStatus, { variant: BadgeVariant; icon: any
 };
 
 export default function AdminOrdersPage() {
+  const currentUser = useCurrentUser();
+  const canUpdateOrders = hasPermission(currentUser, "orders:update-status");
+
   const [data, setData] = useState<OrdersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -231,6 +236,10 @@ export default function AdminOrdersPage() {
   }, [fetchOrders]);
 
   async function handleStatusChange(orderId: string, newStatus: OrderStatus) {
+    if (!canUpdateOrders) {
+      toast.error("Forbidden: missing orders:update-status permission");
+      return;
+    }
     setUpdatingId(orderId);
     try {
       const res = await fetch(`/api/orders/${orderId}`, {
@@ -238,17 +247,24 @@ export default function AdminOrdersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (!res.ok) throw new Error("Update failed");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Update failed");
+      }
       toast.success(`Order marked as ${newStatus.toLowerCase()}`);
       fetchOrders(); // refresh after status change
-    } catch {
-      toast.error("Failed to update status");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status");
     } finally {
       setUpdatingId(null);
     }
   }
 
   async function handleGroupStatusChange(targetOrderIds: string[], newStatus: OrderStatus, labelName?: string) {
+    if (!canUpdateOrders) {
+      toast.error("Forbidden: missing orders:update-status permission");
+      return;
+    }
     if (targetOrderIds.length === 0) return;
     setUpdatingId("BULK");
     try {
@@ -260,7 +276,10 @@ export default function AdminOrdersPage() {
           status: newStatus,
         }),
       });
-      if (!res.ok) throw new Error("Bulk update failed");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Bulk update failed");
+      }
       const json = await res.json();
       const statusLabel = newStatus.toLowerCase().replace(/_/g, " ");
       toast.success(
@@ -270,8 +289,8 @@ export default function AdminOrdersPage() {
       );
       setSelectedOrderIds([]); // Clear selection
       fetchOrders(); // Refresh table
-    } catch {
-      toast.error("Failed to update status in bulk");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to update status in bulk");
     } finally {
       setUpdatingId(null);
     }

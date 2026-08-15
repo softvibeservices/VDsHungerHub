@@ -14,6 +14,8 @@ import CompanyModal from "@/components/modals/CompanyModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatMobileNumber } from "@/lib/utils";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
 
 interface ReporterUser {
   id: string;
@@ -39,6 +41,10 @@ interface Company {
 
 export default function CompaniesPage() {
   const toast = useToast();
+  const currentUser = useCurrentUser();
+  const isAdmin = currentUser?.role === "ADMIN";
+  const canModerateCompanies = hasPermission(currentUser, "companies:moderate");
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,7 +87,7 @@ export default function CompaniesPage() {
   }, [debouncedSearch, tab]);
 
   const handleDelete = async () => {
-    if (!deleteId) return;
+    if (!deleteId || !isAdmin) return;
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/companies/${deleteId}`, { method: "DELETE" });
@@ -98,7 +104,7 @@ export default function CompaniesPage() {
   };
 
   const handleVerify = async () => {
-    if (!verifyCompany) return;
+    if (!verifyCompany || !canModerateCompanies) return;
     setIsVerifying(true);
     try {
       const res = await fetch(`/api/admin/companies/${verifyCompany.id}/verify`, {
@@ -117,7 +123,7 @@ export default function CompaniesPage() {
   };
 
   const handleFlagFake = async () => {
-    if (!flagCompany) return;
+    if (!flagCompany || !canModerateCompanies) return;
     if (!flagReason.trim()) {
       toast.error("Flag reason is required");
       return;
@@ -211,50 +217,58 @@ export default function CompaniesPage() {
       width: "w-36",
       render: (row) => (
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => { setEditCompany(row); setModalOpen(true); }}
-            className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors"
-            title="Edit company"
-          >
-            <Pencil size={14} />
-          </button>
-          <button
-            onClick={() => setDeleteId(row.id)}
-            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete company"
-          >
-            <Trash2 size={14} />
-          </button>
-
-          {/* Pending company moderation options */}
-          {!row.isVerifiedByAdmin && !row.isFlaggedFake && (
+          {isAdmin && (
             <>
               <button
-                onClick={() => setVerifyCompany(row)}
-                className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                title="Verify Company"
+                onClick={() => { setEditCompany(row); setModalOpen(true); }}
+                className="p-1 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-colors cursor-pointer"
+                title="Edit company"
               >
-                <Check size={14} />
+                <Pencil size={14} />
               </button>
               <button
-                onClick={() => { setFlagCompany(row); setFlagReason(""); setAlsoBlockReporter(false); }}
-                className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                title="Flag as Fake"
+                onClick={() => setDeleteId(row.id)}
+                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                title="Delete company"
               >
-                <AlertTriangle size={14} />
+                <Trash2 size={14} />
               </button>
             </>
           )}
 
-          {/* Verified company can still be flagged fake */}
-          {row.isVerifiedByAdmin && !row.isFlaggedFake && (
-            <button
-              onClick={() => { setFlagCompany(row); setFlagReason(""); setAlsoBlockReporter(false); }}
-              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-              title="Flag as Fake"
-            >
-              <AlertTriangle size={14} />
-            </button>
+          {canModerateCompanies && (
+            <>
+              {/* Pending company moderation options */}
+              {!row.isVerifiedByAdmin && !row.isFlaggedFake && (
+                <>
+                  <button
+                    onClick={() => setVerifyCompany(row)}
+                    className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors cursor-pointer"
+                    title="Verify Company"
+                  >
+                    <Check size={14} />
+                  </button>
+                  <button
+                    onClick={() => { setFlagCompany(row); setFlagReason(""); setAlsoBlockReporter(false); }}
+                    className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    title="Flag as Fake"
+                  >
+                    <AlertTriangle size={14} />
+                  </button>
+                </>
+              )}
+
+              {/* Verified company can still be flagged fake */}
+              {row.isVerifiedByAdmin && !row.isFlaggedFake && (
+                <button
+                  onClick={() => { setFlagCompany(row); setFlagReason(""); setAlsoBlockReporter(false); }}
+                  className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  title="Flag as Fake"
+                >
+                  <AlertTriangle size={14} />
+                </button>
+              )}
+            </>
           )}
         </div>
       ),
@@ -265,13 +279,15 @@ export default function CompaniesPage() {
     <div className="space-y-6">
       <PageToolbar
         actions={
-          <Button
-            variant="primary"
-            leftIcon={<Plus size={16} />}
-            onClick={() => { setEditCompany(null); setModalOpen(true); }}
-          >
-            Add Company
-          </Button>
+          isAdmin ? (
+            <Button
+              variant="primary"
+              leftIcon={<Plus size={16} />}
+              onClick={() => { setEditCompany(null); setModalOpen(true); }}
+            >
+              Add Company
+            </Button>
+          ) : undefined
         }
       />
 
@@ -299,7 +315,7 @@ export default function CompaniesPage() {
         emptyMessage={`No ${tab} companies found`}
         emptySubMessage={search ? "Try a different search term" : "Add a company or wait for user submissions"}
         mobileCardRender={(row) => (
-          <div className="space-y-2">
+          <div className="p-4 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h4 className="font-bold text-gray-900 text-sm">{row.name}</h4>
@@ -314,7 +330,7 @@ export default function CompaniesPage() {
                 Added by: {row.addedByUser.name} ({formatMobileNumber(row.addedByUser.number)})
               </p>
             )}
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100 flex-wrap gap-2">
               <div>
                 {row.isFlaggedFake ? (
                   <span className="text-[10px] font-bold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-100">
@@ -331,18 +347,38 @@ export default function CompaniesPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => { setEditCompany(row); setModalOpen(true); }}
-                  className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => setDeleteId(row.id)}
-                  className="px-2 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-                >
-                  Delete
-                </button>
+                {canModerateCompanies && !row.isVerifiedByAdmin && !row.isFlaggedFake && (
+                  <button
+                    onClick={() => setVerifyCompany(row)}
+                    className="px-2 py-1 text-xs font-semibold text-green-700 bg-green-50 hover:bg-green-100 rounded-md transition-colors cursor-pointer"
+                  >
+                    Verify
+                  </button>
+                )}
+                {canModerateCompanies && !row.isFlaggedFake && (
+                  <button
+                    onClick={() => { setFlagCompany(row); setFlagReason(""); setAlsoBlockReporter(false); }}
+                    className="px-2 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors cursor-pointer"
+                  >
+                    Flag Fake
+                  </button>
+                )}
+                {isAdmin && (
+                  <>
+                    <button
+                      onClick={() => { setEditCompany(row); setModalOpen(true); }}
+                      className="px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 hover:bg-orange-50 hover:text-orange-600 rounded-md transition-colors cursor-pointer"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteId(row.id)}
+                      className="px-2 py-1 text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 rounded-md transition-colors cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -355,34 +391,40 @@ export default function CompaniesPage() {
       )}
 
       {/* Modals */}
-      <CompanyModal
-        isOpen={modalOpen}
-        onClose={() => { setModalOpen(false); setEditCompany(null); }}
-        onSuccess={fetchCompanies}
-        company={editCompany}
-      />
+      {isAdmin && modalOpen && (
+        <CompanyModal
+          isOpen={modalOpen}
+          onClose={() => { setModalOpen(false); setEditCompany(null); }}
+          onSuccess={fetchCompanies}
+          company={editCompany}
+        />
+      )}
       
-      <ConfirmDialog
-        isOpen={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={handleDelete}
-        isLoading={isDeleting}
-        message="Are you sure you want to delete this company? This cannot be undone."
-      />
+      {isAdmin && deleteId && (
+        <ConfirmDialog
+          isOpen={!!deleteId}
+          onClose={() => setDeleteId(null)}
+          onConfirm={handleDelete}
+          isLoading={isDeleting}
+          message="Are you sure you want to delete this company? This cannot be undone."
+        />
+      )}
 
       {/* Verification Confirm Modal */}
-      <ConfirmDialog
-        isOpen={!!verifyCompany}
-        onClose={() => setVerifyCompany(null)}
-        onConfirm={handleVerify}
-        isLoading={isVerifying}
-        title="Verify Company"
-        confirmLabel="Verify"
-        message={`Verify "${verifyCompany?.name}"? Once verified, it will instantly appear in the registration dropdown for new customers.`}
-      />
+      {canModerateCompanies && verifyCompany && (
+        <ConfirmDialog
+          isOpen={!!verifyCompany}
+          onClose={() => setVerifyCompany(null)}
+          onConfirm={handleVerify}
+          isLoading={isVerifying}
+          title="Verify Company"
+          confirmLabel="Verify"
+          message={`Verify "${verifyCompany?.name}"? Once verified, it will instantly appear in the registration dropdown for new customers.`}
+        />
+      )}
 
       {/* Flag Fake Modal */}
-      {flagCompany && (
+      {canModerateCompanies && flagCompany && (
         <Modal
           isOpen={true}
           onClose={() => setFlagCompany(null)}

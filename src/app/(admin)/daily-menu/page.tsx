@@ -124,7 +124,12 @@ function groupThalisByCategory(selectedThaliIds: string[], allThalis: Thali[]) {
   return groups;
 }
 
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { hasPermission } from "@/lib/rbac-client";
+
 export default function MenuPage() {
+  const currentUser = useCurrentUser();
+  const canManageMenu = hasPermission(currentUser, "menu:manage");
   const todayStr = getTodayIST();
   const dateInputRef = useRef<HTMLInputElement>(null);
 
@@ -595,6 +600,7 @@ export default function MenuPage() {
         <div className={cn("space-y-4", mobileActiveTab !== "LUNCH" && "hidden md:block")}>
           <MealColumn
             mealType="LUNCH"
+            readOnly={!canManageMenu}
             selectedDate={selectedDate}
             todayStr={todayStr}
             draft={lunchDraft}
@@ -618,6 +624,7 @@ export default function MenuPage() {
         <div className={cn("space-y-4", mobileActiveTab !== "DINNER" && "hidden md:block")}>
           <MealColumn
             mealType="DINNER"
+            readOnly={!canManageMenu}
             selectedDate={selectedDate}
             todayStr={todayStr}
             draft={dinnerDraft}

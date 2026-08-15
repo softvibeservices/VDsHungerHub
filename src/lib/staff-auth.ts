@@ -58,6 +58,22 @@ export async function getStaffSessionToken(req?: NextRequest): Promise<string | 
   return cookieStore.get(STAFF_SESSION_COOKIE)?.value;
 }
 
+/**
+ * Verifies the staff session cookie AND re-derives role/permissions/status
+ * live from the database on every call.
+ *
+ * IMPORTANT (fixes the "runtime permission change doesn't work" bug):
+ * the JWT is only ever used to prove WHO is asking (staffId), never to
+ * decide WHAT they're allowed to do. role/permissions/status are always
+ * read fresh from StaffUser. This means:
+ *   - an admin editing a STAFF member's permissions takes effect on that
+ *     STAFF member's very next request (API call or page navigation) —
+ *     no re-login required.
+ *   - deactivating/deleting a staff member (status !== ACTIVE) still
+ *     immediately invalidates the session, as before.
+ * This costs nothing extra: the previous version already had to hit the
+ * DB on every call for the status check, this just widens the `select`.
+ */
 export async function verifyStaffSession(req?: NextRequest): Promise<StaffSessionPayload | null> {
   const token = await getStaffSessionToken(req);
   if (!token) return null;
@@ -65,18 +81,23 @@ export async function verifyStaffSession(req?: NextRequest): Promise<StaffSessio
   const decoded = verifyStaffToken(token);
   if (!decoded) return null;
 
-  // Active status check (database lookup to support immediate revocation)
   try {
     const staff = await prisma.staffUser.findUnique({
       where: { id: decoded.staffId },
-      select: { status: true },
+      select: { role: true, permissions: true, status: true, name: true, mobile: true },
     });
 
     if (!staff || staff.status !== "ACTIVE") {
       return null;
     }
 
-    return decoded;
+    return {
+      staffId: decoded.staffId,
+      mobile: staff.mobile,
+      name: staff.name,
+      role: staff.role,
+      permissions: staff.permissions,
+    };
   } catch (err) {
     console.error("verifyStaffSession DB check failed:", err);
     return null;
@@ -106,9 +127,10 @@ export type RequireStaffAuthResult =
   | { session?: undefined; error: NextResponse };
 
 /**
- * One-line auth guard for API route handlers. Loads the session (with the DB
- * ACTIVE-status revocation check baked in via verifyStaffSession), and
- * optionally enforces a role allow-list and/or a granular permission string.
+ * One-line auth guard for API route handlers. Loads the session (with the
+ * DB ACTIVE-status revocation check AND live role/permissions baked in via
+ * verifyStaffSession), and optionally enforces a role allow-list and/or a
+ * granular permission string.
  *
  * Usage:
  *   const auth = await requireStaffAuth(req, { permission: "menu:manage" });
