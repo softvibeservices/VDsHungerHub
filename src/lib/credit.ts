@@ -19,6 +19,8 @@ export interface UserLedgerRow {
   balance: number;
   lastOrderAt: string | null;
   lastPaymentAt: string | null;
+  creditLimit: number;
+  hasCreditLimitOverride: boolean;
 }
 
 export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLedgerRow[]> {
@@ -38,6 +40,7 @@ export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLed
       name: true,
       number: true,
       company: { select: { id: true, name: true } },
+      creditLimitOverride: true,
     },
   });
 
@@ -119,8 +122,16 @@ export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLed
     ])
   );
 
+  const globalDefaultLimit = await getGlobalCreditLimit();
+
   let rows: UserLedgerRow[] = users.map(
-    (u: { id: string; name: string; number: string; company: { id: string; name: string } | null }) => {
+    (u: {
+      id: string;
+      name: string;
+      number: string;
+      company: { id: string; name: string } | null;
+      creditLimitOverride: number | null;
+    }) => {
       const totalDebit = debitMap.get(u.id) ?? 0;
       const totalPaid = paidMap.get(u.id) ?? 0;
       const lastOrder = lastOrderMap.get(u.id);
@@ -136,6 +147,8 @@ export async function getAllUsersLedger(filters: LedgerFilters): Promise<UserLed
         balance: Math.round((totalDebit - totalPaid) * 100) / 100,
         lastOrderAt: lastOrder ? lastOrder.toISOString() : null,
         lastPaymentAt: lastPayment ? lastPayment.toISOString() : null,
+        creditLimit: u.creditLimitOverride ?? globalDefaultLimit,
+        hasCreditLimitOverride: u.creditLimitOverride !== null,
       };
     }
   );
@@ -306,4 +319,116 @@ export async function getUserLedgerDetail(
       updatedAt: p.updatedAt.toISOString(),
     })),
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Credit Limit Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const CREDIT_LIMIT_SETTING_KEY = "CREDIT_LIMIT_GLOBAL_DEFAULT";
+const DEFAULT_CREDIT_LIMIT = 4000;
+
+export { DEFAULT_CREDIT_LIMIT, CREDIT_LIMIT_SETTING_KEY };
+
+export async function getGlobalCreditLimit(): Promise<number> {
+  const row = await prisma.systemSetting.findUnique({ where: { key: CREDIT_LIMIT_SETTING_KEY } });
+  const parsed = row ? parseFloat(row.value) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_CREDIT_LIMIT;
+}
+
+export async function setGlobalCreditLimit(value: number): Promise<void> {
+  await prisma.systemSetting.upsert({
+    where: { key: CREDIT_LIMIT_SETTING_KEY },
+    update: { value: String(value) },
+    create: { key: CREDIT_LIMIT_SETTING_KEY, value: String(value) },
+  });
+}
+
+export interface EffectiveCreditLimit {
+  limit: number;
+  isOverride: boolean;
+  globalDefault: number;
+}
+
+export async function getEffectiveCreditLimit(userId: string): Promise<EffectiveCreditLimit> {
+  const [user, globalDefault] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { creditLimitOverride: true } }),
+    getGlobalCreditLimit(),
+  ]);
+
+  if (user?.creditLimitOverride !== null && user?.creditLimitOverride !== undefined) {
+    return { limit: user.creditLimitOverride, isOverride: true, globalDefault };
+  }
+  return { limit: globalDefault, isOverride: false, globalDefault };
+}
+
+export async function setUserCreditLimitOverride(
+  userId: string,
+  value: number | null
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { creditLimitOverride: value },
+  });
+}
+
+/** Fast current balance for a single user (no full timeline load — for the order-time check). */
+export async function getUserBalance(userId: string): Promise<number> {
+  const [debitAgg, paidAgg] = await Promise.all([
+    prisma.order.aggregate({
+      where: { userId, status: { not: "CANCELLED" } },
+      _sum: { totalAmount: true },
+    }),
+    prisma.payment.aggregate({
+      where: { userId },
+      _sum: { amount: true },
+    }),
+  ]);
+  const totalDebit = debitAgg._sum.totalAmount ?? 0;
+  const totalPaid = paidAgg._sum.amount ?? 0;
+  return Math.round((totalDebit - totalPaid) * 100) / 100;
+}
+
+export interface CreditLimitCheckResult {
+  allowed: boolean;
+  code?: "CREDIT_LIMIT_EXCEEDED";
+  message?: string;
+  currentBalance: number;
+  limit: number;
+  projectedBalance: number;
+}
+
+/**
+ * Call this right before creating a new order, with the order's total amount.
+ * Blocks the order if (currentBalance + newOrderAmount) would exceed the
+ * customer's effective credit limit (their personal override, or the global
+ * default if they have none).
+ */
+export async function checkCreditLimitForNewOrder(
+  userId: string,
+  newOrderAmount: number
+): Promise<CreditLimitCheckResult> {
+  const [{ limit }, currentBalance] = await Promise.all([
+    getEffectiveCreditLimit(userId),
+    getUserBalance(userId),
+  ]);
+
+  const projectedBalance = Math.round((currentBalance + newOrderAmount) * 100) / 100;
+
+  if (projectedBalance > limit) {
+    return {
+      allowed: false,
+      code: "CREDIT_LIMIT_EXCEEDED",
+      message: `This order would take your outstanding due to ₹${projectedBalance.toFixed(
+        2
+      )}, which is above your credit limit of ₹${limit.toFixed(
+        2
+      )}. Please clear some of your due amount, or contact the admin to increase your limit before placing this order.`,
+      currentBalance,
+      limit,
+      projectedBalance,
+    };
+  }
+
+  return { allowed: true, currentBalance, limit, projectedBalance };
 }

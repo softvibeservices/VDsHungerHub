@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, Shield, UserCheck, UserMinus, Pencil, Check, AlertTriangle } from "lucide-react";
+import { Plus, Shield, UserCheck, UserMinus, Pencil, Check, AlertTriangle, Trash2 } from "lucide-react";
 import Table, { Column } from "@/components/ui/Table";
 import Button from "@/components/ui/Button";
 import SearchInput from "@/components/ui/SearchInput";
@@ -48,6 +48,10 @@ export default function ManageStaffPage() {
   // Status toggle confirmation dialog
   const [toggleConfirmStaff, setToggleConfirmStaff] = useState<StaffUser | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
+
+  // Delete staff confirmation dialog
+  const [deleteConfirmStaff, setDeleteConfirmStaff] = useState<StaffUser | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Form states
   const [name, setName] = useState("");
@@ -185,6 +189,26 @@ export default function ManageStaffPage() {
     }
   };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmStaff) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/staff/${deleteConfirmStaff.id}`, { method: "DELETE" });
+      if (res.ok) {
+        toast.success(`${deleteConfirmStaff.name} has been deleted and logged out.`);
+        setDeleteConfirmStaff(null);
+        fetchStaff();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to delete staff member.");
+      }
+    } catch {
+      toast.error("Network error. Could not delete staff member.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const columns: Column<StaffUser>[] = [
     {
       key: "name",
@@ -275,6 +299,13 @@ export default function ManageStaffPage() {
                 title={row.status === "ACTIVE" ? "Deactivate staff" : "Activate staff"}
               >
                 {row.status === "ACTIVE" ? <UserMinus size={14} /> : <UserCheck size={14} />}
+              </button>
+              <button
+                onClick={() => setDeleteConfirmStaff(row)}
+                className="p-1 text-gray-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                title="Delete staff member"
+              >
+                <Trash2 size={14} />
               </button>
             </>
           )}
@@ -420,6 +451,17 @@ export default function ManageStaffPage() {
         } ${toggleConfirmStaff?.name}?`}
         confirmLabel={toggleConfirmStaff?.status === "ACTIVE" ? "Deactivate" : "Activate"}
         isLoading={togglingStatus}
+      />
+
+      {/* Permanent Delete Staff Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={deleteConfirmStaff !== null}
+        onClose={() => setDeleteConfirmStaff(null)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Staff Member"
+        message={`Are you sure you want to permanently delete ${deleteConfirmStaff?.name}? They will be logged out immediately and will no longer be able to sign in. This cannot be undone.`}
+        confirmLabel="Delete Permanently"
+        isLoading={deleting}
       />
     </div>
   );

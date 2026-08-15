@@ -248,6 +248,15 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // FIX #8: confirm modal state
   const [showConfirm, setShowConfirm] = useState(false);
 
+  // Credit limit breach modal state
+  const [creditLimitBreach, setCreditLimitBreach] = useState<{
+    currentBalance: number;
+    limit: number;
+    projectedBalance: number;
+    orderAmount: number;
+    message?: string;
+  } | null>(null);
+
   // Inline quick-add thali tray state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [sabjiRefExpanded, setSabjiRefExpanded] = useState(false);
@@ -453,7 +462,21 @@ export default function OrderingExperience({ userId, menu }: Props) {
       });
 
       const data = await res.json();
-      if (!res.ok) { toast.error(data.error ?? "Order failed"); return; }
+      if (!res.ok) {
+        if (data.code === "CREDIT_LIMIT_EXCEEDED" || data.currentBalance !== undefined) {
+          setShowConfirm(false);
+          setCreditLimitBreach({
+            currentBalance: data.currentBalance ?? 0,
+            limit: data.limit ?? 4000,
+            projectedBalance: data.projectedBalance ?? (data.currentBalance + grandTotal),
+            orderAmount: data.orderAmount ?? grandTotal,
+            message: data.error,
+          });
+          return;
+        }
+        toast.error(data.error ?? "Order failed");
+        return;
+      }
 
       setOrderPlaced(true);
       setShowConfirm(false);
@@ -1254,6 +1277,108 @@ export default function OrderingExperience({ userId, menu }: Props) {
           onConfirm={handleSubmit}
         />
       )}
+
+      {/* Credit Limit Breach Modal */}
+      {creditLimitBreach && (
+        <CreditLimitBreachModal
+          data={creditLimitBreach}
+          onClose={() => setCreditLimitBreach(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Credit Limit Breach Modal Component ───────────────────────────────────────
+
+interface CreditLimitBreachData {
+  currentBalance: number;
+  limit: number;
+  projectedBalance: number;
+  orderAmount: number;
+  message?: string;
+}
+
+function CreditLimitBreachModal({
+  data,
+  onClose,
+}: {
+  data: CreditLimitBreachData;
+  onClose: () => void;
+}) {
+  const whatsappMsg = encodeURIComponent(
+    `Hello ViTa Cuisine Admin,\nMy order for ₹${data.orderAmount.toFixed(
+      2
+    )} was blocked because my account reached the credit limit.\n\n• Current Outstanding Due: ₹${data.currentBalance.toFixed(
+      2
+    )}\n• Credit Limit: ₹${data.limit.toFixed(
+      2
+    )}\n\nPlease assist me with clearing my balance or updating my credit limit.`
+  );
+  const whatsappLink = `https://wa.me/916356350086?text=${whatsappMsg}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-5 border border-red-100">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+            <AlertCircle size={26} className="text-red-600" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+              Credit Limit Exceeded
+            </h3>
+            <p className="text-xs text-red-600 font-semibold mt-0.5">
+              Order cannot be placed
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-red-50/70 border border-red-100 rounded-2xl p-4 space-y-2 text-xs">
+          <div className="flex justify-between items-center text-gray-700">
+            <span>Current Outstanding Due:</span>
+            <span className="font-bold text-gray-900">{formatCurrency(data.currentBalance)}</span>
+          </div>
+          <div className="flex justify-between items-center text-gray-700">
+            <span>This Order Amount:</span>
+            <span className="font-bold text-gray-900">{formatCurrency(data.orderAmount)}</span>
+          </div>
+          <div className="flex justify-between items-center text-red-700 pt-2 border-t border-red-200/60 font-bold text-sm">
+            <span>Projected Total Due:</span>
+            <span className="text-red-700 font-black">{formatCurrency(data.projectedBalance)}</span>
+          </div>
+          <div className="flex justify-between items-center text-gray-600 pt-1">
+            <span>Your Allowed Credit Limit:</span>
+            <span className="font-extrabold text-gray-800">{formatCurrency(data.limit)}</span>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-600 leading-relaxed">
+          Placing this order would take your total due amount to{" "}
+          <strong className="text-gray-900">{formatCurrency(data.projectedBalance)}</strong>, crossing your allowed credit limit of{" "}
+          <strong className="text-gray-900">{formatCurrency(data.limit)}</strong>.
+          Please clear your pending dues or contact administration to request a limit increase.
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all"
+          >
+            <MessageSquare size={16} /> Contact Admin on WhatsApp
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full sm:w-auto py-3 px-5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl text-xs transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -294,6 +294,8 @@ export interface UserLedgerRow {
   balance: number;
   lastOrderAt: string | null;
   lastPaymentAt: string | null;
+  creditLimit: number;
+  hasCreditLimitOverride: boolean;
 }
 
 export interface LedgerTimelineItem {

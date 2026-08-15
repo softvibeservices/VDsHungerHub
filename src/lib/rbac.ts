@@ -27,6 +27,7 @@ export const ADMIN_AUTHENTICATED_PAGE_PREFIXES = [
   "/users",
   "/staff",
   "/credit",
+  "/profile",
 ] as const;
 
 /**
@@ -54,6 +55,7 @@ export const ADMIN_ONLY_API_PREFIXES = [
   "/api/users",
   "/api/admin/staff",
   "/api/admin/credit",
+  "/api/admin/settings",
 ] as const;
 
 /** Boundary-safe prefix match: "/staff" must NOT match "/staff-login". */

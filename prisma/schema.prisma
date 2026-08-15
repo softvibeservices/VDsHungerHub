@@ -85,6 +85,11 @@ model User {
   latitude  Float?
   longitude Float?
 
+  // Per-customer credit (debit) limit override. Null = use the global
+  // default stored in SystemSetting("CREDIT_LIMIT_GLOBAL_DEFAULT").
+  // When set, this value takes precedence for this customer only.
+  creditLimitOverride Float?
+
   // Block/Ban features
   status            UserStatus @default(ACTIVE)
   statusReason      String?
@@ -582,6 +587,7 @@ enum StaffRole {
 enum StaffStatus {
   ACTIVE
   INACTIVE
+  DELETED
 }
 
 model StaffUser {

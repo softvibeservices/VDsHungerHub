@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getTodayIST } from "@/lib/utils";
 import { getEffectiveCutoffDate } from "@/lib/time";
+import { checkCreditLimitForNewOrder } from "@/lib/credit";
 import {
   verifyCustomerAccessToken,
   getOrderLimit,
@@ -323,6 +324,22 @@ export async function POST(req: NextRequest) {
       0
     );
     const totalAmount = thaliTotal + addonTotal;
+
+    // ── Enforce customer credit (due-amount) limit ──────────────────────────
+    const creditCheck = await checkCreditLimitForNewOrder(userId, totalAmount);
+    if (!creditCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: creditCheck.message,
+          code: creditCheck.code,
+          currentBalance: creditCheck.currentBalance,
+          limit: creditCheck.limit,
+          projectedBalance: creditCheck.projectedBalance,
+          orderAmount: totalAmount,
+        },
+        { status: 403 }
+      );
+    }
 
     // ── Create order (use first thali as legacy thaliId for backwards compat) ──
     const primaryThaliId = (thaliItems as any[])[0]?.thaliId;

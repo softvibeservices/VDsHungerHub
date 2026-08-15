@@ -17,6 +17,7 @@ import {
   UserCheck,
   Wallet,
   Menu,
+  UserCog,
 } from "lucide-react";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/hooks/useToast";
@@ -65,9 +66,9 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    label: "Settings",
+    label: "Account",
     items: [
-      { href: "/settings/meal-cutoff", icon: Settings, label: "Order Cutoff Times", roles: ["ADMIN", "STAFF"] },
+      { href: "/profile", icon: UserCog, label: "My Profile", roles: ["ADMIN", "STAFF"] },
     ],
   },
 ];
@@ -203,12 +204,17 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
         {/* Footer — User info + logout */}
         <div className="px-4 py-4 border-t border-gray-800">
-          <div className="flex items-center gap-3 mb-3 px-1">
-            <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold">
+          <Link
+            href="/profile"
+            onClick={handleNavClick}
+            className="flex items-center gap-3 mb-3 p-1.5 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer group"
+            title="View Profile"
+          >
+            <div className="w-8 h-8 rounded-full bg-orange-500 group-hover:bg-orange-600 flex items-center justify-center text-white text-xs font-bold shrink-0 transition-colors">
               {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-gray-200 text-xs font-semibold truncate">
+              <p className="text-gray-200 group-hover:text-white text-xs font-semibold truncate transition-colors">
                 {currentUser?.name ?? "Loading..."}
               </p>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -218,7 +224,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </span>
               </div>
             </div>
-          </div>
+          </Link>
           <button
             onClick={() => setLogoutConfirmOpen(true)}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-sm font-medium transition-all duration-150 cursor-pointer"

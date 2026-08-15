@@ -87,3 +87,69 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const session = await verifyStaffSession(req);
+    if (!session || session.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Admin access only" }, { status: 403 });
+    }
+
+    if (id === session.staffId) {
+      return NextResponse.json({ error: "You cannot delete your own account." }, { status: 400 });
+    }
+
+    const target = await prisma.staffUser.findUnique({ where: { id } });
+    if (!target || target.status === "DELETED") {
+      return NextResponse.json({ error: "Staff member not found" }, { status: 404 });
+    }
+
+    if (target.role === "ADMIN") {
+      return NextResponse.json(
+        { error: "Admin accounts cannot be deleted from this screen." },
+        { status: 400 }
+      );
+    }
+
+    // Free up the mobile number for reuse on a future staff account, while
+    // keeping the row (and its id) intact for Payment/OrderComment/BanHistory/
+    // AdminAuditLog references that point at this staffId.
+    const mangledMobile = `deleted_${Date.now()}_${target.mobile}`;
+
+    const [deletedStaff] = await prisma.$transaction([
+      prisma.staffUser.update({
+        where: { id },
+        data: {
+          status: "DELETED",
+          mobile: mangledMobile,
+          passwordHash: null,
+          mustChangePassword: false,
+          permissions: [],
+        },
+      }),
+      prisma.adminAuditLog.create({
+        data: {
+          actedByStaffId: session.staffId,
+          action: "STAFF_USER_DELETED",
+          targetType: "StaffUser",
+          targetId: id,
+          metadata: { name: target.name, mobile: target.mobile }, // preserve original mobile for audit readability
+        },
+      }),
+    ]);
+
+    return NextResponse.json({ success: true, staff: deletedStaff });
+  } catch (error: any) {
+    if (error?.code === "P2025") {
+      return NextResponse.json({ error: "Staff member not found" }, { status: 404 });
+    }
+    console.error("[ADMIN STAFF DELETE]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+

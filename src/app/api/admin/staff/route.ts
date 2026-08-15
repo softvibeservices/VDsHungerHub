@@ -26,6 +26,9 @@ export async function GET(req: NextRequest) {
     const where: any = {};
     if (statusParam === "ACTIVE" || statusParam === "INACTIVE") {
       where.status = statusParam;
+    } else {
+      // Default view (no status filter selected): never show deleted staff.
+      where.status = { not: "DELETED" };
     }
     if (search) {
       where.OR = [

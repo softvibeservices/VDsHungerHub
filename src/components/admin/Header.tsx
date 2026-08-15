@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -13,6 +14,7 @@ const pageTitles: Record<string, { title: string; description?: string }> = {
   "/orders": { title: "Orders", description: "View and manage today's customer orders" },
   "/daily-menu": { title: "Daily Menu", description: "Set lunch and dinner menus for ordering" },
   "/credit": { title: "Credit", description: "Track customer balances, credit, and payments" },
+  "/profile": { title: "My Profile", description: "Manage account password, cutoff times, and credit limits" },
   "/settings/meal-cutoff": { title: "Order Cutoff Times", description: "Configure when ordering opens and closes" },
   "/menu": { title: "Customer Menu" },
 };
@@ -58,11 +60,15 @@ export default function Header({ onMenuToggle }: HeaderProps) {
         )}
       </div>
 
-      {/* Right side user avatar */}
+      {/* Right side user avatar -> links to My Profile */}
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs font-bold shadow-sm">
+        <Link
+          href="/profile"
+          className="w-8 h-8 rounded-full bg-orange-500 hover:bg-orange-600 active:scale-95 flex items-center justify-center text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+          title={`My Profile (${currentUser?.name ?? "Account"})`}
+        >
           {initials}
-        </div>
+        </Link>
       </div>
     </header>
   );

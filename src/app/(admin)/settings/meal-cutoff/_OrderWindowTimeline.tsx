@@ -82,14 +82,14 @@ export default function OrderWindowTimeline({
   }, [nowMinutes, visibleMins, cutoffMins, isWraparound]);
 
   return (
-    <div className="space-y-4 bg-slate-50 border border-slate-200/80 p-4 rounded-2xl shadow-inner">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 bg-slate-50 border border-slate-200/80 p-3.5 sm:p-4 rounded-2xl shadow-inner max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-          <Clock size={14} className="text-slate-400" /> Live Ordering Timeline (IST)
+          <Clock size={14} className="text-slate-400 shrink-0" /> Live Ordering Timeline (IST)
         </p>
         <span
           className={cn(
-            "text-xs font-extrabold px-2.5 py-0.5 rounded-full border shadow-sm",
+            "text-xs font-extrabold px-2.5 py-0.5 rounded-full border shadow-sm w-fit",
             isOrderingActiveNow
               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
               : "bg-amber-50 text-amber-700 border-amber-200"
@@ -100,16 +100,16 @@ export default function OrderWindowTimeline({
       </div>
 
       {/* Visual Timeline Bar */}
-      <div className="space-y-2 pt-2 pb-1">
+      <div className="space-y-2 pt-1 pb-1">
         {/* Key Information Badges */}
-        <div className="flex items-center justify-between text-xs font-bold px-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs font-bold px-0.5">
           <div className="flex items-center gap-1.5 text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block shrink-0" />
             <span>Visible From: <strong className="text-slate-900">{format12h(menuVisibleFrom)}</strong></span>
           </div>
 
           <div className="flex items-center gap-1.5 text-slate-700">
-            <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block shrink-0" />
             <span>Cutoff Time: <strong className="text-slate-900">{format12h(cutoffTime)}</strong></span>
           </div>
         </div>
