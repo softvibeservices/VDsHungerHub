@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import {
   MessageCircle,
   Phone,
@@ -13,13 +14,12 @@ import {
   Users,
   UtensilsCrossed,
   ArrowRight,
-  Mail,
   MapPin,
 } from "lucide-react";
 import Button from "@/components/ui/Button";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
-import { WHATSAPP_LINK } from "@/lib/constants";
+import { getWhatsAppInquiryLink, RESTAURANT_MAP_LINK } from "@/lib/constants";
 import { verifyStaffSession } from "@/lib/staff-auth";
 import { redirect } from "next/navigation";
 
@@ -32,9 +32,9 @@ export default async function RootPage() {
   const stepCards = [
     {
       step: "01",
-      icon: MessageCircle,
-      title: "Message or Order",
-      description: "Reach us via WhatsApp or place your order directly on our platform. We respond instantly.",
+      icon: UtensilsCrossed,
+      title: "Select & Order Online",
+      description: "Browse our daily menu on the platform and place your order in seconds.",
     },
     {
       step: "02",
@@ -56,47 +56,69 @@ export default async function RootPage() {
       name: "Corporate Meal Plans",
       description: "Customized bulk meal subscriptions for offices and corporate teams. Simplified billing and guaranteed daily delivery.",
       badge: "Most Popular",
+      inquiryLink: getWhatsAppInquiryLink("Hi ViTa Cuisine! I would like to inquire about Corporate Meal Plans for our office."),
     },
     {
       icon: PartyPopper,
       name: "Birthday & Party Orders",
       description: "Make your celebrations special with our curated party platters and festive meal packages.",
       badge: null,
+      inquiryLink: getWhatsAppInquiryLink("Hi ViTa Cuisine! I would like to inquire about Birthday & Party Catering packages."),
     },
     {
       icon: Users,
       name: "Family Pack Meals",
       description: "Wholesome home-style meals for the whole family, packed fresh and portioned perfectly.",
       badge: null,
+      inquiryLink: getWhatsAppInquiryLink("Hi ViTa Cuisine! I would like to inquire about Family Pack Meals."),
     },
     {
       icon: UtensilsCrossed,
       name: "Bulk Catering Services",
       description: "Large-scale catering for events, functions, and gatherings. Quality at scale, without compromise.",
       badge: "Enterprise",
+      inquiryLink: getWhatsAppInquiryLink("Hi ViTa Cuisine! I would like to inquire about Bulk Event Catering Services."),
     },
   ];
 
   const menuCards = [
     {
-      name: "Standard Thali",
-      price: "Best Value",
-      description: "Our everyday favorite: balanced, clean, and completely filling.",
-      items: ["4 Roti", "Dal / Kadhi", "Rice", "Today's Special Sabji", "Salad & Pickle"],
+      name: "Gujarati Thalis",
+      nameGu: "ગુજરાતી થાળી",
+      price: "₹80 - ₹120",
+      description: "Authentic home-style Gujarati meals prepared fresh daily for Lunch & Dinner.",
+      badge: "Small · Medium · Full",
+      items: [
+        "Small (₹80): 4 Roti, 1 Subji, Salad, Buttermilk",
+        "Medium (₹100): 4 Roti, 1 Subji, Dal, Rice, Salad, Buttermilk",
+        "Full (₹120): 5 Roti, 2 Subji, Dal, Rice, Salad, Buttermilk, Papad",
+      ],
       highlight: false,
     },
     {
-      name: "Deluxe Thali",
-      price: "Premium",
-      description: "Extra portions with a choice of sabjis for the complete experience.",
-      items: ["5 Roti", "Dal Fry", "Jeera Rice", "2 Special Sabji Choices", "Sweet of the Day", "Salad & Papad"],
+      name: "Punjabi Thalis",
+      nameGu: "પંજાબી થાળી",
+      price: "₹100 - ₹140",
+      description: "Rich, aromatic North-Indian meals featuring special sabjis and Dal Fry.",
+      badge: "Most Popular",
+      items: [
+        "Small (₹100): 4 Roti, 1 Subji, Salad, Buttermilk",
+        "Medium (₹120): 4 Roti, 1 Subji, Dal Fry, Jeera Rice, Salad, Buttermilk",
+        "Full (₹140): 5 Roti, 2 Subji, Dal Fry, Jeera Rice, Salad, Buttermilk, Papad",
+      ],
       highlight: true,
     },
     {
-      name: "Light Thali",
-      price: "Light Option",
-      description: "A lighter, simpler meal option perfect for everyday office lunch.",
-      items: ["3 Roti", "Kadhi", "Rice", "Today's Dry Sabji", "Salad"],
+      name: "Specials & Combos",
+      nameGu: "દાળ ફ્રાય & રાજમા સ્પેશિયલ",
+      price: "₹80 - ₹100",
+      description: "Hearty single-dish combos served with aromatic Jeera Rice and fresh Curd.",
+      badge: "Special Options",
+      items: [
+        "Dal Fry Special (₹80): Dal Fry + Jeera Rice + Curd",
+        "Rajma Special (₹100): Rajma + Jeera Rice + Curd",
+        "Freshly prepared & portioned perfectly for lunch",
+      ],
       highlight: false,
     },
   ];
@@ -145,9 +167,15 @@ export default async function RootPage() {
             {/* Left: Text content */}
             <div className="lg:col-span-6 space-y-7">
               <div>
-                <span className="inline-flex items-center gap-2 bg-[#C9A84C]/15 text-[#C9A84C] text-xs font-extrabold px-4 py-2 rounded-full border border-[#C9A84C]/30 mb-5">
-                  🍽️ Restaurant & Cloud Kitchen · Thaltej, Ahmedabad
-                </span>
+                <a
+                  href={RESTAURANT_MAP_LINK}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-[#C9A84C]/15 hover:bg-[#C9A84C]/25 text-[#C9A84C] text-xs font-extrabold px-4 py-2 rounded-full border border-[#C9A84C]/30 mb-5 transition-all duration-200 group"
+                >
+                  <MapPin size={14} className="text-[#C9A84C] group-hover:scale-110 transition-transform" />
+                  <span>🍽️ Restaurant & Cloud Kitchen · Thaltej, Ahmedabad (View Location)</span>
+                </a>
                 <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold text-white leading-tight tracking-tight">
                   Fresh, Home-Style
                   <br />
@@ -178,19 +206,19 @@ export default async function RootPage() {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
-                <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">
+                <Link href="/menu" className="w-full sm:w-auto">
                   <Button
                     variant="primary"
                     size="lg"
                     className="w-full sm:w-auto bg-[#C9A84C] hover:bg-[#b8963f] text-[#0F1E3D] font-bold border-0 rounded-xl shadow-xl shadow-[#C9A84C]/25 hover:shadow-[#C9A84C]/40 transition-all duration-300"
-                    leftIcon={<MessageCircle size={18} />}
+                    leftIcon={<UtensilsCrossed size={18} />}
                   >
-                    Order on WhatsApp
+                    Order Online
                   </Button>
-                </a>
-                <a href="/menu">
+                </Link>
+                <a href="/#thalis" className="w-full sm:w-auto">
                   <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-semibold text-white border border-white/40 hover:bg-white/15 hover:border-white/70 rounded-xl transition-all duration-300">
-                    Explore Menu <ArrowRight size={16} />
+                    Explore Packages <ArrowRight size={16} />
                   </button>
                 </a>
               </div>
@@ -294,7 +322,7 @@ export default async function RootPage() {
                   </div>
 
                   <div className="pt-6">
-                    <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">
+                    <a href={s.inquiryLink} target="_blank" rel="noopener noreferrer">
                       <button className="w-full py-2 px-4 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-[#0F1E3D] hover:text-white hover:border-[#0F1E3D] transition-all duration-200 flex items-center justify-center gap-2">
                         Inquire Now <ArrowRight size={14} />
                       </button>
@@ -308,7 +336,7 @@ export default async function RootPage() {
       </section>
 
       {/* ─── HOW IT WORKS ─── */}
-      <section className="py-20 px-4 bg-white">
+      <section id="how-it-works" className="py-20 px-4 bg-white scroll-mt-20">
         <div className="max-w-7xl mx-auto space-y-14">
           <div className="text-center space-y-3">
             <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">How It Works</span>
@@ -352,7 +380,7 @@ export default async function RootPage() {
               Daily Thali Packages
             </h2>
             <p className="text-gray-300 text-sm max-w-xl mx-auto">
-              Curated daily for Lunch & Dinner with fresh sabjis, hot rotis, and traditional Gujarati recipes.
+              Curated daily for Lunch & Dinner with fresh sabjis, hot rotis, and traditional Gujarati & Punjabi recipes.
             </p>
           </div>
 
@@ -368,7 +396,7 @@ export default async function RootPage() {
               >
                 {menu.highlight && (
                   <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 bg-[#C9A84C] text-[#0F1E3D] text-[10px] font-black uppercase tracking-widest px-4 py-1 rounded-full shadow-md">
-                    Most Ordered
+                    {menu.badge}
                   </span>
                 )}
 
@@ -376,6 +404,7 @@ export default async function RootPage() {
                   <div>
                     <span className="text-xs font-bold text-[#C9A84C]">{menu.price}</span>
                     <h3 className="text-2xl font-extrabold mt-1">{menu.name}</h3>
+                    <p className="text-xs text-[#C9A84C]/80 font-semibold">{menu.nameGu}</p>
                     <p className="text-gray-300 text-xs mt-2 leading-relaxed">{menu.description}</p>
                   </div>
 
@@ -384,7 +413,7 @@ export default async function RootPage() {
                     <ul className="space-y-2">
                       {menu.items.map((item) => (
                         <li key={item} className="flex items-center gap-2.5 text-xs text-gray-200 font-medium">
-                          <div className="w-1.5 h-1.5 rounded-full bg-[#C9A84C]" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-[#C9A84C] shrink-0" />
                           {item}
                         </li>
                       ))}
@@ -393,7 +422,7 @@ export default async function RootPage() {
                 </div>
 
                 <div className="pt-8">
-                  <a href="/menu">
+                  <Link href="/menu">
                     <button
                       className={`w-full py-3 px-6 rounded-xl text-xs font-bold transition-all duration-200 ${
                         menu.highlight
@@ -401,9 +430,9 @@ export default async function RootPage() {
                           : "bg-white/10 hover:bg-white/20 text-white border border-white/20"
                       }`}
                     >
-                      View Today&apos;s Choices
+                      View & Order on Platform
                     </button>
-                  </a>
+                  </Link>
                 </div>
               </div>
             ))}
@@ -412,7 +441,7 @@ export default async function RootPage() {
       </section>
 
       {/* ─── WHY CHOOSE US ─── */}
-      <section className="py-20 px-4 bg-gray-50">
+      <section id="why-us" className="py-20 px-4 bg-gray-50 scroll-mt-20">
         <div className="max-w-7xl mx-auto space-y-12">
           <div className="text-center space-y-3">
             <span className="text-xs font-bold text-[#C9A84C] uppercase tracking-widest">Why ViTa Cuisine</span>
@@ -474,14 +503,18 @@ export default async function RootPage() {
       </section>
 
       {/* ─── CTA BANNER ─── */}
-      <section className="bg-gradient-to-r from-[#0F1E3D] to-[#1B2D5A] text-white py-16 px-4">
+      <section id="contact" className="bg-gradient-to-r from-[#0F1E3D] to-[#1B2D5A] text-white py-16 px-4 scroll-mt-20">
         <div className="max-w-5xl mx-auto text-center space-y-6">
           <h2 className="text-3xl md:text-4xl font-extrabold">Ready to Taste Home-Style Goodness?</h2>
           <p className="text-gray-300 text-sm max-w-xl mx-auto">
             Get in touch for daily tiffin subscriptions, office lunch plans, or bulk event catering.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
-            <a href={WHATSAPP_LINK} target="_blank" rel="noopener noreferrer">
+            <a
+              href={getWhatsAppInquiryLink("Hi ViTa Cuisine! I would like to inquire about daily tiffin subscriptions or catering services.")}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Button
                 variant="primary"
                 size="lg"

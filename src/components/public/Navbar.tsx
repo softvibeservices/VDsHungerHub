@@ -34,19 +34,23 @@ export default function Navbar() {
 
         {/* Desktop Nav Links */}
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
-          <a href="#how-it-works" className="hover:text-[#1B2D5A] transition-colors relative group">
+          <a href="/#how-it-works" className="hover:text-[#1B2D5A] transition-colors relative group">
             How It Works
             <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-[#C9A84C] group-hover:w-full transition-all duration-300" />
           </a>
-          <a href="#offerings" className="hover:text-[#1B2D5A] transition-colors relative group">
+          <a href="/#thalis" className="hover:text-[#1B2D5A] transition-colors relative group">
+            Thali Packages
+            <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-[#C9A84C] group-hover:w-full transition-all duration-300" />
+          </a>
+          <a href="/#offerings" className="hover:text-[#1B2D5A] transition-colors relative group">
             Our Services
             <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-[#C9A84C] group-hover:w-full transition-all duration-300" />
           </a>
-          <a href="#why-us" className="hover:text-[#1B2D5A] transition-colors relative group">
+          <a href="/#why-us" className="hover:text-[#1B2D5A] transition-colors relative group">
             Why Us
             <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-[#C9A84C] group-hover:w-full transition-all duration-300" />
           </a>
-          <a href="#contact" className="hover:text-[#1B2D5A] transition-colors relative group">
+          <a href="/#contact" className="hover:text-[#1B2D5A] transition-colors relative group">
             Contact
             <span className="absolute -bottom-0.5 left-0 w-0 h-0.5 bg-[#C9A84C] group-hover:w-full transition-all duration-300" />
           </a>
@@ -78,16 +82,19 @@ export default function Navbar() {
       {/* Mobile Dropdown Panel */}
       {mobileOpen && (
         <div className="md:hidden border-t border-gray-100 bg-white/98 backdrop-blur-md px-4 py-4 space-y-3 shadow-lg">
-          <a href="#how-it-works" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
+          <a href="/#how-it-works" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
             How It Works
           </a>
-          <a href="#offerings" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
+          <a href="/#thalis" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
+            Thali Packages
+          </a>
+          <a href="/#offerings" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
             Our Services
           </a>
-          <a href="#why-us" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
+          <a href="/#why-us" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
             Why Us
           </a>
-          <a href="#contact" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
+          <a href="/#contact" onClick={() => setMobileOpen(false)} className="block text-sm font-medium text-gray-700 hover:text-[#1B2D5A] py-2 border-b border-gray-50 transition-colors">
             Contact
           </a>
           <div className="pt-2">

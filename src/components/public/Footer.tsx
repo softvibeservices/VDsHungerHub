@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { MessageCircle, Phone, Mail, MapPin } from "lucide-react";
-import { WHATSAPP_LINK } from "@/lib/constants";
+import { WHATSAPP_LINK, RESTAURANT_MAP_LINK } from "@/lib/constants";
 
 export default function Footer() {
   return (
@@ -32,10 +32,10 @@ export default function Footer() {
         <div>
           <p className="text-white font-semibold text-sm mb-4 uppercase tracking-widest">Our Services</p>
           <ul className="space-y-2.5 text-sm">
-            <li><a href="#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Corporate Meal Plans</a></li>
-            <li><a href="#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Birthday & Party Orders</a></li>
-            <li><a href="#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Family Pack Meals</a></li>
-            <li><a href="#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Bulk Catering Services</a></li>
+            <li><a href="/#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Corporate Meal Plans</a></li>
+            <li><a href="/#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Birthday & Party Orders</a></li>
+            <li><a href="/#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Family Pack Meals</a></li>
+            <li><a href="/#offerings" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Bulk Catering Services</a></li>
             <li><Link href="/menu" className="hover:text-[#C9A84C] transition-colors flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#C9A84C] inline-block" />Daily Tiffin Subscription</Link></li>
           </ul>
         </div>
@@ -44,9 +44,10 @@ export default function Footer() {
         <div>
           <p className="text-white font-semibold text-sm mb-4 uppercase tracking-widest">Quick Links</p>
           <ul className="space-y-2.5 text-sm">
-            <li><a href="#how-it-works" className="hover:text-[#C9A84C] transition-colors">How It Works</a></li>
-            <li><a href="#offerings" className="hover:text-[#C9A84C] transition-colors">Our Services</a></li>
-            <li><a href="#why-us" className="hover:text-[#C9A84C] transition-colors">Why Choose Us</a></li>
+            <li><a href="/#how-it-works" className="hover:text-[#C9A84C] transition-colors">How It Works</a></li>
+            <li><a href="/#thalis" className="hover:text-[#C9A84C] transition-colors">Daily Thali Packages</a></li>
+            <li><a href="/#offerings" className="hover:text-[#C9A84C] transition-colors">Our Services</a></li>
+            <li><a href="/#why-us" className="hover:text-[#C9A84C] transition-colors">Why Choose Us</a></li>
             <li><Link href="/menu" className="hover:text-[#C9A84C] transition-colors">View Menu & Order</Link></li>
           </ul>
         </div>
@@ -78,9 +79,16 @@ export default function Footer() {
                 Chat on WhatsApp
               </a>
             </li>
-            <li className="flex items-start gap-3">
-              <MapPin size={15} className="mt-0.5 flex-shrink-0 text-[#C9A84C]" />
-              <span className="text-xs leading-relaxed">19, Ayana Complex, Nr. Zydus Cancer Hospital,<br />Zydus Hospital Road, Thaltej-380059.</span>
+            <li>
+              <a
+                href={RESTAURANT_MAP_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-3 hover:text-[#C9A84C] transition-colors group"
+              >
+                <MapPin size={15} className="mt-0.5 flex-shrink-0 text-[#C9A84C] group-hover:scale-110 transition-transform" />
+                <span className="text-xs leading-relaxed underline decoration-dotted underline-offset-4">19, Ayana Complex, Nr. Zydus Cancer Hospital,<br />Zydus Hospital Road, Thaltej-380059.</span>
+              </a>
             </li>
           </ul>
         </div>
