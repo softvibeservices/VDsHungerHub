@@ -1,3 +1,5 @@
+// src\components\public\OtpModal.tsx
+
 "use client";
 
 import { useState, useRef, useEffect } from "react";

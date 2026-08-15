@@ -1,3 +1,5 @@
+// src\components\ui\Table.tsx
+
 import { cn } from "@/lib/utils";
 import { TableRowSkeleton } from "./Loader";
 import { Inbox } from "lucide-react";

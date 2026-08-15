@@ -1,3 +1,5 @@
+// src\app\api\customer\verify-otp\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signPreAuthToken } from "@/lib/customer-auth";
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
           companyId: true,
           companyNameManual: true,
           workAddress: true,
+          homeAddress: true,
           company: { select: { id: true, status: true } },
         },
       });
@@ -170,6 +173,22 @@ export async function POST(req: NextRequest) {
                 type: "WORK",
                 line1: user.workAddress.trim(),
                 isDefault: true,
+              },
+            });
+          }
+        }
+
+        if (user.homeAddress?.trim()) {
+          const existingHome = await tx.address.findFirst({
+            where: { userId, type: "HOME" },
+          });
+          if (!existingHome) {
+            await tx.address.create({
+              data: {
+                userId,
+                type: "HOME",
+                line1: user.homeAddress.trim(),
+                isDefault: false,
               },
             });
           }

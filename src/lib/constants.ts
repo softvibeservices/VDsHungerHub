@@ -1,3 +1,5 @@
+// src\lib\constants.ts
+
 export const RESTAURANT_MAP_LINK = "https://maps.app.goo.gl/QRCNh3tuhkuYcDn76";
 export const WHATSAPP_NUMBER = "916356350086";
 

@@ -1,3 +1,5 @@
+// src\lib\user-auth.ts
+
 import jwt from "jsonwebtoken";
 import type { NextRequest } from "next/server";
 

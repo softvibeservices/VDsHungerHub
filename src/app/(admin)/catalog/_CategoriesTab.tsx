@@ -1,3 +1,5 @@
+// src\app\(admin)\catalog\_CategoriesTab.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";

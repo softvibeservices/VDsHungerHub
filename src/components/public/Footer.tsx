@@ -1,3 +1,5 @@
+// src\components\public\Footer.tsx
+
 import Link from "next/link";
 import Image from "next/image";
 import { MessageCircle, Phone, Mail, MapPin } from "lucide-react";

@@ -1,3 +1,5 @@
+// src\types\index.ts
+
 // Shared TypeScript types for VD's Hunger Hub Admin Panel
 
 export type MealType = "LUNCH" | "DINNER";

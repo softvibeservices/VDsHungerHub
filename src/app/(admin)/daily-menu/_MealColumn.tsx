@@ -1,3 +1,5 @@
+// src\app\(admin)\daily-menu\_MealColumn.tsx
+
 "use client";
 
 import { useState } from "react";

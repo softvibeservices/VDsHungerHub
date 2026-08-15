@@ -1,3 +1,5 @@
+// src\components\customer\AddressSheet.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -263,25 +265,12 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
                 ))}
               </div>
 
-              {/* Add home address button (if no home address) */}
-              {!hasHome && (
-                <button
-                  id="add-home-address"
-                  type="button"
-                  onClick={() => { setAddFormType("HOME"); setShowAddForm(true); }}
-                  className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-orange-300 hover:text-orange-600 transition-all"
-                >
-                  <Plus size={16} />
-                  Add Home Address
-                </button>
-              )}
-
               {/* Add new address */}
               <button
                 id="add-new-address"
                 type="button"
                 onClick={() => { setAddFormType("HOME"); setShowAddForm(true); }}
-                className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm text-gray-500 hover:border-orange-300 hover:text-orange-600 transition-all"
+                className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-600 hover:border-orange-300 hover:text-orange-600 transition-all cursor-pointer"
               >
                 <Plus size={16} />
                 Add Another Address

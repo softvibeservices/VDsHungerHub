@@ -1,3 +1,5 @@
+// src\app\(admin)\profile\password\page.tsx
+
 "use client";
 
 import { useState } from "react";

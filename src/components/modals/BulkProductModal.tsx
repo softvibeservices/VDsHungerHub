@@ -1,3 +1,5 @@
+// src\components\modals\BulkProductModal.tsx
+
 "use client";
 
 import { useState } from "react";

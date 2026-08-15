@@ -1,3 +1,5 @@
+// src\app\api\admin\companies\[id]\verify\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyStaffSession, hasPermission } from "@/lib/staff-auth";

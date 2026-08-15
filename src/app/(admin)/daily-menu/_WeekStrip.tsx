@@ -1,3 +1,5 @@
+// src\app\(admin)\daily-menu\_WeekStrip.tsx
+
 "use client";
 
 import Link from "next/link";

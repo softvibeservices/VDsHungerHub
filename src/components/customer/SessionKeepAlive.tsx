@@ -1,3 +1,5 @@
+// src\components\customer\SessionKeepAlive.tsx
+
 "use client";
 
 import { useEffect } from "react";

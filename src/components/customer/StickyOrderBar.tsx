@@ -1,3 +1,5 @@
+// src\components\customer\StickyOrderBar.tsx
+
 "use client";
 
 import { ShoppingBag, ChevronRight } from "lucide-react";

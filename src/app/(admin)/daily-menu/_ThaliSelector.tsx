@@ -1,3 +1,5 @@
+// src\app\(admin)\daily-menu\_ThaliSelector.tsx
+
 "use client";
 
 import { useMemo } from "react";

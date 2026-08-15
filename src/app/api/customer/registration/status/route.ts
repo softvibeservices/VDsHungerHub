@@ -1,3 +1,5 @@
+// src\app\api\customer\registration\status\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, getClientIp, formatRateLimitWaitTime } from "@/lib/customer-auth";

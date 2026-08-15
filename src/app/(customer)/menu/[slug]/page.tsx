@@ -1,3 +1,5 @@
+// src\app\(customer)\menu\[slug]\page.tsx
+
 "use client";
 
 import { useEffect, useState, use } from "react";

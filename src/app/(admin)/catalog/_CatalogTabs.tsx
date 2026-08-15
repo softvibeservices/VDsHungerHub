@@ -1,3 +1,5 @@
+// src\app\(admin)\catalog\_CatalogTabs.tsx
+
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";

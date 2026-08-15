@@ -1,3 +1,5 @@
+// prisma\schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -390,6 +392,7 @@ enum RateLimitAction {
   STAFF_PASSWORD_ATTEMPT
   PUBLIC_API_REQUEST
   ADD_COMPANY
+  ADD_ADDRESS
 }
 
 model RateLimitEvent {

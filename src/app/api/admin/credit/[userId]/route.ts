@@ -1,3 +1,5 @@
+// src\app\api\admin\credit\[userId]\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { verifyStaffSession } from "@/lib/staff-auth";
 import { getUserLedgerDetail } from "@/lib/credit";

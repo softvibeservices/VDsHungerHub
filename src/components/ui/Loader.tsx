@@ -1,3 +1,5 @@
+// src\components\ui\Loader.tsx
+
 import { Loader2 } from "lucide-react";
 
 interface LoaderProps {

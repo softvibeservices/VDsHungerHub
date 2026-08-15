@@ -1,3 +1,5 @@
+// src\app\(customer)\layout.tsx
+
 import { cookies } from "next/headers";
 import {
   verifyCustomerAccessToken,

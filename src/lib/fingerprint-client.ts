@@ -1,3 +1,5 @@
+// src\lib\fingerprint-client.ts
+
 "use client";
 
 import FingerprintJS from "@fingerprintjs/fingerprintjs";

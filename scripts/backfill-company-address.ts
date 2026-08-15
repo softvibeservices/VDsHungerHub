@@ -1,3 +1,5 @@
+// scripts\backfill-company-address.ts
+
 import { prisma } from "@/lib/prisma";
 
 async function main() {

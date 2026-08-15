@@ -1,3 +1,5 @@
+// src\components\customer\OrderStatusTimeline.tsx
+
 "use client";
 
 import { CheckCircle, Clock, Loader2, Package, Truck } from "lucide-react";

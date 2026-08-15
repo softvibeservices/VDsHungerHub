@@ -1,3 +1,5 @@
+// src\app\api\customer\me\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyCustomerAccessToken, CUSTOMER_ACCESS_COOKIE, checkUserAndDeviceStatus } from "@/lib/customer-auth";

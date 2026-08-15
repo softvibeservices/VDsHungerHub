@@ -1,3 +1,5 @@
+// src\lib\customer-auth.ts
+
 /**
  * Customer Auth Utilities
  *

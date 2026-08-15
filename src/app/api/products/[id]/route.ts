@@ -1,3 +1,5 @@
+// src\app\api\products\[id]\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireStaffAuth } from "@/lib/staff-auth";

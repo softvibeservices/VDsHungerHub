@@ -1,3 +1,5 @@
+// src\components\FingerprintWarmup.tsx
+
 "use client";
 
 import { useEffect } from "react";

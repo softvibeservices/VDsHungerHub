@@ -1,3 +1,5 @@
+// src\components\modals\CategoryModal.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";

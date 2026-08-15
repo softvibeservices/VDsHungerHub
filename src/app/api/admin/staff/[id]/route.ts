@@ -1,3 +1,5 @@
+// src\app\api\admin\staff\[id]\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword } from "@/lib/auth";

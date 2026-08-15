@@ -1,3 +1,5 @@
+// src\app\(admin)\profile\layout.tsx
+
 import ProfileTabs from "./_ProfileTabs";
 
 export default function ProfileLayout({ children }: { children: React.ReactNode }) {

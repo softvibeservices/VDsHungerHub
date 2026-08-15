@@ -1,3 +1,5 @@
+// src\lib\whatsapp-bill.ts
+
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export function buildWhatsAppBillText(row: {

@@ -1,3 +1,5 @@
+// src\app\(admin)\catalog\categories\page.tsx
+
 "use client";
 
 import CategoriesTab from "../_CategoriesTab";

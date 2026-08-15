@@ -1,3 +1,5 @@
+// src\components\customer\AuthTabs.tsx
+
 "use client";
 
 import { useRouter } from "next/navigation";

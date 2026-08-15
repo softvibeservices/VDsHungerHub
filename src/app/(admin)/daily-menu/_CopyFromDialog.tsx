@@ -1,3 +1,5 @@
+// src\app\(admin)\daily-menu\_CopyFromDialog.tsx
+
 "use client";
 
 import { useState, useMemo } from "react";

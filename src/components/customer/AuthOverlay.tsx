@@ -1,3 +1,5 @@
+// src\components\customer\AuthOverlay.tsx
+
 "use client";
 
 import { useEffect, useRef } from "react";

@@ -1,3 +1,5 @@
+// src\app\api\staff\me\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { verifyStaffSession } from "@/lib/staff-auth";
 

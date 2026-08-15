@@ -1,3 +1,5 @@
+// src\app\api\staff\change-password\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashPassword, comparePassword } from "@/lib/auth";

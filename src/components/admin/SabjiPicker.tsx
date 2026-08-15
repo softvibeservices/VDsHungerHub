@@ -1,3 +1,5 @@
+// src\components\admin\SabjiPicker.tsx
+
 "use client";
 
 import { useSabjiSearch } from "@/hooks/useSabjiSearch";

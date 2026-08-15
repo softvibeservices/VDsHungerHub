@@ -1,3 +1,5 @@
+// src\app\order\page.tsx
+
 import { permanentRedirect } from "next/navigation";
 
 /**

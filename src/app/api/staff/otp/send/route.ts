@@ -1,3 +1,5 @@
+// src\app\api\staff\otp\send\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendOtp, MessageCentralError } from "@/lib/message-central";

@@ -1,3 +1,5 @@
+// src\components\ui\Badge.tsx
+
 import { cn } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 

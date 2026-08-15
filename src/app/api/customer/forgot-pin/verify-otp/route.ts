@@ -1,3 +1,5 @@
+// src\app\api\customer\forgot-pin\verify-otp\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {

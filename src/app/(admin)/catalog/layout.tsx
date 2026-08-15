@@ -1,3 +1,5 @@
+// src\app\(admin)\catalog\layout.tsx
+
 import CatalogTabs from "./_CatalogTabs";
 
 export default function CatalogLayout({ children }: { children: React.ReactNode }) {

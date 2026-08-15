@@ -1,3 +1,5 @@
+// src\app\(admin)\orders\_WhatsAppDigestPanel.tsx
+
 "use client";
 
 /**

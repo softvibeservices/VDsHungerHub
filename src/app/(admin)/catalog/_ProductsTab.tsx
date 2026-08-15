@@ -1,3 +1,5 @@
+// src\app\(admin)\catalog\_ProductsTab.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";

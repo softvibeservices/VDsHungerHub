@@ -1,3 +1,5 @@
+// src\app\(admin)\credit\_PaymentModal.tsx
+
 "use client";
 
 import { useState } from "react";

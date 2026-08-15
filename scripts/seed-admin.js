@@ -1,3 +1,5 @@
+// scripts\seed-admin.js
+
 const { PrismaClient } = require('@prisma/client');
 const p = new PrismaClient();
 

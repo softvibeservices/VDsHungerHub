@@ -1,3 +1,5 @@
+// src\components\modals\ThaliModal.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";

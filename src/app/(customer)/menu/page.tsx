@@ -1,3 +1,5 @@
+// src\app\(customer)\menu\page.tsx
+
 import { cookies } from "next/headers";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";

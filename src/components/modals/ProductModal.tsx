@@ -1,3 +1,5 @@
+// src\components\modals\ProductModal.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";

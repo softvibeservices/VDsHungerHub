@@ -1,3 +1,5 @@
+// src\components\ui\BilingualLabel.tsx
+
 import React from "react";
 
 interface BilingualLabelProps {

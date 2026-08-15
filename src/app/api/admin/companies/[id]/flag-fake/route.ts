@@ -1,3 +1,5 @@
+// src\app\api\admin\companies\[id]\flag-fake\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyStaffSession, hasPermission } from "@/lib/staff-auth";

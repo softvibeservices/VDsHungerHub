@@ -1,3 +1,5 @@
+// src\app\(admin)\profile\_ProfileTabs.tsx
+
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";

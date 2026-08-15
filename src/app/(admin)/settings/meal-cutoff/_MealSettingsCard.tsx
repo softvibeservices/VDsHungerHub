@@ -1,3 +1,5 @@
+// src\app\(admin)\settings\meal-cutoff\_MealSettingsCard.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";

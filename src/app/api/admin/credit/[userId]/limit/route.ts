@@ -1,3 +1,5 @@
+// src\app\api\admin\credit\[userId]\limit\route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyStaffSession } from "@/lib/staff-auth";

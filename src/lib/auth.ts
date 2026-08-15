@@ -1,3 +1,5 @@
+// src\lib\auth.ts
+
 import bcrypt from "bcryptjs";
 import { verifyStaffToken, clearStaffSessionCookie } from "@/lib/staff-auth";
 

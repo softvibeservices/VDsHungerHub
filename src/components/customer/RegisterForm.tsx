@@ -1,3 +1,5 @@
+// src\components\customer\RegisterForm.tsx
+
 "use client";
 
 import { useState, useEffect } from "react";

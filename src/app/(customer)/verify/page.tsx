@@ -1,3 +1,5 @@
+// src\app\(customer)\verify\page.tsx
+
 import { redirect } from "next/navigation";
 import { resolveAuthState } from "@/lib/customer-auth";
 import AuthTabs from "@/components/customer/AuthTabs";
