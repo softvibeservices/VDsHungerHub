@@ -51,10 +51,10 @@ export default function Header({ onMenuToggle }: HeaderProps) {
       </button>
 
       {/* Page title and description */}
-      <div className="flex-1">
-        <h1 className="text-lg font-bold text-gray-900 leading-tight">{page.title}</h1>
+      <div className="flex-1 min-w-0">
+        <h1 className="text-lg font-bold text-gray-900 leading-tight truncate">{page.title}</h1>
         {page.description && (
-          <p className="text-xs text-gray-500 hidden sm:block font-medium">{page.description}</p>
+          <p className="text-xs text-gray-500 hidden sm:block font-medium truncate">{page.description}</p>
         )}
       </div>
 

@@ -20,7 +20,7 @@ export default function PageToolbar({
           <div className="flex flex-wrap items-center gap-3">{filters}</div>
         )}
         {actions && (
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             {actions}
           </div>
         )}

@@ -884,7 +884,7 @@ export default function AdminOrdersPage() {
                       {/* Company Status Actions */}
                       <div
                         onClick={(e) => e.stopPropagation()}
-                        className="no-expand flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 shadow-sm"
+                        className="no-expand flex flex-wrap items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 shadow-sm max-w-full"
                       >
                         <span className="text-[10px] font-bold text-gray-400 uppercase px-1 hidden sm:inline">
                           Set All:
@@ -956,7 +956,7 @@ export default function AdminOrdersPage() {
                                 Total: <span className="text-orange-600">{formatCurrency(group.totalAmount)}</span>
                               </span>
 
-                              <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+                              <div className="flex flex-wrap items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm max-w-full">
                                 <button
                                   onClick={() => handleGroupStatusChange(group.orders.map((o) => o.id), "PENDING", group.user.name)}
                                   disabled={updatingId !== null}
@@ -1095,7 +1095,7 @@ export default function AdminOrdersPage() {
                                     </span>
 
                                     {/* Status pill button row */}
-                                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-sm">
+                                    <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-xl p-1 shadow-sm max-w-full">
                                       {([
                                         { status: "PENDING",          label: "Pending",            activeClass: "bg-amber-500 text-white shadow-sm font-bold" },
                                         { status: "OUT_FOR_DELIVERY", label: "🚚 Out for Delivery", activeClass: "bg-indigo-600 text-white shadow-sm font-bold" },
@@ -1171,7 +1171,7 @@ export default function AdminOrdersPage() {
                   </span>
 
                   {/* Customer Bulk Status Buttons */}
-                  <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 shadow-sm max-w-full">
                     <span className="text-[10px] font-bold text-gray-400 uppercase px-1 hidden sm:inline">
                       Set All:
                     </span>

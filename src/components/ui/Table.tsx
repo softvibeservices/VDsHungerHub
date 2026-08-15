@@ -35,8 +35,8 @@ export default function Table<T extends { id: string }>({
         className
       )}
     >
-      <div className={cn("overflow-x-auto", mobileCardRender && "hidden md:block")}>
-        <table className="w-full min-w-[500px]">
+      <div className={cn("overflow-x-auto min-w-full", mobileCardRender && "hidden md:block")}>
+        <table className="w-full min-w-[600px]">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50/70">
               {columns.map((col) => (

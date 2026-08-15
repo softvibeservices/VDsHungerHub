@@ -234,7 +234,7 @@ export default function ProductsTab() {
           <h3 className="text-lg font-bold text-gray-900">Products</h3>
           <p className="text-xs text-gray-500 mt-0.5">Sabji items used to build thalis</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
             leftIcon={<Upload size={16} />}
@@ -256,8 +256,8 @@ export default function ProductsTab() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <SearchInput value={search} onChange={setSearch} placeholder="Search products..." className="w-64" />
-        <Select options={statusOptions} value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} className="w-40" />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search products..." className="w-full sm:w-64" />
+        <Select options={statusOptions} value={activeFilter} onChange={(e) => setActiveFilter(e.target.value)} className="w-full sm:w-40" />
       </div>
 
       <Table
