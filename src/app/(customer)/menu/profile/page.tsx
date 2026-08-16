@@ -8,7 +8,7 @@ import {
   User as UserIcon, Phone, Building2, Home, Briefcase, MapPin, Plus, Pencil, Trash2,
   Star, Loader2, X, Check, AlertCircle, CalendarCheck, MessageSquare, ShoppingBag,
   ShieldCheck, ArrowRight, LogOut, ExternalLink, Wallet, CreditCard, ArrowDownRight,
-  ArrowUpRight, CheckCircle2, Clock, Smartphone, ChevronLeft, ChevronRight,
+  ArrowUpRight, CheckCircle2, Clock, Smartphone, ChevronLeft, ChevronRight, Filter,
 } from "lucide-react";
 import { authedFetch } from "@/lib/customer-api-client";
 import { toast } from "react-hot-toast";
@@ -299,6 +299,7 @@ function ProfileContent() {
   const [typeFilter, setTypeFilter] = useState<"ALL" | "DEBIT" | "CREDIT">("ALL");
   const [currentPage, setCurrentPage] = useState(1);
   const [creditLoading, setCreditLoading] = useState(false);
+  const [showPaymentFilters, setShowPaymentFilters] = useState(false);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addFormType, setAddFormType] = useState<"WORK" | "HOME">("HOME");
@@ -389,6 +390,42 @@ function ProfileContent() {
   const handleTypeFilterChange = (val: "ALL" | "DEBIT" | "CREDIT") => {
     setTypeFilter(val);
     loadCredit(1, startDate, endDate, val);
+  };
+
+  // Quick Preset Handlers for Statement History
+  const handlePreset1to15 = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const sd = `${year}-${month}-01`;
+    const ed = `${year}-${month}-15`;
+    setStartDate(sd);
+    setEndDate(ed);
+    loadCredit(1, sd, ed, typeFilter);
+  };
+
+  const handlePreset16toEnd = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    const sd = `${year}-${month}-16`;
+    const ed = `${year}-${month}-${lastDay}`;
+    setStartDate(sd);
+    setEndDate(ed);
+    loadCredit(1, sd, ed, typeFilter);
+  };
+
+  const handlePresetThisMonth = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    const sd = `${year}-${month}-01`;
+    const ed = `${year}-${month}-${lastDay}`;
+    setStartDate(sd);
+    setEndDate(ed);
+    loadCredit(1, sd, ed, typeFilter);
   };
 
   const handleResetFilters = () => {
@@ -685,8 +722,12 @@ function ProfileContent() {
                     <button
                       type="button"
                       onClick={handleUpiPayClick}
-                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs sm:text-sm px-6 py-3.5 rounded-2xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer animate-pulse"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs sm:text-sm px-6 py-3.5 rounded-2xl shadow-md shadow-emerald-600/20 hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
                     >
+                      <span className="relative flex h-2.5 w-2.5 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                      </span>
                       <Smartphone size={18} /> Pay Now via UPI (7016625488@axl)
                     </button>
                   ) : (
@@ -761,7 +802,7 @@ function ProfileContent() {
             </div>
           </div>
 
-          {/* Statement & Payment History Timeline with Auto-Applying Filters & Pagination (Directive #2) */}
+          {/* Statement & Payment History Timeline with Auto-Applying Filters & Pagination */}
           <div className="bg-white rounded-3xl border border-gray-200 p-4 sm:p-7 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
               <div>
@@ -770,58 +811,117 @@ function ProfileContent() {
                 </h3>
                 <p className="text-xs text-gray-400 font-medium">Automatic real-time filtering</p>
               </div>
-              <span className="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-xl">
-                {credit.pagination?.totalItems ?? credit.timeline.length} transactions
-              </span>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1.5 rounded-xl">
+                  {credit.pagination?.totalItems ?? credit.timeline.length} transactions
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentFilters((v) => !v)}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    showPaymentFilters || startDate || endDate || typeFilter !== "ALL"
+                      ? "bg-orange-50 border-orange-300 text-orange-700 shadow-2xs"
+                      : "bg-white border-gray-200 text-gray-700 hover:border-orange-300 hover:text-orange-600"
+                  }`}
+                >
+                  <Filter size={14} />
+                  <span>{showPaymentFilters ? "Hide Filters" : "Filter / Presets"}</span>
+                  {(startDate || endDate || typeFilter !== "ALL") && (
+                    <span className="w-2 h-2 rounded-full bg-orange-500" />
+                  )}
+                </button>
+              </div>
             </div>
 
-            {/* Filter Bar — Auto Applies on Selection (Directive #2) */}
-            <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">From Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => handleStartDateChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">To Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => handleEndDateChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Transaction Type</label>
-                  <select
-                    value={typeFilter}
-                    onChange={(e) => handleTypeFilterChange(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none font-medium cursor-pointer"
-                  >
-                    <option value="ALL">All Transactions</option>
-                    <option value="DEBIT">Orders (Debits)</option>
-                    <option value="CREDIT">Payments Received</option>
-                  </select>
-                </div>
-              </div>
-
-              {(startDate || endDate || typeFilter !== "ALL") && (
-                <div className="flex justify-end pt-1">
+            {/* Filter Bar — Closed by default, opens on click */}
+            {showPaymentFilters && (
+              <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 space-y-3 animate-fadeIn">
+                {/* Quick Preset Filter Pills */}
+                <div className="flex items-center gap-2 flex-wrap pb-1 border-b border-gray-200/60">
+                  <span className="text-[10px] font-black uppercase text-gray-400">Quick Period:</span>
                   <button
                     type="button"
-                    onClick={handleResetFilters}
-                    className="px-3 py-1.5 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    onClick={handlePreset1to15}
+                    className={`px-3 py-1 text-xs font-extrabold rounded-full border transition-all cursor-pointer ${
+                      startDate.endsWith("-01") && endDate.endsWith("-15")
+                        ? "bg-orange-500 text-white border-orange-500 shadow-xs"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
                   >
-                    Reset Filters
+                    1st–15th
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePreset16toEnd}
+                    className={`px-3 py-1 text-xs font-extrabold rounded-full border transition-all cursor-pointer ${
+                      startDate.endsWith("-16")
+                        ? "bg-orange-500 text-white border-orange-500 shadow-xs"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    16th–End
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePresetThisMonth}
+                    className={`px-3 py-1 text-xs font-extrabold rounded-full border transition-all cursor-pointer ${
+                      startDate.endsWith("-01") && !endDate.endsWith("-15")
+                        ? "bg-orange-500 text-white border-orange-500 shadow-xs"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-gray-100"
+                    }`}
+                  >
+                    This Month
                   </button>
                 </div>
-              )}
-            </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">From Date</label>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">To Date</label>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => handleEndDateChange(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Transaction Type</label>
+                    <select
+                      value={typeFilter}
+                      onChange={(e) => handleTypeFilterChange(e.target.value as any)}
+                      className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none font-medium cursor-pointer"
+                    >
+                      <option value="ALL">All Transactions</option>
+                      <option value="DEBIT">Orders (Debits)</option>
+                      <option value="CREDIT">Payments Received</option>
+                    </select>
+                  </div>
+                </div>
+
+                {(startDate || endDate || typeFilter !== "ALL") && (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="px-3 py-1.5 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Reset Filters
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Timeline Item List */}
             {creditLoading ? (
@@ -833,49 +933,77 @@ function ProfileContent() {
                 No statement records found for the selected filters.
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {credit.timeline.map((item) => (
-                  <div key={item.id} className="py-4 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/50 px-2 rounded-xl transition-colors">
-                    <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <div
-                        className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
-                          item.type === "DEBIT"
-                            ? "bg-red-50 text-red-600"
-                            : "bg-emerald-50 text-emerald-600"
-                        }`}
-                      >
-                        {item.type === "DEBIT" ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
-                      </div>
-                      <div className="min-w-0 flex-1 space-y-1">
-                        <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-snug break-words">
-                          {item.label}
-                        </p>
-                        <p className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
-                          <Clock size={11} /> {format12HourDate(item.date)}
-                        </p>
-                      </div>
-                    </div>
+              <div className="space-y-3">
+                {credit.timeline.map((item) => {
+                  const isDebit = item.type === "DEBIT";
 
-                    <div className="text-right shrink-0">
-                      <p
-                        className={`font-black text-sm sm:text-base ${
-                          item.type === "DEBIT" ? "text-gray-900" : "text-emerald-600"
-                        }`}
-                      >
-                        {item.type === "DEBIT" ? "+" : "-"}₹{item.amount.toFixed(2)}
-                      </p>
-                      <span
-                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md inline-block uppercase mt-1 ${
-                          item.type === "DEBIT"
-                            ? "bg-gray-100 text-gray-700 border border-gray-200"
-                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        }`}
-                      >
-                        {item.type === "DEBIT" ? (item.status ?? "ORDER") : "PAYMENT RECEIVED"}
-                      </span>
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                        isDebit
+                          ? "bg-amber-50/40 border-amber-200/70 hover:border-orange-300"
+                          : "bg-emerald-50/50 border-emerald-200/80 hover:border-emerald-300"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <div
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs font-extrabold text-sm ${
+                            isDebit
+                              ? "bg-orange-500 text-white shadow-orange-500/20"
+                              : "bg-emerald-600 text-white shadow-emerald-600/20"
+                          }`}
+                        >
+                          {isDebit ? "🛍️" : "💳"}
+                        </div>
+
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md ${
+                                isDebit
+                                  ? "bg-orange-100 text-orange-800 border border-orange-200/80"
+                                  : "bg-emerald-100 text-emerald-800 border border-emerald-200/80"
+                              }`}
+                            >
+                              {isDebit ? "Order Charge" : "Payment Received"}
+                            </span>
+                            {isDebit && item.status && (
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 border border-gray-200">
+                                {item.status}
+                              </span>
+                            )}
+                          </div>
+
+                          <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-snug break-words">
+                            {item.label}
+                          </p>
+
+                          <p className="text-[11px] text-gray-400 font-medium flex items-center gap-1">
+                            <Clock size={11} className="text-gray-400" /> {format12HourDate(item.date)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="sm:text-right shrink-0 self-end sm:self-center border-t sm:border-t-0 border-gray-200/50 pt-2 sm:pt-0 w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between">
+                        <p
+                          className={`font-black text-base sm:text-lg ${
+                            isDebit ? "text-gray-900" : "text-emerald-700"
+                          }`}
+                        >
+                          ₹{item.amount.toFixed(2)}
+                        </p>
+                        <span
+                          className={`text-[10px] font-extrabold ${
+                            isDebit ? "text-orange-700 font-bold" : "text-emerald-700 font-bold"
+                          }`}
+                        >
+                          {isDebit ? "Added to Due" : "Paid & Cleared"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

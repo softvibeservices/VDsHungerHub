@@ -57,12 +57,23 @@ interface OrderAddonItem {
   addonProduct: { id: string; name: string; nameGu?: string | null };
 }
 
+interface AdminOrderAddress {
+  id: string;
+  type: string;
+  line1: string;
+  line2?: string | null;
+  landmark?: string | null;
+  city?: string | null;
+  pincode?: string | null;
+}
+
 interface AdminOrder {
   id: string;
   status: OrderStatus;
   totalAmount: number;
   createdAt: string;
   note?: string | null;          // FIX #2: customer cooking instruction
+  address?: AdminOrderAddress | null;
   user: {
     id: string;
     name: string;
@@ -133,6 +144,7 @@ export default function AdminOrdersPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [showOnlyWithNotes, setShowOnlyWithNotes] = useState(false);
+  const [addressTypeFilter, setAddressTypeFilter] = useState<"ALL" | "WORK" | "HOME">("ALL");
   const [sortBy, setSortBy] = useState<"time-desc" | "time-asc" | "amount-desc" | "amount-asc" | "name-asc">("time-desc");
 
   // Bulk Selection state
@@ -331,7 +343,14 @@ export default function AdminOrdersPage() {
       // Filter by Customer Note / Instructions
       const matchesNoteFilter = !showOnlyWithNotes || !!order.note?.trim();
 
-      return matchesSearch && matchesCompany && matchesStatus && matchesNoteFilter;
+      // Filter by Address Type (WORK vs HOME)
+      const isHomeAddress = order.address && order.address.type === "HOME";
+      const matchesAddressType =
+        addressTypeFilter === "ALL" ||
+        (addressTypeFilter === "WORK" && !isHomeAddress) ||
+        (addressTypeFilter === "HOME" && isHomeAddress);
+
+      return matchesSearch && matchesCompany && matchesStatus && matchesNoteFilter && matchesAddressType;
     })
     .sort((a, b) => {
       if (sortBy === "time-desc") {
@@ -607,15 +626,52 @@ export default function AdminOrdersPage() {
                 </span>
               )}
             </button>
+            {/* Address Type Filter Pills */}
+            <div className="flex items-center gap-1 bg-gray-100 p-0.5 rounded-lg border border-gray-200">
+              <button
+                type="button"
+                onClick={() => setAddressTypeFilter("ALL")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  addressTypeFilter === "ALL"
+                    ? "bg-white text-gray-900 shadow-2xs font-extrabold"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                All Addresses
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddressTypeFilter("WORK")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  addressTypeFilter === "WORK"
+                    ? "bg-blue-600 text-white shadow-2xs font-extrabold"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                🏢 Workplace
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddressTypeFilter("HOME")}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                  addressTypeFilter === "HOME"
+                    ? "bg-emerald-600 text-white shadow-2xs font-extrabold"
+                    : "text-gray-500 hover:text-gray-800"
+                }`}
+              >
+                🏠 Home Delivery
+              </button>
+            </div>
           </div>
 
-          {(searchQuery || selectedCompanyId || selectedStatus || showOnlyWithNotes) && (
+          {(searchQuery || selectedCompanyId || selectedStatus || showOnlyWithNotes || addressTypeFilter !== "ALL") && (
             <button
               onClick={() => {
                 setSearchQuery("");
                 setSelectedCompanyId("");
                 setSelectedStatus("");
                 setShowOnlyWithNotes(false);
+                setAddressTypeFilter("ALL");
               }}
               className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-bold transition-colors cursor-pointer"
             >
@@ -893,6 +949,11 @@ export default function AdminOrdersPage() {
                           <span className="text-xs text-slate-300 font-medium">
                             ({compGroup.customerGroups.length} {compGroup.customerGroups.length === 1 ? "customer" : "customers"})
                           </span>
+                          {compGroup.orders.some((o) => o.address?.type === "HOME") && (
+                            <span className="text-[10px] font-extrabold bg-emerald-500/30 text-emerald-300 border border-emerald-400/40 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                              🏠 Has Home Deliveries
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1096,6 +1157,40 @@ export default function AdminOrdersPage() {
                                           )}
                                         </div>
                                       )}
+
+                                       {/* Delivery Address Details */}
+                                       {order.address ? (
+                                         <div className={`flex items-start gap-2 px-3 py-1.5 rounded-xl border text-xs mt-1.5 max-w-lg ${
+                                           order.address.type === "HOME"
+                                             ? "bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs"
+                                             : "bg-blue-50/90 border-blue-300 text-blue-950 shadow-2xs"
+                                         }`}>
+                                           <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded shrink-0 self-start mt-0.5 border shadow-2xs ${
+                                             order.address.type === "HOME"
+                                               ? "bg-emerald-600 text-white border-emerald-700"
+                                               : "bg-blue-600 text-white border-blue-700"
+                                           }`}>
+                                             {order.address.type === "HOME" ? "🏠 HOME DELIVERY" : `📍 ${order.address.type || "WORKPLACE"} DELIVERY`}
+                                           </span>
+                                           <div className="min-w-0 flex-1">
+                                             <p className="font-bold text-xs leading-snug">
+                                               {order.address.line1}
+                                             </p>
+                                             {[order.address.line2, order.address.landmark, order.address.city].filter(Boolean).length > 0 && (
+                                               <p className="text-[11px] opacity-80 font-medium">
+                                                 {[order.address.line2, order.address.landmark, order.address.city].filter(Boolean).join(", ")}
+                                               </p>
+                                             )}
+                                           </div>
+                                         </div>
+                                       ) : (
+                                         <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100 border border-gray-200 text-[11px] text-gray-700 font-semibold mt-1.5 w-fit">
+                                           <span>🏢 Workplace / Office Delivery</span>
+                                           {order.user.company && (
+                                             <span className="text-[10px] text-gray-500 font-extrabold">({order.user.company.name})</span>
+                                           )}
+                                         </div>
+                                       )}
 
                                       {/* Cooking Instruction note */}
                                       {order.note && (
@@ -1317,6 +1412,40 @@ export default function AdminOrdersPage() {
                                     </span>
                                   ))}
                                 </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Delivery Address Details */}
+                          {order.address ? (
+                            <div className={`flex items-start gap-2 px-3 py-1.5 rounded-xl border text-xs mt-1.5 max-w-lg ${
+                              order.address.type === "HOME"
+                                ? "bg-emerald-50/90 border-emerald-300 text-emerald-950 shadow-2xs"
+                                : "bg-blue-50/90 border-blue-300 text-blue-950 shadow-2xs"
+                            }`}>
+                              <span className={`font-black uppercase text-[10px] px-2 py-0.5 rounded shrink-0 self-start mt-0.5 border shadow-2xs ${
+                                order.address.type === "HOME"
+                                  ? "bg-emerald-600 text-white border-emerald-700"
+                                  : "bg-blue-600 text-white border-blue-700"
+                              }`}>
+                                {order.address.type === "HOME" ? "🏠 HOME DELIVERY" : `📍 ${order.address.type || "WORKPLACE"} DELIVERY`}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-bold text-xs leading-snug">
+                                  {order.address.line1}
+                                </p>
+                                {[order.address.line2, order.address.landmark, order.address.city].filter(Boolean).length > 0 && (
+                                  <p className="text-[11px] opacity-80 font-medium">
+                                    {[order.address.line2, order.address.landmark, order.address.city].filter(Boolean).join(", ")}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-gray-100 border border-gray-200 text-[11px] text-gray-700 font-semibold mt-1.5 w-fit">
+                              <span>🏢 Workplace / Office Delivery</span>
+                              {order.user.company && (
+                                <span className="text-[10px] text-gray-500 font-extrabold">({order.user.company.name})</span>
                               )}
                             </div>
                           )}

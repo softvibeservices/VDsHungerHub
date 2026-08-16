@@ -122,7 +122,10 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                     href="/menu/profile?tab=payments"
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-extrabold rounded-xl transition-all shadow-2xs"
                   >
-                    <AlertCircle size={14} className="text-red-600 animate-pulse shrink-0" />
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                    </span>
                     <span>Due: ₹{dueBalance.toFixed(2)}</span>
                   </Link>
                 )}
@@ -169,8 +172,11 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                     onClick={() => setMobileOpen(false)}
                     className="flex items-center justify-between p-3 mb-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-black"
                   >
-                    <span className="flex items-center gap-1.5">
-                      <AlertCircle size={14} className="text-red-600 animate-pulse" />
+                    <span className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
+                      </span>
                       Outstanding Balance Due:
                     </span>
                     <span className="text-sm">₹{dueBalance.toFixed(2)}</span>

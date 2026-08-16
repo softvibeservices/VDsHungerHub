@@ -738,6 +738,31 @@ export default function OrderingExperience({ userId, menu }: Props) {
     }
   };
 
+  const formattedCutoffTime = useMemo(() => {
+    return formatTo12Hour(menu.cutoffTime);
+  }, [menu.cutoffTime]);
+
+  const formattedVisibleTime = useMemo(() => {
+    return formatTo12Hour(menu.menuVisibleFrom);
+  }, [menu.menuVisibleFrom]);
+
+  const isBeforeVisibleTime = useMemo(() => {
+    if (!menu.menuVisibleFrom) return false;
+    const match = String(menu.menuVisibleFrom).match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
+    if (!match) return false;
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const period = match[3]?.toLowerCase();
+    if (period === "pm" && hours < 12) hours += 12;
+    if (period === "am" && hours === 12) hours = 0;
+
+    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const currentMinutes = nowIST.getHours() * 60 + nowIST.getMinutes();
+    const visibleMinutes = hours * 60 + minutes;
+
+    return currentMinutes < visibleMinutes;
+  }, [menu.menuVisibleFrom]);
+
   // ── Order placed state ──────────────────────────────────────────────────────
   if (orderPlaced) {
     return (
@@ -792,31 +817,6 @@ export default function OrderingExperience({ userId, menu }: Props) {
     );
   }
 
-  const formattedCutoffTime = useMemo(() => {
-    return formatTo12Hour(menu.cutoffTime);
-  }, [menu.cutoffTime]);
-
-  const formattedVisibleTime = useMemo(() => {
-    return formatTo12Hour(menu.menuVisibleFrom);
-  }, [menu.menuVisibleFrom]);
-
-  const isBeforeVisibleTime = useMemo(() => {
-    if (!menu.menuVisibleFrom) return false;
-    const match = String(menu.menuVisibleFrom).match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
-    if (!match) return false;
-    let hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
-    const period = match[3]?.toLowerCase();
-    if (period === "pm" && hours < 12) hours += 12;
-    if (period === "am" && hours === 12) hours = 0;
-
-    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-    const currentMinutes = nowIST.getHours() * 60 + nowIST.getMinutes();
-    const visibleMinutes = hours * 60 + minutes;
-
-    return currentMinutes < visibleMinutes;
-  }, [menu.menuVisibleFrom]);
-
   const timingHeaderBanner = (
     <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/10 border border-orange-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
       <div className="flex items-center gap-3">
@@ -850,7 +850,11 @@ export default function OrderingExperience({ userId, menu }: Props) {
       </div>
 
       {!isCutoffPassed && timeLeftStr && (
-        <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-2 rounded-2xl shadow-md flex items-center gap-2 font-black text-xs sm:text-sm animate-pulse shrink-0">
+        <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 text-white px-4 py-2.5 rounded-2xl shadow-md shadow-orange-500/20 flex items-center gap-2.5 font-extrabold text-xs sm:text-sm shrink-0 border border-white/20">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+          </span>
           <Clock size={16} />
           <span>Closes in {timeLeftStr}</span>
         </div>

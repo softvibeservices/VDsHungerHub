@@ -67,9 +67,26 @@ export default function UserOrdersPage() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [dueBalance, setDueBalance] = useState<number | null>(null);
 
   // Expanded row state (mobile accordion)
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const fetchDueBalance = useCallback(async () => {
+    try {
+      const res = await fetch("/api/customer/credit", { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.credit?.balance !== undefined) {
+          setDueBalance(data.credit.balance);
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchDueBalance();
+  }, [fetchDueBalance]);
 
   const loadOrders = useCallback(async (pg: number) => {
     setLoading(true);
@@ -205,10 +222,22 @@ export default function UserOrdersPage() {
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">My Orders</h1>
-            {!loading && total > 0 && hasFilters && (
-              <span className="text-xs font-black text-orange-700 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full shadow-2xs">
-                Total Spend: {formatCurrency(filteredTotalAmount)}
+            
+            {!loading && total > 0 && (
+              <span className="text-xs font-black text-orange-800 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full shadow-2xs">
+                {hasFilters ? "Filtered Orders Sum: " : "Orders Billed: "}
+                {formatCurrency(filteredTotalAmount)}
               </span>
+            )}
+
+            {dueBalance !== null && dueBalance > 0 && (
+              <a
+                href="/menu/profile?tab=payments"
+                className="text-xs font-black text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-full shadow-2xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                Outstanding Due: {formatCurrency(dueBalance)} (Pay Now →)
+              </a>
             )}
           </div>
         </div>
@@ -373,7 +402,7 @@ export default function UserOrdersPage() {
                 )}
               </div>
               <p className="text-base font-black text-white mt-0.5">
-                Filtered Total Bill: <span className="text-amber-100 text-lg font-black">{formatCurrency(filteredTotalAmount)}</span>
+                Filtered Orders Sum: <span className="text-amber-100 text-lg font-black">{formatCurrency(filteredTotalAmount)}</span>
                 <span className="text-xs font-semibold text-orange-100 ml-2">({total} order{total > 1 ? "s" : ""})</span>
               </p>
             </div>
@@ -432,6 +461,7 @@ export default function UserOrdersPage() {
                 <tr className="border-b border-gray-200 bg-gray-100/90">
                   <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider whitespace-nowrap border-r border-gray-200">Date &amp; Meal</th>
                   <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider border-r border-gray-200">Order Details</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider border-r border-gray-200">Delivery Address</th>
                   <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider whitespace-nowrap border-r border-gray-200">Total</th>
                   <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider">Status</th>
                 </tr>
@@ -450,7 +480,7 @@ export default function UserOrdersPage() {
                       {/* Requirement #3: Horizontal Date Divider Row (SaaS Style) */}
                       {showDateDivider && (
                         <tr key={`divider_${order.id}`} className="bg-slate-100/90 border-y-2 border-slate-200">
-                          <td colSpan={4} className="px-5 py-3 bg-slate-100/90">
+                          <td colSpan={5} className="px-5 py-3 bg-slate-100/90">
                             <div className="flex items-center gap-2.5">
                               <div className="w-6 h-6 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
                                 <Calendar size={13} />
@@ -551,6 +581,32 @@ export default function UserOrdersPage() {
                           </div>
                         </td>
 
+                        {/* Delivery Address */}
+                        <td className="px-5 py-4 border-r border-gray-200 min-w-[200px]">
+                          {order.address ? (
+                            <div className="space-y-1 text-xs">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
+                                📍 {order.address.type || "Delivery Address"}
+                              </span>
+                              <p className="font-bold text-gray-800 leading-snug">
+                                {order.address.line1}
+                              </p>
+                              {(order.address.line2 || order.address.city) && (
+                                <p className="text-[11px] text-gray-500 font-medium">
+                                  {[order.address.line2, order.address.city].filter(Boolean).join(", ")}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-1 text-xs">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 border border-gray-200">
+                                🏢 Primary / Office Address
+                              </span>
+                              <p className="text-[11px] text-gray-500 font-medium italic">Workplace Delivery</p>
+                            </div>
+                          )}
+                        </td>
+
                         {/* Amount */}
                         <td className="px-5 py-4 whitespace-nowrap border-r border-gray-200">
                           <span className="font-black text-orange-600 text-base">{formatCurrency(order.totalAmount)}</span>
@@ -560,7 +616,7 @@ export default function UserOrdersPage() {
                         <td className="px-5 py-4 whitespace-nowrap">
                           {isCurrent ? (
                             <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/25 animate-pulse">
+                              <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/25">
                                 <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                                 {order.status === "OUT_FOR_DELIVERY" ? "🚚 OUT FOR DELIVERY" : "⏳ PREPARING IN KITCHEN"}
                               </span>
@@ -629,7 +685,7 @@ export default function UserOrdersPage() {
                         </div>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {isCurrent ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs animate-pulse">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs">
                               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
                               {order.status === "OUT_FOR_DELIVERY" ? "OUT FOR DELIVERY" : "KITCHEN PREPARING"}
                             </span>
@@ -661,6 +717,21 @@ export default function UserOrdersPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* Delivery Address Section (Mobile) */}
+                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-2.5 space-y-1">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Delivery Address</p>
+                          {order.address ? (
+                            <p className="text-xs font-semibold text-gray-800">
+                              📍 <strong className="text-blue-700 font-bold">[{order.address.type || "Location"}]</strong> {order.address.line1}
+                              {[order.address.line2, order.address.city].filter(Boolean).length > 0 && `, ${[order.address.line2, order.address.city].filter(Boolean).join(", ")}`}
+                            </p>
+                          ) : (
+                            <p className="text-xs font-medium text-gray-600 italic">
+                              🏢 Primary / Office Address (Workplace Delivery)
+                            </p>
+                          )}
+                        </div>
 
                         {order.addonItems.length > 0 && (
                           <div>

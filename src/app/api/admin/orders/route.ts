@@ -41,6 +41,9 @@ export async function GET(req: NextRequest) {
     },
     orderBy: { createdAt: "desc" },
     include: {
+      address: {
+        select: { id: true, type: true, line1: true, line2: true, landmark: true, city: true, pincode: true },
+      },
       user: {
         include: { company: { select: { id: true, name: true, address: true } } },
       },
