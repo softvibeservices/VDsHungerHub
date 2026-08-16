@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 
     // ── Rate limit ────────────────────────────────────────────────────────────
     await checkRateLimit("DEVICE", fingerprintHash, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 3);
-    await checkRateLimit("IP", ip, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 8);
+    await checkRateLimit("IP", ip, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 50);
 
     // ── Resolve work address (WORK mode only) — Fix #1 lock enforcement ────────
     let resolvedWorkAddress: string | null = null;

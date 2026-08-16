@@ -89,8 +89,8 @@ export async function POST(req: NextRequest) {
     const mobileMax = purpose === "REGISTER" ? 3 : purpose === "LOGIN" ? 5 : 3;
     await checkRateLimit("MOBILE", mobile, rlAction, mobileWindow, mobileMax);
 
-    // Per-IP limits
-    const ipMax = purpose === "REGISTER" ? 5 : purpose === "LOGIN" ? 10 : 5;
+    // Per-IP limits (Generous for corporate Wi-Fi networks where many employees share 1 public IP)
+    const ipMax = purpose === "REGISTER" ? 25 : purpose === "LOGIN" ? 30 : 15;
     await checkRateLimit("IP", ip, rlAction, 60 * 60 * 1000, ipMax);
 
     // Per-device limits
