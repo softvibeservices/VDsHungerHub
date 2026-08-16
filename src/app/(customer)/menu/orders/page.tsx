@@ -7,8 +7,9 @@ import { formatCurrency } from "@/lib/utils";
 import {
   UtensilsCrossed, Clock, CheckCircle2, Package, XCircle, Truck,
   AlertCircle, ChevronDown, ChevronUp, Filter, Search,
-  Calendar, Loader2, MessageSquare, RefreshCw
+  Calendar, Loader2, MessageSquare, RefreshCw, MapPin
 } from "lucide-react";
+import { getWhatsAppInquiryLink } from "@/lib/constants";
 
 type OrderStatus = "PENDING" | "OUT_FOR_DELIVERY" | "DELIVERED" | "CANCELLED";
 type MealType = "LUNCH" | "DINNER";
@@ -44,11 +45,11 @@ interface OrderListItem {
   comments: OrderComment[];
 }
 
-const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
-  PENDING:          { label: "Pending",         bg: "bg-yellow-50",  text: "text-yellow-700",  icon: <Clock size={11} /> },
-  OUT_FOR_DELIVERY: { label: "Out for Delivery", bg: "bg-indigo-50",  text: "text-indigo-700", icon: <Truck size={11} /> },
-  DELIVERED:        { label: "Delivered",        bg: "bg-green-50",   text: "text-green-700",   icon: <Package size={11} /> },
-  CANCELLED:        { label: "Cancelled",        bg: "bg-red-50",     text: "text-red-700",     icon: <XCircle size={11} /> },
+const STATUS_CONFIG: Record<OrderStatus, { label: string; bg: string; text: string; border: string; icon: React.ReactNode }> = {
+  PENDING:          { label: "Pending",         bg: "bg-amber-50",   text: "text-amber-700",   border: "border-amber-200",   icon: <Clock size={12} /> },
+  OUT_FOR_DELIVERY: { label: "Out for Delivery", bg: "bg-indigo-50 font-bold", text: "text-indigo-700 font-bold", border: "border-indigo-200", icon: <Truck size={12} /> },
+  DELIVERED:        { label: "Delivered",        bg: "bg-emerald-50 font-bold", text: "text-emerald-700 font-bold", border: "border-emerald-200", icon: <CheckCircle2 size={12} /> },
+  CANCELLED:        { label: "Cancelled",        bg: "bg-rose-50",    text: "text-rose-700 font-bold", border: "border-rose-200",    icon: <XCircle size={12} /> },
 };
 
 const PAGE_SIZE = 15;
@@ -452,399 +453,254 @@ export default function UserOrdersPage() {
         </div>
       )}
 
-      {/* Orders Table — Desktop */}
+      {/* Zomato-Style Order Card Feed */}
       {!loading && !error && orders.length > 0 && (
-        <>
-          <div className="hidden md:block bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-100/90">
-                  <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider whitespace-nowrap border-r border-gray-200">Date &amp; Meal</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider border-r border-gray-200">Order Details</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider border-r border-gray-200">Delivery Address</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider whitespace-nowrap border-r border-gray-200">Total</th>
-                  <th className="text-left px-5 py-3.5 text-xs font-extrabold text-gray-700 uppercase tracking-wider">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {orders.map((order, index) => {
-                  const sc = STATUS_CONFIG[order.status];
-                  const isCurrent = isCurrentActiveOrder(order);
+        <div className="space-y-4">
+          {orders.map((order, index) => {
+            const sc = STATUS_CONFIG[order.status];
+            const isCurrent = isCurrentActiveOrder(order);
 
-                  // Requirement #3: Check if date changes from previous order to render day divider row
-                  const prevOrder = index > 0 ? orders[index - 1] : null;
-                  const showDateDivider = !prevOrder || prevOrder.menu.date !== order.menu.date;
+            // Requirement #3: Date Group Divider
+            const prevOrder = index > 0 ? orders[index - 1] : null;
+            const showDateDivider = !prevOrder || prevOrder.menu.date !== order.menu.date;
 
-                  return (
-                    <Fragment key={`grp_${order.id}`}>
-                      {/* Requirement #3: Horizontal Date Divider Row (SaaS Style) */}
-                      {showDateDivider && (
-                        <tr key={`divider_${order.id}`} className="bg-slate-100/90 border-y-2 border-slate-200">
-                          <td colSpan={5} className="px-5 py-3 bg-slate-100/90">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-6 h-6 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
-                                <Calendar size={13} />
-                              </div>
-                              <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                                {formatDateHeader(order.menu.date)}
-                              </span>
-                              <span className="text-[10px] font-extrabold text-orange-700 bg-orange-100 border border-orange-200 px-2.5 py-0.5 rounded-md uppercase tracking-wider">
-                                {order.menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}
-                              </span>
-                              <div className="h-0.5 bg-slate-300 flex-1 ml-2 rounded-full" />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-
-                      <tr
-                        key={order.id}
-                        className={`transition-all ${
-                          isCurrent
-                            ? "bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/90 hover:from-amber-100/90 hover:to-orange-100/70 border-l-4 border-orange-500 shadow-xs font-medium"
-                            : "hover:bg-orange-50/20"
-                        }`}
-                      >
-                        {/* Date & Meal */}
-                        <td className="px-5 py-4 whitespace-nowrap border-r border-gray-200">
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-gray-800 text-sm">{formatDate(order.menu.date)}</p>
-                            {isCurrent && (
-                              <span className="text-[10px] font-extrabold bg-orange-500 text-white px-2 py-0.5 rounded-full shadow-xs animate-pulse">
-                                TODAY
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5 font-medium">
-                            {order.menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}
-                          </p>
-                          <p className="text-[10px] text-gray-400 mt-0.5">{formatTime(order.createdAt)}</p>
-                        </td>
-
-                        {/* Order Details */}
-                        <td className="px-5 py-4 border-r border-gray-200">
-                          <div className="space-y-1.5 max-w-sm">
-                            {order.thaliItems.length > 0 ? (
-                              <div className="space-y-1">
-                                {order.thaliItems.map((item) => {
-                                  const sabjiName = item.sabjiProduct?.name;
-                                  return (
-                                    <div key={item.id} className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-bold text-gray-800 text-xs">
-                                        {item.quantity}× {item.thali.name}
-                                      </span>
-                                      {sabjiName && (
-                                        <span className="text-[10px] bg-orange-100 text-orange-800 border border-orange-200 px-2 py-0.5 rounded-full font-bold">
-                                          Sabji: {sabjiName}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : order.thali ? (
-                              <p className="font-bold text-gray-800 text-xs">{order.thali.name}</p>
-                            ) : null}
-
-                            {order.addonItems.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {order.addonItems.map((item) => (
-                                  <span
-                                    key={item.id}
-                                    className="text-[10px] bg-purple-50 text-purple-700 border border-purple-100 px-2 py-0.5 rounded-full font-medium"
-                                  >
-                                    {item.quantity}× {item.addonProduct.name}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-
-                            {order.note && (
-                              <div className="flex items-start gap-1.5 bg-amber-50 border border-amber-100 rounded-lg px-2.5 py-1.5 mt-1">
-                                <MessageSquare size={11} className="text-amber-600 mt-0.5 flex-shrink-0" />
-                                <p className="text-[11px] text-amber-900 font-medium">{order.note}</p>
-                              </div>
-                            )}
-
-                            {order.comments && order.comments.length > 0 && (
-                              <div className="space-y-1 mt-1">
-                                {order.comments
-                                  .filter((c) => c.authorType === "STAFF")
-                                  .map((c) => (
-                                    <div key={c.id} className="flex items-start gap-1.5 bg-blue-50 border border-blue-100 rounded-lg px-2.5 py-1.5">
-                                      <span className="text-[10px] text-blue-500 flex-shrink-0">💬</span>
-                                      <p className="text-[11px] text-blue-900 font-medium">{c.message}</p>
-                                    </div>
-                                  ))}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Delivery Address */}
-                        <td className="px-5 py-4 border-r border-gray-200 min-w-[200px]">
-                          {order.address ? (
-                            <div className="space-y-1 text-xs">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">
-                                📍 {order.address.type || "Delivery Address"}
-                              </span>
-                              <p className="font-bold text-gray-800 leading-snug">
-                                {order.address.line1}
-                              </p>
-                              {(order.address.line2 || order.address.city) && (
-                                <p className="text-[11px] text-gray-500 font-medium">
-                                  {[order.address.line2, order.address.city].filter(Boolean).join(", ")}
-                                </p>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="space-y-1 text-xs">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 border border-gray-200">
-                                🏢 Primary / Office Address
-                              </span>
-                              <p className="text-[11px] text-gray-500 font-medium italic">Workplace Delivery</p>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Amount */}
-                        <td className="px-5 py-4 whitespace-nowrap border-r border-gray-200">
-                          <span className="font-black text-orange-600 text-base">{formatCurrency(order.totalAmount)}</span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-5 py-4 whitespace-nowrap">
-                          {isCurrent ? (
-                            <div className="space-y-1">
-                              <span className="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-sm shadow-orange-500/25">
-                                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                                {order.status === "OUT_FOR_DELIVERY" ? "🚚 OUT FOR DELIVERY" : "⏳ PREPARING IN KITCHEN"}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className={`inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full ${sc.bg} ${sc.text}`}>
-                              {sc.icon}
-                              {sc.label}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile card list (accordion style) */}
-          <div className="md:hidden space-y-3">
-            {orders.map((order, index) => {
-              const sc = STATUS_CONFIG[order.status];
-              const isOpen = expandedId === order.id;
-              const isCurrent = isCurrentActiveOrder(order);
-
-              // Requirement #3: Check if date changes for mobile dividers
-              const prevOrder = index > 0 ? orders[index - 1] : null;
-              const showDateDivider = !prevOrder || prevOrder.menu.date !== order.menu.date;
-
-              return (
-                <div key={`mob_wrapper_${order.id}`} className="space-y-3">
-                  {/* Requirement #3: Mobile Date Divider */}
-                  {showDateDivider && (
-                    <div key={`mob_divider_${order.id}`} className="flex items-center gap-2 pt-4 pb-2 border-b border-gray-200">
-                      <div className="w-6 h-6 rounded-lg bg-orange-500 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                        <Calendar size={13} />
-                      </div>
-                      <span className="text-xs font-black text-slate-900 uppercase tracking-wide">
-                        {formatDateHeader(order.menu.date)}
-                      </span>
-                      <span className="text-[10px] font-extrabold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-md uppercase">
-                        {order.menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}
-                      </span>
-                      <div className="h-0.5 bg-slate-200 flex-1 ml-1 rounded-full" />
+            return (
+              <Fragment key={`order_group_${order.id}`}>
+                {showDateDivider && (
+                  <div key={`date_divider_${order.id}`} className="flex items-center gap-2 pt-5 pb-2">
+                    <div className="w-7 h-7 rounded-xl bg-orange-500 text-white flex items-center justify-center text-xs font-black shadow-sm">
+                      <Calendar size={14} />
                     </div>
-                  )}
+                    <h3 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                      {formatDateHeader(order.menu.date)}
+                    </h3>
+                    <span className="text-[10px] font-extrabold text-orange-700 bg-orange-100 border border-orange-200 px-2.5 py-0.5 rounded-lg uppercase tracking-wider">
+                      {order.menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}
+                    </span>
+                    <div className="h-0.5 bg-gray-200 flex-1 ml-2 rounded-full" />
+                  </div>
+                )}
 
-                  <div
-                    key={order.id}
-                    className={`rounded-3xl border transition-all overflow-hidden ${
-                      isCurrent
-                        ? "bg-gradient-to-r from-amber-50/90 via-orange-50/75 to-amber-50/90 border-2 border-orange-400 ring-2 ring-orange-300/30 shadow-md"
-                        : "bg-white border-gray-100 shadow-sm"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => setExpandedId(isOpen ? null : order.id)}
-                      className="w-full px-4 py-3.5 flex items-center justify-between text-left"
-                    >
-                      <div className="flex-1 min-w-0">
+                <div
+                  key={order.id}
+                  className={`bg-white rounded-3xl border transition-all duration-300 p-5 sm:p-6 space-y-4 hover:shadow-md ${
+                    isCurrent
+                      ? "border-2 border-orange-400 ring-4 ring-orange-400/10 shadow-lg shadow-orange-500/5 bg-gradient-to-br from-white via-amber-50/20 to-orange-50/30"
+                      : "border-gray-200 shadow-sm"
+                  }`}
+                >
+                  {/* Card Header: Meal Type + Time + Status Badge */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-orange-500/20 shrink-0">
+                        🍱
+                      </div>
+                      <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-gray-900 text-sm">{formatDate(order.menu.date)}</span>
-                          <span className="text-xs text-gray-500 font-medium">{order.menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}</span>
-                        </div>
-                        <div className="flex items-center gap-2 mt-1 flex-wrap">
-                          {isCurrent ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                              {order.status === "OUT_FOR_DELIVERY" ? "OUT FOR DELIVERY" : "KITCHEN PREPARING"}
-                            </span>
-                          ) : (
-                            <span className={`inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full ${sc.bg} ${sc.text}`}>
-                              {sc.icon} {sc.label}
+                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg">
+                            {order.menu.mealType === "LUNCH" ? "🌅 Lunch Thali" : "🌙 Dinner Thali"}
+                          </h3>
+                          {isCurrent && (
+                            <span className="text-[10px] font-black bg-orange-500 text-white px-2.5 py-0.5 rounded-full uppercase shadow-xs">
+                              TODAY
                             </span>
                           )}
-                          <span className="font-black text-orange-600 text-sm">{formatCurrency(order.totalAmount)}</span>
                         </div>
+                        <p className="text-xs text-gray-500 font-medium mt-0.5">
+                          {formatDate(order.menu.date)} at <strong className="text-gray-700">{formatTime(order.createdAt)}</strong>
+                        </p>
                       </div>
-                      {isOpen ? <ChevronUp size={16} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />}
-                    </button>
+                    </div>
 
-                    {isOpen && (
-                      <div className="px-4 pb-4 border-t border-gray-50 pt-3 space-y-3">
-                        {order.thaliItems.length > 0 && (
-                          <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Meals Chosen</p>
-                            {order.thaliItems.map((item) => (
-                              <div key={item.id} className="flex justify-between items-center text-xs">
-                                <span className="font-semibold text-gray-800">{item.quantity}× {item.thali.name}</span>
-                                {item.sabjiProduct && (
-                                  <span className="text-[11px] bg-orange-100 text-orange-800 border border-orange-200 px-2 py-0.5 rounded-xl font-bold">
-                                    {item.sabjiProduct.name}
+                    {/* Status Badge */}
+                    {isCurrent ? (
+                      <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-black shadow-md shadow-orange-500/20">
+                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                        {order.status === "OUT_FOR_DELIVERY" ? "🚚 OUT FOR DELIVERY" : "⏳ PREPARING IN KITCHEN"}
+                      </span>
+                    ) : (
+                      <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                        {sc.icon} {sc.label}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Card Content: Items & Extras */}
+                  <div className="space-y-3">
+                    {order.thaliItems.length > 0 ? (
+                      <div className="space-y-2">
+                        {order.thaliItems.map((item) => {
+                          const sabjiName = item.sabjiProduct?.name;
+                          return (
+                            <div key={item.id} className="flex items-center justify-between gap-3 text-sm flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-extrabold text-gray-900 text-sm sm:text-base">
+                                  {item.quantity} × {item.thali.name}
+                                </span>
+                                {sabjiName && (
+                                  <span className="text-xs font-bold text-orange-800 bg-orange-100/90 border border-orange-200 px-3 py-0.5 rounded-full">
+                                    Sabji: {sabjiName}
                                   </span>
                                 )}
                               </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Delivery Address Section (Mobile) */}
-                        <div className="bg-gray-50 border border-gray-100 rounded-xl p-2.5 space-y-1">
-                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Delivery Address</p>
-                          {order.address ? (
-                            <p className="text-xs font-semibold text-gray-800">
-                              📍 <strong className="text-blue-700 font-bold">[{order.address.type || "Location"}]</strong> {order.address.line1}
-                              {[order.address.line2, order.address.city].filter(Boolean).length > 0 && `, ${[order.address.line2, order.address.city].filter(Boolean).join(", ")}`}
-                            </p>
-                          ) : (
-                            <p className="text-xs font-medium text-gray-600 italic">
-                              🏢 Primary / Office Address (Workplace Delivery)
-                            </p>
-                          )}
-                        </div>
-
-                        {order.addonItems.length > 0 && (
-                          <div>
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Add-ons</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {order.addonItems.map((item) => (
-                                <span
-                                  key={item.id}
-                                  className="text-[11px] bg-purple-50 text-purple-700 border border-purple-100 px-2.5 py-0.5 rounded-full font-medium"
-                                >
-                                  {item.quantity}× {item.addonProduct.name} ({formatCurrency(item.priceSnapshot * item.quantity)})
-                                </span>
-                              ))}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })}
+                      </div>
+                    ) : order.thali ? (
+                      <p className="font-extrabold text-gray-900 text-sm">{order.thali.name}</p>
+                    ) : null}
 
-                        {order.note && (
-                          <div className="flex items-start gap-2 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
-                            <MessageSquare size={13} className="text-amber-500 mt-0.5 flex-shrink-0" />
-                            <p className="text-xs text-amber-900 font-medium">{order.note}</p>
-                          </div>
-                        )}
+                    {/* Add-on items */}
+                    {order.addonItems.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {order.addonItems.map((item) => (
+                          <span
+                            key={item.id}
+                            className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1 rounded-full"
+                          >
+                            + {item.quantity}× {item.addonProduct.name} ({formatCurrency(item.priceSnapshot * item.quantity)})
+                          </span>
+                        ))}
+                      </div>
+                    )}
 
-                        {order.comments && order.comments.filter((c) => c.authorType === "STAFF").length > 0 && (
-                          <div className="space-y-1.5">
-                            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wide">From Kitchen</p>
-                            {order.comments
-                              .filter((c) => c.authorType === "STAFF")
-                              .map((c) => (
-                                <div key={c.id} className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">
-                                  <span className="text-xs flex-shrink-0">💬</span>
-                                  <p className="text-xs text-blue-900 font-medium">{c.message}</p>
-                                </div>
-                              ))}
-                          </div>
-                        )}
+                    {/* Cooking Instructions / Customer Note */}
+                    {order.note && (
+                      <div className="flex items-start gap-2 bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-950 font-medium">
+                        <MessageSquare size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                        <p><strong>Note:</strong> {order.note}</p>
+                      </div>
+                    )}
 
-                        <p className="text-[10px] text-gray-400">Ordered at {formatTime(order.createdAt)}</p>
+                    {/* Staff / Kitchen Replies */}
+                    {order.comments && order.comments.filter((c) => c.authorType === "STAFF").length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {order.comments
+                          .filter((c) => c.authorType === "STAFF")
+                          .map((c) => (
+                            <div key={c.id} className="flex items-start gap-2 bg-blue-50/90 border border-blue-200 rounded-2xl p-3 text-xs text-blue-950 font-medium">
+                              <span className="text-blue-500 shrink-0">💬</span>
+                              <p><strong>Kitchen Reply:</strong> {c.message}</p>
+                            </div>
+                          ))}
                       </div>
                     )}
                   </div>
+
+                  {/* Delivery Location Banner (Zomato Style) */}
+                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <MapPin size={16} className="text-orange-500 shrink-0" />
+                      <div className="min-w-0">
+                        <span className="font-extrabold uppercase text-[10px] text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md mr-1.5">
+                          📍 {order.address?.type || "WORKPLACE"}
+                        </span>
+                        <span className="font-bold text-gray-800">
+                          {order.address ? order.address.line1 : "Primary Office Address (Workplace Delivery)"}
+                        </span>
+                        {order.address?.city && <span className="text-gray-500 font-medium">, {order.address.city}</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Footer: Total Price + Quick Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Order Total</span>
+                      <span className="text-xl font-black text-orange-600">{formatCurrency(order.totalAmount)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={getWhatsAppInquiryLink(`Hi ViTa Cuisine! I have a question about my Order dated ${formatDate(order.menu.date)} (${order.menu.mealType === "LUNCH" ? "Lunch" : "Dinner"})`)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-2xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <span>💬 Order Support</span>
+                      </a>
+                      <a
+                        href="/menu"
+                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-2xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>Reorder 🍲</span>
+                      </a>
+                    </div>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+              </Fragment>
+            );
+          })}
+        </div>
+      )}
 
-          {/* Requirement #4: Scalable Multi-Page Pagination Controls (Handles Thousands of Orders) */}
-          <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <p className="text-xs text-gray-500 font-medium">
-                Showing <span className="font-bold text-gray-900">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}</span> of <span className="font-bold text-gray-900">{total}</span> orders (15 per page)
-              </p>
-              
-              <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                <button
-                  type="button"
-                  onClick={() => { setPage(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={page === 1 || loading}
-                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-                >
-                  « First
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={page === 1 || loading}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-                >
-                  ‹ Prev
-                </button>
+      {/* Requirement #4: Scalable Multi-Page Pagination Controls (Handles Thousands of Orders) */}
+      {!loading && !error && orders.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-xs text-gray-500 font-medium">
+              Showing <span className="font-bold text-gray-900">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}</span> of <span className="font-bold text-gray-900">{total}</span> orders (15 per page)
+            </p>
+            
+            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+              <button
+                type="button"
+                onClick={() => { setPage(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                disabled={page === 1 || loading}
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+              >
+                « First
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPage((p) => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                disabled={page === 1 || loading}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+              >
+                ‹ Prev
+              </button>
 
-                {getPageNumbers(page, totalPages).map((pNum, idx) =>
-                  typeof pNum === "number" ? (
-                    <button
-                      key={`pg_${pNum}`}
-                      type="button"
-                      onClick={() => { setPage(pNum); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                      className={`px-3 py-1.5 text-xs font-black rounded-lg border transition-all cursor-pointer ${
-                        page === pNum
-                          ? "bg-orange-500 text-white border-orange-500 shadow-xs"
-                          : "bg-white text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300"
-                      }`}
-                    >
-                      {pNum}
-                    </button>
-                  ) : (
-                    <span key={`dots_${idx}`} className="px-1 text-xs text-gray-400 font-bold">
-                      ...
-                    </span>
-                  )
-                )}
+              {getPageNumbers(page, totalPages).map((pNum, idx) =>
+                typeof pNum === "number" ? (
+                  <button
+                    key={`pg_${pNum}`}
+                    type="button"
+                    onClick={() => { setPage(pNum); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    className={`px-3 py-1.5 text-xs font-black rounded-lg border transition-all cursor-pointer ${
+                      page === pNum
+                        ? "bg-orange-500 text-white border-orange-500 shadow-xs"
+                        : "bg-white text-gray-700 border-gray-200 hover:bg-orange-50 hover:border-orange-300"
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                ) : (
+                  <span key={`dots_${idx}`} className="px-1 text-xs text-gray-400 font-bold">
+                    ...
+                  </span>
+                )
+              )}
 
-                <button
-                  type="button"
-                  onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={page === totalPages || loading}
-                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-                >
-                  Next ›
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setPage(totalPages); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={page === totalPages || loading}
-                  className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
-                >
-                  Last »
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                disabled={page === totalPages || loading}
+                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-700 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+              >
+                Next ›
+              </button>
+              <button
+                type="button"
+                onClick={() => { setPage(totalPages); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                disabled={page === totalPages || loading}
+                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs font-bold text-gray-600 hover:bg-orange-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+              >
+                Last »
+              </button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
