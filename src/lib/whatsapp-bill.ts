@@ -1,5 +1,3 @@
-// src\lib\whatsapp-bill.ts
-
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export function buildWhatsAppBillText(row: {
@@ -10,19 +8,20 @@ export function buildWhatsAppBillText(row: {
   lastOrderAt: string | null;
 }): string {
   const lines = [
-    `🍽️ *ViTa Cuisine — Bill Summary*`,
+    `🧾 *ViTa Cuisine — Account Statement*`,
     `_Think Food, Think Us_`,
     ``,
-    `👤 Customer: *${row.name}*`,
-    `📊 Total Billed: ${formatCurrency(row.totalDebit)}`,
-    `✅ Total Paid: ${formatCurrency(row.totalPaid)}`,
-    `💰 *Balance Due: ${formatCurrency(row.balance)}*`,
-    row.lastOrderAt ? `🕐 Last Order: ${formatDate(row.lastOrderAt)}` : null,
+    `👤 *Customer:* ${row.name}`,
+    `📊 *Total Billed:* ${formatCurrency(row.totalDebit)}`,
+    `✅ *Total Paid:* ${formatCurrency(row.totalPaid)}`,
+    `💳 *Balance Due:* *${formatCurrency(row.balance)}*`,
+    row.lastOrderAt ? `🕐 *Last Order:* ${formatDate(row.lastOrderAt)}` : null,
     ``,
     row.balance > 0
-      ? `Kindly clear your pending balance at your earliest convenience. 🙏`
-      : `You're all settled up — thank you for your trust! 🎉`,
+      ? `Kindly clear your pending balance at your earliest convenience via UPI or Cash. 🙏`
+      : `You're all settled up — thank you for your support! 🎉`,
     ``,
+    `──────────────`,
     `📞 +91 635 635 0085 (Restaurant)`,
     `📞 +91 635 635 0086 (Delivery)`,
   ].filter((line): line is string => line !== null);
@@ -42,24 +41,24 @@ export function buildWhatsAppDigestText(
 ): string {
   const owingRows = rows.filter((r) => r.balance > 0);
   if (owingRows.length === 0) {
-    return "🍽️ *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉\n\n_Think Food, Think Us_";
+    return "🧾 *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All customer accounts are completely cleared! 🎉\n\n_Think Food, Think Us_";
   }
 
   const grandTotal = owingRows.reduce((sum, r) => sum + r.balance, 0);
 
   const lines = [
-    `🍽️ *ViTa Cuisine — Outstanding Balance Summary*`,
+    `🧾 *ViTa Cuisine — Outstanding Balance Summary*`,
     `_Think Food, Think Us_`,
-    `📅 Date: ${formatDate(new Date())}`,
-    `💰 Total Outstanding: *${formatCurrency(grandTotal)}* across ${owingRows.length} customers`,
+    `📅 *Date:* ${formatDate(new Date())}`,
+    `💰 *Total Outstanding:* *${formatCurrency(grandTotal)}* (${owingRows.length} customers)`,
     ``,
     ...owingRows.map(
       (r, i) =>
-        `${i + 1}. *${r.name}*${r.company?.name ? ` (${r.company.name})` : ""}: ${formatCurrency(r.balance)}`
+        `${i + 1}. *${r.name}*${r.company?.name ? ` _(${r.company.name})_` : ""}: *${formatCurrency(r.balance)}*`
     ),
     ``,
     `Please clear pending balances at your earliest convenience. 🙏`,
-    ``,
+    `──────────────`,
     `📞 +91 635 635 0085 · 📞 +91 635 635 0086`,
   ];
 
@@ -74,7 +73,7 @@ export function buildWhatsAppCompanyDigestText(
     .filter((g) => g.items.length > 0);
 
   if (nonEmptyGroups.length === 0) {
-    return "🍽️ *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All accounts are cleared! 🎉";
+    return "🧾 *ViTa Cuisine — Outstanding Balance Summary*\n\n✅ All company accounts are completely cleared! 🎉";
   }
 
   const grandTotal = nonEmptyGroups.reduce(
@@ -83,23 +82,24 @@ export function buildWhatsAppCompanyDigestText(
   );
 
   const lines = [
-    `🍽️ *ViTa Cuisine — Outstanding Balance Summary*`,
+    `🧾 *ViTa Cuisine — Corporate Outstanding Summary*`,
     `_Think Food, Think Us_`,
-    `📅 ${formatDate(new Date())}`,
-    `💰 Total Outstanding: *${formatCurrency(grandTotal)}*`,
+    `📅 *Date:* ${formatDate(new Date())}`,
+    `💰 *Grand Total Outstanding:* *${formatCurrency(grandTotal)}*`,
     ``,
   ];
 
   for (const group of nonEmptyGroups) {
     const groupTotal = group.items.reduce((s, r) => s + r.balance, 0);
-    lines.push(`🏢 *${group.companyName}* — ${formatCurrency(groupTotal)}`);
+    lines.push(`🏢 *${group.companyName}* — *${formatCurrency(groupTotal)}*`);
     group.items.forEach((r, i) => {
-      lines.push(`   ${i + 1}. ${r.name}: ${formatCurrency(r.balance)}`);
+      lines.push(`   ${i + 1}. ${r.name}: *${formatCurrency(r.balance)}*`);
     });
     lines.push(``);
   }
 
-  lines.push(`Please clear pending balances at your earliest convenience. 🙏`);
+  lines.push(`Kindly clear your company pending balance at your earliest convenience. 🙏`);
+  lines.push(`──────────────`);
   lines.push(`📞 +91 635 635 0085 · 📞 +91 635 635 0086`);
   return lines.join("\n");
 }

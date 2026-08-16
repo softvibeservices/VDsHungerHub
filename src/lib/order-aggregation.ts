@@ -38,6 +38,13 @@ export interface AggregateOrder {
     number: string;
     company: { id: string; name: string } | null;
   };
+  address?: {
+    id?: string;
+    type?: string | null;
+    line1: string;
+    line2?: string | null;
+    city?: string | null;
+  } | null;
   thaliItems?: AggregateOrderThaliItem[];
   addonItems?: AggregateOrderAddonItem[];
 }
