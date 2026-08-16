@@ -23,11 +23,12 @@ export async function POST(req: NextRequest) {
 
     // Fetch all companies for lookup
     const companies = await prisma.company.findMany({
-      select: { id: true, name: true },
+      select: { id: true, name: true, address: true, location: true },
     });
-    const companyMap = new Map(
-      companies.map((c: { id: string; name: string }) => [c.name.toLowerCase().trim(), c.id])
-    );
+    const companyMap = new Map<string, { id: string; name: string; address: string | null; location: string | null }>();
+    for (const c of companies) {
+      companyMap.set(c.name.toLowerCase().trim(), c);
+    }
 
     // Fetch existing numbers to detect duplicates
     const existingNumbers = new Set(
@@ -61,16 +62,23 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
-      const companyId = companyMap.get(row.company_name?.toLowerCase().trim() ?? "");
-      if (!companyId) {
+      const comp = companyMap.get(row.company_name?.toLowerCase().trim() ?? "");
+      if (!comp) {
         errors.push(`${row.name}: company "${row.company_name}" not found`);
         skipped++;
         continue;
       }
 
+      const resolvedAddress = comp.address?.trim() || comp.location?.trim() || null;
+
       try {
         await prisma.user.create({
-          data: { name: row.name.trim(), number: cleanNumber, companyId },
+          data: {
+            name: row.name.trim(),
+            number: cleanNumber,
+            companyId: comp.id,
+            workAddress: resolvedAddress,
+          },
         });
         existingNumbers.add(cleanNumber);
         created++;

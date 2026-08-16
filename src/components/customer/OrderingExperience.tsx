@@ -12,6 +12,13 @@ import { formatCurrency } from "@/lib/utils";
 import { toast } from "react-hot-toast";
 import AddressSheet, { Address } from "@/components/customer/AddressSheet";
 import { BilingualLabel } from "@/components/ui/BilingualLabel";
+import { getWhatsAppInquiryLink } from "@/lib/constants";
+import {
+  saveCartToStorage,
+  loadCartFromStorage,
+  clearCartStorage,
+  type StoredAddonLine,
+} from "@/lib/cart-storage";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,9 +95,8 @@ const MAX_THALI = 10;
 // FIX #4: This is now the per-ITEM limit, not a combined total
 const MAX_QTY_PER_ADDON_ITEM = 30;
 
-let lineCounter = 0;
 function newLineId() {
-  return `line_${++lineCounter}`;
+  return `line_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function formatAddress(a: Address): string {
@@ -155,12 +161,12 @@ function OrderConfirmModal({
           {/* Items */}
           <div className="bg-gray-50 rounded-2xl p-4 space-y-3">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Your Order</p>
-            {thaliLines.map((l) => {
+            {thaliLines.map((l, idx) => {
               const sabjiNames = (l.sabjiProductIds || [])
                 .map((sid) => menu.sabjiOptions.find((s) => s.productId === sid)?.product.name)
                 .filter(Boolean);
               return (
-                <div key={l.lineId} className="flex justify-between items-start text-sm border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                <div key={l.lineId || `confirm_${idx}`} className="flex justify-between items-start text-sm border-b border-gray-100 pb-2 last:border-0 last:pb-0">
                   <div>
                     <p className="font-semibold text-gray-800">{l.quantity}× {l.thali.name}</p>
                     {sabjiNames.length > 0 && (
@@ -259,9 +265,38 @@ export default function OrderingExperience({ userId, menu }: Props) {
     message?: string;
   } | null>(null);
 
+  // FIX #3: bulk-order limit modal state — shown when the thali or per-item
+  // add-on cap is hit, either client-side (immediate) or server-side
+  // (cumulative across the meal cycle).
+  const [bulkLimitModal, setBulkLimitModal] = useState<{
+    kind: "THALI" | "ADDON";
+    limit: number;
+    itemName?: string; // only set for ADDON
+  } | null>(null);
+
+  // FIX #5: cart persistence — `hydrated` guards the auto-save effect so it
+  // never fires with empty initial state and overwrites a real saved cart
+  // before the restore effect below has had a chance to apply it.
+  const [hydrated, setHydrated] = useState(false);
+  const [pendingAddonRestore, setPendingAddonRestore] = useState<StoredAddonLine[] | null>(null);
+
   // Inline quick-add thali tray state
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [sabjiRefExpanded, setSabjiRefExpanded] = useState(false);
+
+  // Dynamic Order Limits from Admin Settings
+  const [maxThaliLimit, setMaxThaliLimit] = useState<number>(10);
+  const [maxAddonLimit, setMaxAddonLimit] = useState<number>(30);
+
+  useEffect(() => {
+    fetch("/api/public/order-limits")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.thaliLimit) setMaxThaliLimit(d.thaliLimit);
+        if (d.addonLimit) setMaxAddonLimit(d.addonLimit);
+      })
+      .catch(() => {});
+  }, []);
 
   // Fetch add-on products
   useEffect(() => {
@@ -286,6 +321,83 @@ export default function OrderingExperience({ userId, menu }: Props) {
       })
       .catch(() => { setAddressesLoaded(true); });
   }, [view, userId, addressesLoaded]);
+
+  // FIX #5: restore any in-progress cart for this menu from sessionStorage.
+  // Runs once per (userId, menu.id) pair. Thali lines are re-hydrated by
+  // looking up the live thali object from today's menu payload (never trust
+  // a cached copy of price/name/category — always use what the server just
+  // sent). Add-on lines are queued into `pendingAddonRestore` because
+  // `addonProducts` loads asynchronously in a separate effect above.
+  useEffect(() => {
+    if (!userId || !menu) {
+      setHydrated(true);
+      return;
+    }
+    const snapshot = loadCartFromStorage(userId, menu.id);
+    if (snapshot) {
+      const restoredThaliLines: ThaliLine[] = [];
+      const usedIds = new Set<string>();
+      for (const s of snapshot.thaliLines) {
+        const dmt = menu.thalis.find((t) => t.thaliId === s.thaliId);
+        if (!dmt) continue; // thali no longer on today's menu — drop silently
+        let id = s.lineId && !usedIds.has(s.lineId) ? s.lineId : newLineId();
+        usedIds.add(id);
+        restoredThaliLines.push({
+          lineId: id,
+          thaliId: s.thaliId,
+          thali: dmt.thali,
+          sabjiProductIds: s.sabjiProductIds,
+          quantity: s.quantity,
+        });
+      }
+      if (restoredThaliLines.length > 0) {
+        setThaliLines(restoredThaliLines);
+        setView(snapshot.view === "order" ? "order" : "browse");
+      }
+      setNote(snapshot.note ?? "");
+      if (snapshot.selectedAddressId) setSelectedAddressId(snapshot.selectedAddressId);
+      setPendingAddonRestore(snapshot.addonLines ?? []);
+      if (snapshot.thaliLines.length > 0 && restoredThaliLines.length < snapshot.thaliLines.length) {
+        toast("Some previously selected items are no longer on today's menu and were removed.", { icon: "ℹ️" });
+      }
+    }
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu?.id, userId]);
+
+  // FIX #5: once add-on products have loaded, apply any pending restored
+  // add-on quantities (re-hydrating name/price from the live product list).
+  useEffect(() => {
+    if (!pendingAddonRestore || addonProducts.length === 0) return;
+    const restored: AddonLine[] = [];
+    for (const s of pendingAddonRestore) {
+      const product = addonProducts.find((p) => p.id === s.productId);
+      if (!product) continue; // add-on no longer available — drop silently
+      restored.push({ productId: product.id, name: product.name, price: product.price, quantity: s.quantity });
+    }
+    if (restored.length > 0) setAddonLines(restored);
+    setPendingAddonRestore(null);
+  }, [pendingAddonRestore, addonProducts]);
+
+  // FIX #5: persist the cart to sessionStorage on every change, once initial
+  // hydration from storage has completed (see `hydrated` state above — this
+  // guard is what prevents the empty initial render from wiping a real saved
+  // cart before it's been restored).
+  useEffect(() => {
+    if (!hydrated || !userId || !menu) return;
+    saveCartToStorage(userId, menu.id, {
+      view,
+      thaliLines: thaliLines.map((l) => ({
+        lineId: l.lineId,
+        thaliId: l.thaliId,
+        sabjiProductIds: l.sabjiProductIds,
+        quantity: l.quantity,
+      })),
+      addonLines: addonLines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+      note,
+      selectedAddressId,
+    });
+  }, [hydrated, userId, menu?.id, view, thaliLines, addonLines, note, selectedAddressId]);
 
   if (!menu) {
     return (
@@ -334,7 +446,11 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ── Thali helpers ───────────────────────────────────────────────────────────
   const addThaliLine = (thali: Thali) => {
     if (!userId) { window.location.href = "/login"; return; }
-    if (totalThaliQty >= MAX_THALI) { toast.error(`Maximum ${MAX_THALI} thali per order`); return; }
+    if (totalThaliQty >= maxThaliLimit) {
+      toast.error(`Maximum ${maxThaliLimit} thali per order`);
+      setBulkLimitModal({ kind: "THALI", limit: maxThaliLimit });
+      return;
+    }
 
     const categorySabji = menu.sabjiOptions.filter((s) => s.categoryId === thali.categoryId);
     const requiredCount = Math.min(thali.sabjiCount ?? 1, categorySabji.length);
@@ -390,7 +506,11 @@ export default function OrderingExperience({ userId, menu }: Props) {
         if (l.lineId !== lineId) return l;
         const newQty = l.quantity + delta;
         if (newQty < 1) return l;
-        if (totalThaliQty + delta > MAX_THALI) { toast.error(`Maximum ${MAX_THALI} thali per order`); return l; }
+        if (totalThaliQty + delta > MAX_THALI) {
+          toast.error(`Maximum ${MAX_THALI} thali per order`);
+          setBulkLimitModal({ kind: "THALI", limit: MAX_THALI });
+          return l;
+        }
         return { ...l, quantity: newQty };
       })
     );
@@ -404,8 +524,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
       const currentQty = existing?.quantity ?? 0;
       const newQty = currentQty + delta;
 
-      if (delta > 0 && newQty > MAX_QTY_PER_ADDON_ITEM) {
-        toast.error(`Maximum ${MAX_QTY_PER_ADDON_ITEM} × ${product.name} per order`);
+      if (delta > 0 && newQty > maxAddonLimit) {
+        toast.error(`Maximum ${maxAddonLimit} × ${product.name} per order`);
+        setBulkLimitModal({ kind: "ADDON", limit: maxAddonLimit, itemName: product.name });
         return prev;
       }
 
@@ -476,12 +597,33 @@ export default function OrderingExperience({ userId, menu }: Props) {
           });
           return;
         }
+
+        // FIX #3: the server enforces cumulative thali/add-on caps across the
+        // whole meal cycle, not just this cart — so this can trigger even when
+        // the client-side pre-checks above passed. Parse the exact error
+        // strings from /api/customer/orders (see that file's FIX #3/#4 blocks).
+        const errMsg = typeof data.error === "string" ? data.error : "";
+        const thaliCapMatch = errMsg.match(/Maximum (\d+)\s+Thali/i);
+        const addonCapMatch = errMsg.match(/Maximum (\d+)\s*×\s*(.+?)\s+allowed/i);
+
+        if (thaliCapMatch) {
+          setShowConfirm(false);
+          setBulkLimitModal({ kind: "THALI", limit: parseInt(thaliCapMatch[1], 10) });
+          return;
+        }
+        if (addonCapMatch) {
+          setShowConfirm(false);
+          setBulkLimitModal({ kind: "ADDON", limit: parseInt(addonCapMatch[1], 10), itemName: addonCapMatch[2] });
+          return;
+        }
+
         toast.error(data.error ?? "Order failed");
         return;
       }
 
       setOrderPlaced(true);
       setShowConfirm(false);
+      if (userId && menu) clearCartStorage(userId, menu.id);
       toast.success("Order placed successfully! 🎉");
     } catch {
       toast.error("Network error. Please try again.");
@@ -1165,13 +1307,13 @@ export default function OrderingExperience({ userId, menu }: Props) {
         ) : (
           <>
             <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1 divide-y divide-gray-50">
-              {thaliLines.map((l) => {
+              {thaliLines.map((l, idx) => {
                 const sabjiNames = (l.sabjiProductIds || [])
                   .map((sid) => menu.sabjiOptions.find((s) => s.productId === sid)?.product.name)
                   .filter(Boolean);
 
                 return (
-                  <div key={l.lineId} className="pt-2 first:pt-0 space-y-1">
+                  <div key={l.lineId || `sum_${idx}`} className="pt-2 first:pt-0 space-y-1">
                     <div className="flex justify-between items-start text-sm">
                       <p className="font-bold text-gray-800 truncate pr-2">{l.quantity}× {l.thali.name}</p>
                       <span className="font-black text-gray-900 flex-shrink-0">{formatCurrency(l.thali.price * l.quantity)}</span>
@@ -1287,6 +1429,14 @@ export default function OrderingExperience({ userId, menu }: Props) {
           onClose={() => setCreditLimitBreach(null)}
         />
       )}
+
+      {/* FIX #3: Bulk Order Limit Modal */}
+      {bulkLimitModal && (
+        <BulkOrderLimitModal
+          data={bulkLimitModal}
+          onClose={() => setBulkLimitModal(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1371,6 +1521,75 @@ function CreditLimitBreachModal({
             className="w-full sm:flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all"
           >
             <MessageSquare size={16} /> Contact Admin on WhatsApp
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full sm:w-auto py-3 px-5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl text-xs transition-colors cursor-pointer"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Bulk Order Limit Modal (Fix #3) ───────────────────────────────────────────
+
+interface BulkOrderLimitData {
+  kind: "THALI" | "ADDON";
+  limit: number;
+  itemName?: string;
+}
+
+function BulkOrderLimitModal({
+  data,
+  onClose,
+}: {
+  data: BulkOrderLimitData;
+  onClose: () => void;
+}) {
+  const whatsappText =
+    data.kind === "THALI"
+      ? `Hello ViTa Cuisine, I'd like to place a bulk order of more than ${data.limit} thalis. Please assist me.`
+      : `Hello ViTa Cuisine, I'd like to order more than ${data.limit} × ${data.itemName ?? "this item"} in a single order. Please assist me with a bulk order.`;
+  const whatsappLink = getWhatsAppInquiryLink(whatsappText);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-5 border border-amber-100">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+            <AlertCircle size={26} className="text-amber-600" />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-gray-900 text-lg leading-tight">
+              {data.kind === "THALI" ? "Bulk Thali Order?" : "Bulk Add-on Order?"}
+            </h3>
+            <p className="text-xs text-amber-600 font-semibold mt-0.5">
+              Order limit reached
+            </p>
+          </div>
+        </div>
+
+        <p className="text-xs text-gray-600 leading-relaxed">
+          {data.kind === "THALI" ? (
+            <>You can order up to <strong className="text-gray-900">{data.limit} thalis</strong> per order online. Need more for an event, office party, or catering? Contact us directly on WhatsApp and we&apos;ll take care of it.</>
+          ) : (
+            <>You can order up to <strong className="text-gray-900">{data.limit} × {data.itemName ?? "this item"}</strong> per order online. Need a larger quantity? Contact us directly on WhatsApp and we&apos;ll take care of it.</>
+          )}
+        </p>
+
+        <div className="flex flex-col sm:flex-row items-center gap-2.5 pt-1">
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full sm:flex-1 py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 transition-all"
+          >
+            <MessageSquare size={16} /> Order in Bulk on WhatsApp
           </a>
           <button
             type="button"

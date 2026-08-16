@@ -12,6 +12,22 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  button,
+  [role="button"],
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"],
+  a {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"],
+  input:disabled,
+  a:disabled {
+    cursor: not-allowed;
+  }
+
   * {
     box-sizing: border-box;
   }

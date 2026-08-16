@@ -11,14 +11,23 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import { useToast } from "@/hooks/useToast";
-import { MapPin } from "lucide-react";
+import { MapPin, Lock, Building2, Home } from "lucide-react";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
   number: z.string().regex(/^\d{10}$/, "Must be a 10-digit number"),
   companyId: z.string().min(1, "Company is required"),
-  workAddress: z.string().optional(),
-  homeAddress: z.string().optional(),
+  
+  // Standardized Work Address fields
+  workLine1: z.string().optional(),
+  workLine2: z.string().optional(),
+  workLandmark: z.string().optional(),
+
+  // Standardized Home Address fields
+  homeLine1: z.string().optional(),
+  homeLine2: z.string().optional(),
+  homeLandmark: z.string().optional(),
+
   // Coordinates: optional strings — parsed as floats on submission
   latitude: z.string().optional(),
   longitude: z.string().optional(),
@@ -26,7 +35,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-interface Company { id: string; name: string }
+interface Company { id: string; name: string; address?: string | null }
 interface User {
   id: string;
   name: string;
@@ -46,6 +55,21 @@ interface UserModalProps {
   companies: Company[];
 }
 
+function parseAddressParts(raw: string | null | undefined): { line1: string; line2: string; landmark: string } {
+  if (!raw || !raw.trim()) return { line1: "", line2: "", landmark: "" };
+  const parts = raw.split(",").map((p) => p.trim());
+  return {
+    line1: parts[0] ?? "",
+    line2: parts[1] ?? "",
+    landmark: parts[2] ?? "",
+  };
+}
+
+function combineAddressParts(line1?: string, line2?: string, landmark?: string): string | null {
+  const parts = [line1?.trim(), line2?.trim(), landmark?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export default function UserModal({ isOpen, onClose, onSuccess, user, companies }: UserModalProps) {
   const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,18 +80,30 @@ export default function UserModal({ isOpen, onClose, onSuccess, user, companies 
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  const selectedCompanyId = watch("companyId");
+  const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
+  const workAddressLocked = !!selectedCompany?.address && selectedCompany.address.trim().length >= 5;
 
   useEffect(() => {
     if (isOpen) {
       setShowCoords(!!(user?.latitude || user?.longitude));
+      const parsedWork = parseAddressParts(user?.workAddress);
+      const parsedHome = parseAddressParts(user?.homeAddress);
+
       reset({
         name: user?.name ?? "",
         number: user?.number ?? "",
         companyId: user?.companyId ?? "",
-        workAddress: user?.workAddress ?? "",
-        homeAddress: user?.homeAddress ?? "",
+        workLine1: parsedWork.line1,
+        workLine2: parsedWork.line2,
+        workLandmark: parsedWork.landmark,
+        homeLine1: parsedHome.line1,
+        homeLine2: parsedHome.line2,
+        homeLandmark: parsedHome.landmark,
         latitude: user?.latitude != null ? String(user.latitude) : "",
         longitude: user?.longitude != null ? String(user.longitude) : "",
       });
@@ -80,15 +116,20 @@ export default function UserModal({ isOpen, onClose, onSuccess, user, companies 
       const url = isEdit ? `/api/users/${user.id}` : "/api/users";
       const method = isEdit ? "PUT" : "POST";
 
+      const finalWorkAddress = workAddressLocked
+        ? selectedCompany!.address!.trim()
+        : combineAddressParts(data.workLine1, data.workLine2, data.workLandmark);
+
+      const finalHomeAddress = combineAddressParts(data.homeLine1, data.homeLine2, data.homeLandmark);
+
       const payload: Record<string, unknown> = {
-        name: data.name,
-        number: data.number,
+        name: data.name.trim(),
+        number: data.number.trim(),
         companyId: data.companyId,
-        workAddress: data.workAddress?.trim() || null,
-        homeAddress: data.homeAddress?.trim() || null,
+        workAddress: finalWorkAddress,
+        homeAddress: finalHomeAddress,
       };
 
-      // Only include coordinates on edit (admins set these for delivery nav)
       if (isEdit) {
         payload.latitude = data.latitude?.trim() ? parseFloat(data.latitude) : null;
         payload.longitude = data.longitude?.trim() ? parseFloat(data.longitude) : null;
@@ -136,23 +177,47 @@ export default function UserModal({ isOpen, onClose, onSuccess, user, companies 
         <Input label="Mobile Number" placeholder="10-digit number" required leftAddon="+91" error={errors.number?.message} {...register("number")} />
         <Select label="Company" placeholder="Select company" required options={companyOptions} error={errors.companyId?.message} {...register("companyId")} />
 
-        {/* Addresses */}
-        <Input
-          label="Work Address"
-          placeholder="Office / delivery address"
-          error={errors.workAddress?.message}
-          {...register("workAddress")}
-        />
-        <Input
-          label="Home Address"
-          placeholder="Home address (optional)"
-          error={errors.homeAddress?.message}
-          {...register("homeAddress")}
-        />
+        {/* Work Address */}
+        <div className="space-y-2 pt-1 border-t border-gray-100">
+          <label className="block text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+            <Building2 size={13} className="text-orange-500" /> Work Address
+          </label>
 
-        {/* Coordinates — admin only, for delivery staff navigation (Req #13) */}
+          {workAddressLocked ? (
+            <div className="w-full px-3.5 py-2.5 border border-orange-200 bg-orange-50/60 rounded-xl text-xs text-gray-800 font-medium flex items-start gap-2">
+              <Lock size={14} className="text-orange-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-bold text-gray-900">{selectedCompany!.address}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">Auto-filled &amp; locked from selected company address</p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Input placeholder="Address line 1 (Required)" error={errors.workLine1?.message} {...register("workLine1")} />
+              <Input placeholder="Floor / Building (optional)" error={errors.workLine2?.message} {...register("workLine2")} />
+              <Input placeholder="Landmark (optional)" error={errors.workLandmark?.message} {...register("workLandmark")} />
+              {selectedCompanyId && (
+                <p className="text-[10px] text-gray-400">
+                  This company has no saved address on file yet. Address entered above will be used.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Home Address */}
+        <div className="space-y-2 pt-1 border-t border-gray-100">
+          <label className="block text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+            <Home size={13} className="text-orange-500" /> Home Address (optional)
+          </label>
+          <Input placeholder="Address line 1 (optional)" error={errors.homeLine1?.message} {...register("homeLine1")} />
+          <Input placeholder="Floor / Building (optional)" error={errors.homeLine2?.message} {...register("homeLine2")} />
+          <Input placeholder="Landmark (optional)" error={errors.homeLandmark?.message} {...register("homeLandmark")} />
+        </div>
+
+        {/* Coordinates — admin only, for delivery staff navigation */}
         {isEdit && (
-          <div className="border border-dashed border-gray-200 rounded-xl overflow-hidden">
+          <div className="border border-dashed border-gray-200 rounded-xl overflow-hidden mt-2">
             <button
               type="button"
               onClick={() => setShowCoords((v) => !v)}

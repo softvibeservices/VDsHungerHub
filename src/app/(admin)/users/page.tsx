@@ -14,6 +14,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Badge from "@/components/ui/Badge";
 import UserModal from "@/components/modals/UserModal";
 import BulkUserModal from "@/components/modals/BulkUserModal";
+import UserAddressesModal from "@/components/modals/UserAddressesModal";
 import { useToast } from "@/hooks/useToast";
 import { useDebounce } from "@/hooks/useDebounce";
 import { formatMobileNumber } from "@/lib/utils";
@@ -45,7 +46,7 @@ interface User {
   status: "ACTIVE" | "BLOCKED" | "BANNED";
   statusReason?: string | null;
   statusChangedAt?: string | null;
-  _count?: { deviceFingerprints: number };
+  _count?: { deviceFingerprints: number; addresses?: number };
 }
 
 export default function UsersPage() {
@@ -66,6 +67,7 @@ export default function UsersPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [addressModalUser, setAddressModalUser] = useState<User | null>(null);
   const [editUser, setEditUser] = useState<User | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -203,17 +205,27 @@ export default function UsersPage() {
       key: "workAddress",
       header: "Work Address",
       render: (row) => (
-        <div className="flex items-start gap-1 max-w-[200px]">
-          {row.workAddress ? (
-            <>
-              {(row.latitude || row.longitude) && (
-                <MapPin size={11} className="text-orange-400 flex-shrink-0 mt-0.5" aria-label="GPS coordinates set" />
-              )}
-              <span className="text-xs text-gray-500 line-clamp-2">{row.workAddress}</span>
-            </>
-          ) : (
-            <span className="text-xs text-gray-300 italic">Not set</span>
-          )}
+        <div className="space-y-1 max-w-[200px]">
+          <div className="flex items-start gap-1">
+            {row.workAddress ? (
+              <>
+                {(row.latitude || row.longitude) && (
+                  <MapPin size={11} className="text-orange-400 flex-shrink-0 mt-0.5" aria-label="GPS coordinates set" />
+                )}
+                <span className="text-xs text-gray-500 line-clamp-2">{row.workAddress}</span>
+              </>
+            ) : (
+              <span className="text-xs text-gray-300 italic">Not set</span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setAddressModalUser(row)}
+            className="text-[11px] font-bold text-orange-600 hover:text-orange-700 hover:underline flex items-center gap-1 cursor-pointer"
+          >
+            <MapPin size={11} className="text-orange-500 shrink-0" />
+            <span>{row._count?.addresses ? `Addresses (${row._count.addresses})` : "Manage Addresses"}</span>
+          </button>
         </div>
       ),
     },
@@ -435,6 +447,14 @@ export default function UsersPage() {
             )}
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
               <button
+                onClick={() => setAddressModalUser(row)}
+                className="px-2.5 py-1 text-xs font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 rounded-lg flex items-center gap-1 cursor-pointer"
+                title="Manage Addresses"
+              >
+                <MapPin size={13} className="text-orange-500" />
+                <span>{row._count?.addresses ? `Addresses (${row._count.addresses})` : "Addresses"}</span>
+              </button>
+              <button
                 onClick={() => { setBanHistoryUser(row); fetchBanHistory(row.id); }}
                 className="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg cursor-pointer"
                 title="Ban History"
@@ -512,6 +532,15 @@ export default function UsersPage() {
 
       {isAdmin && bulkOpen && (
         <BulkUserModal isOpen={bulkOpen} onClose={() => setBulkOpen(false)} onSuccess={fetchUsers} />
+      )}
+
+      {addressModalUser && (
+        <UserAddressesModal
+          isOpen={!!addressModalUser}
+          onClose={() => setAddressModalUser(null)}
+          onSuccess={fetchUsers}
+          user={addressModalUser}
+        />
       )}
 
       {isAdmin && deleteId && (

@@ -4,21 +4,22 @@ import { cookies } from "next/headers";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { getEffectiveCutoffDate } from "@/lib/time";
-import {
-  resolveAuthState,
-} from "@/lib/customer-auth";
-import AuthTabs from "@/components/customer/AuthTabs";
+import { resolveAuthState } from "@/lib/customer-auth";
 import OrderingExperience from "@/components/customer/OrderingExperience";
 import { WHATSAPP_LINK } from "@/lib/constants";
 
 // ── Page component ────────────────────────────────────────────────────────────
-// Only VERIFIED_SESSION state renders the ordering UI (Req #8).
-// ANONYMOUS → defaults to Register tab.
-// DRAFT_PENDING_VERIFICATION → defaults to Verify tab so the user can resume.
+// Renders ordering experience or status banner based on dynamic mealType settings.
 
-export default async function MenuPage() {
+export default async function MenuPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ mealType?: string }>;
+}) {
+  const params = await searchParams;
+  const requestedMealType = params?.mealType as "LUNCH" | "DINNER" | undefined;
   const authState = await resolveAuthState();
-  const todayMenu = await getTodayMenu();
+  const todayMenu = await getTodayMenu(requestedMealType);
 
   const userId = authState.state === "VERIFIED_SESSION" ? authState.userId : null;
 
@@ -80,38 +81,67 @@ export default async function MenuPage() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-async function getTodayMenu() {
+function parseTimeToMinutes(timeStr: string | null | undefined): number | null {
+  if (!timeStr) return null;
+  const str = timeStr.trim().toUpperCase();
+  const isPM = str.includes("PM");
+  const isAM = str.includes("AM");
+  const clean = str.replace(/AM|PM/g, "").trim();
+  const parts = clean.split(":");
+  if (parts.length < 2) return null;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
+async function getTodayMenu(requestedMealType?: "LUNCH" | "DINNER") {
   const now = new Date();
   const istOffset = 5.5 * 60 * 60 * 1000;
   const ist = new Date(now.getTime() + istOffset);
   const istHour = ist.getUTCHours();
   const istMinute = ist.getUTCMinutes();
-  const dateStr = `${ist.getUTCFullYear()}-${String(ist.getUTCMonth() + 1).padStart(2, "0")}-${String(ist.getUTCDate()).padStart(2, "0")}`;
+  const currentMinutesFromMidnight = istHour * 60 + istMinute;
 
-  // Determine meal type by IST hour (before 3pm IST → LUNCH)
-  const mealType = istHour < 15 ? "LUNCH" : "DINNER";
+  // Retrieve global settings for both meal types to determine active cycle
+  const [lunchSettings, dinnerSettings] = await Promise.all([
+    prisma.mealSettings.findUnique({ where: { mealType: "LUNCH" } }),
+    prisma.mealSettings.findUnique({ where: { mealType: "DINNER" } }),
+  ]);
 
-  // Retrieve global settings first — needed for visibility window check
-  const settings = await prisma.mealSettings.findUnique({
-    where: { mealType },
-  });
+  let mealType: "LUNCH" | "DINNER" = "LUNCH";
 
-  if (!settings) {
-    console.warn(`[menu] No MealSettings row found for ${mealType}. Run 'npx prisma db seed' to populate initial meal settings.`);
+  if (requestedMealType === "LUNCH" || requestedMealType === "DINNER") {
+    mealType = requestedMealType;
+  } else {
+    const dinnerVisibleMin = parseTimeToMinutes(dinnerSettings?.menuVisibleFrom);
+    const lunchCutoffMin = parseTimeToMinutes(lunchSettings?.cutoffTime);
+
+    // If current time is past Dinner's visibleFrom time OR past Lunch's cutoff time, switch to DINNER
+    if (dinnerVisibleMin !== null && currentMinutesFromMidnight >= dinnerVisibleMin) {
+      mealType = "DINNER";
+    } else if (lunchCutoffMin !== null && currentMinutesFromMidnight >= lunchCutoffMin) {
+      mealType = "DINNER";
+    } else if (istHour >= 15) {
+      mealType = "DINNER";
+    }
   }
 
-  // §8.2 menuVisibleFrom check: if current time is BEFORE the visibility window,
-  // the menu for this cycle is not yet available. Return a sentinel object.
-  if (settings?.menuVisibleFrom) {
-    const [visibleHour, visibleMin] = settings.menuVisibleFrom.split(":").map(Number);
-    const currentMinutesFromMidnight = istHour * 60 + istMinute;
-    const visibleFromMinutes = visibleHour * 60 + visibleMin;
+  const settings = mealType === "DINNER" ? dinnerSettings : lunchSettings;
 
-    // For LUNCH: menu becomes visible at menuVisibleFrom the PREVIOUS evening (e.g. 18:00)
-    // For DINNER: menu becomes visible at menuVisibleFrom the SAME day (e.g. after lunch cutoff)
-    // Simple rule: if current time < visibleFrom AND it's the *same* meal type,
-    // the menu for today's cycle is not yet browsable
-    if (mealType === "DINNER" && currentMinutesFromMidnight < visibleFromMinutes) {
+  if (!settings) {
+    console.warn(`[menu] No MealSettings row found for ${mealType}.`);
+  }
+
+  // Check menuVisibleFrom for the target mealType
+  if (settings?.menuVisibleFrom) {
+    const visibleFromMinutes = parseTimeToMinutes(settings.menuVisibleFrom);
+
+    if (visibleFromMinutes !== null && currentMinutesFromMidnight < visibleFromMinutes) {
       return {
         menuNotYetVisible: true as const,
         mealType,
@@ -164,4 +194,3 @@ async function getTodayMenu() {
     menuNotYetVisible: false as const,
   };
 }
-

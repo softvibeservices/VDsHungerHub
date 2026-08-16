@@ -463,11 +463,20 @@ const DEFAULT_MAX_THALI = 10;
 const DEFAULT_MAX_ADDON = 30;
 
 export async function getOrderLimit(
-  key: "MAX_THALI_PER_ORDER" | "MAX_ADDON_PER_ORDER",
+  key: "MAX_THALI_PER_ORDER" | "MAX_ADDON_PER_ORDER" | "CUSTOMER_MAX_THALI_PER_ORDER" | "CUSTOMER_MAX_ADDON_PER_ORDER",
   fallback: number
 ): Promise<number> {
-  const row = await prisma.systemSetting.findUnique({ where: { key } });
-  return row ? parseInt(row.value, 10) : fallback;
+  const altKey = key === "MAX_THALI_PER_ORDER" ? "CUSTOMER_MAX_THALI_PER_ORDER"
+    : key === "CUSTOMER_MAX_THALI_PER_ORDER" ? "MAX_THALI_PER_ORDER"
+    : key === "MAX_ADDON_PER_ORDER" ? "CUSTOMER_MAX_ADDON_PER_ORDER"
+    : "MAX_ADDON_PER_ORDER";
+
+  const row = await prisma.systemSetting.findFirst({
+    where: {
+      key: { in: [key, altKey] },
+    },
+  });
+  return row && row.value ? parseInt(row.value, 10) : fallback;
 }
 
 export { DEFAULT_MAX_THALI, DEFAULT_MAX_ADDON };

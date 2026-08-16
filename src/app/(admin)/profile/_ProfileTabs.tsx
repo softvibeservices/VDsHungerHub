@@ -3,7 +3,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { KeyRound, Settings, Wallet } from "lucide-react";
+import { KeyRound, Settings, Wallet, MapPin } from "lucide-react";
 import Tabs from "@/components/ui/Tabs";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -16,7 +16,10 @@ export default function ProfileTabs() {
     { href: "/profile/password", label: "Password", icon: KeyRound },
     { href: "/profile/meal-cutoff", label: "Order Cutoff Times", icon: Settings },
     ...(currentUser?.role === "ADMIN"
-      ? [{ href: "/profile/credit-limits", label: "Credit Limits", icon: Wallet }]
+      ? [
+          { href: "/profile/credit-limits", label: "Credit Limits", icon: Wallet },
+          { href: "/profile/address-limits", label: "Order & Address Limits", icon: MapPin },
+        ]
       : []),
   ];
 

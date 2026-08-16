@@ -140,6 +140,11 @@ export async function POST(req: NextRequest) {
             data: {
               name: user.companyNameManual,
               location: user.workAddress?.trim() || null,
+              // FIX #1 (Decision D3): seed the canonical address from this first
+              // user's typed workAddress. Safe only because the Company row is
+              // brand-new here — there is no existing address being overwritten.
+              // Admin can still correct it later via the CompanyModal.
+              address: user.workAddress?.trim() || null,
               status: "CONFIRMED", // will appear in admin Pending tab since isVerifiedByAdmin=false
               addedByUserId: userId,
               isVerifiedByAdmin: false,
@@ -161,6 +166,19 @@ export async function POST(req: NextRequest) {
             companyNameManual: null, // cleared once company row is created
           },
         });
+
+        if (resolvedCompanyId && user.workAddress?.trim()) {
+          const comp = await tx.company.findUnique({
+            where: { id: resolvedCompanyId },
+            select: { address: true },
+          });
+          if (comp && (!comp.address || !comp.address.trim())) {
+            await tx.company.update({
+              where: { id: resolvedCompanyId },
+              data: { address: user.workAddress.trim() },
+            });
+          }
+        }
 
         if (user.workAddress?.trim()) {
           const existingAddr = await tx.address.findFirst({

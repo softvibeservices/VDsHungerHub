@@ -19,15 +19,24 @@ export async function PUT(
       return NextResponse.json({ error: "Company name is required" }, { status: 400 });
     }
 
+    const newAddress = address?.trim() || null;
+
     const company = await prisma.company.update({
       where: { id },
       data: {
         name: name.trim(),
         location: location?.trim() || null,
-        address: address?.trim() || null,
+        address: newAddress,
         ...(isActive !== undefined && { isActive }),
       },
     });
+
+    if (newAddress) {
+      await prisma.user.updateMany({
+        where: { companyId: id },
+        data: { workAddress: newAddress },
+      });
+    }
 
     return NextResponse.json({ company });
   } catch (error: unknown) {

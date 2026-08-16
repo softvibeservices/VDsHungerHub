@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { MapPin, Plus, Home, Briefcase, X, Loader2, Check } from "lucide-react";
+import { MapPin, Plus, Home, Briefcase, X, Loader2, Check, AlertCircle } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ interface Props {
 // ── Helper: address label ─────────────────────────────────────────────────────
 
 function formatAddress(a: Address) {
-  const parts = [a.line1, a.line2, a.landmark, a.city, a.pincode].filter(Boolean);
+  const parts = [a.line1, a.line2, a.landmark].filter(Boolean);
   return parts.join(", ");
 }
 
@@ -44,8 +44,6 @@ function AddAddressForm({ defaultType = "HOME", onSaved, onCancel }: AddFormProp
   const [line1, setLine1] = useState("");
   const [line2, setLine2] = useState("");
   const [landmark, setLandmark] = useState("");
-  const [city, setCity] = useState("");
-  const [pincode, setPincode] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -61,7 +59,7 @@ function AddAddressForm({ defaultType = "HOME", onSaved, onCancel }: AddFormProp
       const res = await fetch("/api/customer/addresses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, line1: line1.trim(), line2: line2.trim() || null, landmark: landmark.trim() || null, city: city.trim() || null, pincode: pincode.trim() || null }),
+        body: JSON.stringify({ type, line1: line1.trim(), line2: line2.trim() || null, landmark: landmark.trim() || null }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -89,7 +87,7 @@ function AddAddressForm({ defaultType = "HOME", onSaved, onCancel }: AddFormProp
             key={t}
             type="button"
             onClick={() => setType(t)}
-            className={`flex items-center gap-1.5 flex-1 py-2 px-3 rounded-xl text-sm font-medium border transition-all ${
+            className={`flex items-center gap-1.5 flex-1 py-2 px-3 rounded-xl text-sm font-medium border transition-all cursor-pointer ${
               type === t
                 ? "border-orange-400 bg-orange-50 text-orange-700"
                 : "border-gray-200 text-gray-500 hover:border-gray-300"
@@ -110,16 +108,12 @@ function AddAddressForm({ defaultType = "HOME", onSaved, onCancel }: AddFormProp
       <input id="addr-line1" type="text" value={line1} onChange={e => setLine1(e.target.value)} placeholder="Address line 1 *" className={inputCls} required />
       <input id="addr-line2" type="text" value={line2} onChange={e => setLine2(e.target.value)} placeholder="Floor / Building (optional)" className={inputCls} />
       <input id="addr-landmark" type="text" value={landmark} onChange={e => setLandmark(e.target.value)} placeholder="Landmark (optional)" className={inputCls} />
-      <div className="flex gap-2">
-        <input id="addr-city" type="text" value={city} onChange={e => setCity(e.target.value)} placeholder="City" className={`${inputCls} flex-1`} />
-        <input id="addr-pincode" type="text" inputMode="numeric" value={pincode} onChange={e => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Pincode" className={`${inputCls} w-28`} />
-      </div>
 
       <div className="flex gap-2 pt-1">
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-medium hover:bg-gray-50 transition-colors"
+          className="flex-1 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 font-medium hover:bg-gray-50 transition-colors cursor-pointer"
         >
           Cancel
         </button>
@@ -127,7 +121,7 @@ function AddAddressForm({ defaultType = "HOME", onSaved, onCancel }: AddFormProp
           id="addr-save"
           type="submit"
           disabled={saving || line1.trim().length < 5}
-          className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+          className="flex-1 py-2.5 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
         >
           {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
           Save Address
@@ -141,6 +135,7 @@ function AddAddressForm({ defaultType = "HOME", onSaved, onCancel }: AddFormProp
 
 export default function AddressSheet({ onConfirm, onClose }: Props) {
   const [addresses, setAddresses] = useState<Address[]>([]);
+  const [maxLimit, setMaxLimit] = useState<number>(5);
   const [selected, setSelected] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -152,6 +147,7 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
       .then(d => {
         const addrs: Address[] = d.addresses ?? [];
         setAddresses(addrs);
+        if (d.maxLimit) setMaxLimit(d.maxLimit);
         // Pre-select the default address (or first one)
         const def = addrs.find(a => a.isDefault) ?? addrs[0];
         if (def) setSelected(def.id);
@@ -198,11 +194,12 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
           <div className="flex items-center gap-2.5">
             <MapPin size={18} className="text-orange-500" />
             <h2 className="font-bold text-gray-900 text-base">Delivery Address</h2>
+            <span className="text-xs text-gray-400 font-medium">({addresses.length}/{maxLimit})</span>
           </div>
           <button
             id="address-sheet-close"
             onClick={onClose}
-            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            className="p-1.5 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
             aria-label="Close"
           >
             <X size={18} />
@@ -230,7 +227,7 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
                     id={`addr-card-${addr.id}`}
                     type="button"
                     onClick={() => setSelected(addr.id)}
-                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${
+                    className={`w-full text-left p-4 rounded-2xl border-2 transition-all cursor-pointer ${
                       selected === addr.id
                         ? "border-orange-400 bg-orange-50"
                         : "border-gray-200 bg-white hover:border-gray-300"
@@ -265,16 +262,26 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
                 ))}
               </div>
 
-              {/* Add new address */}
-              <button
-                id="add-new-address"
-                type="button"
-                onClick={() => { setAddFormType("HOME"); setShowAddForm(true); }}
-                className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-600 hover:border-orange-300 hover:text-orange-600 transition-all cursor-pointer"
-              >
-                <Plus size={16} />
-                Add Another Address
-              </button>
+              {/* Add new address button or limit banner */}
+              {addresses.length >= maxLimit ? (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5">
+                  <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-900 leading-relaxed">
+                    <p className="font-bold">Address Limit Reached ({addresses.length}/{maxLimit})</p>
+                    <p className="text-amber-700 mt-0.5">You have saved the maximum allowed limit of {maxLimit} addresses. Please delete an existing address in your Profile to add a new one.</p>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  id="add-new-address"
+                  type="button"
+                  onClick={() => { setAddFormType("HOME"); setShowAddForm(true); }}
+                  className="w-full flex items-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-gray-200 text-sm font-medium text-gray-600 hover:border-orange-300 hover:text-orange-600 transition-all cursor-pointer"
+                >
+                  <Plus size={16} />
+                  Add Another Address ({addresses.length}/{maxLimit})
+                </button>
+              )}
 
               {/* Confirm CTA */}
               <button
@@ -288,7 +295,7 @@ export default function AddressSheet({ onConfirm, onClose }: Props) {
                     onConfirm(selected, addrText);
                   }
                 }}
-                className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 transition-all shadow-md shadow-orange-500/25"
+                className="w-full py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md shadow-orange-500/25 cursor-pointer"
               >
                 Deliver Here
               </button>

@@ -136,11 +136,11 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="h-16 px-4 border-b border-gray-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image
-              src="/images/vita-logo.svg"
+              src="/vita-Logo.png"
               alt="ViTa Cuisine Logo"
               width={36}
               height={36}
-              className="rounded-xl shrink-0"
+              className="rounded-xl shrink-0 object-contain"
               priority
             />
             <div>

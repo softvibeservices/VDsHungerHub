@@ -20,6 +20,8 @@ import {
  * Body: { type: "WORK"|"HOME", line1, line2?, landmark?, city?, pincode?, setAsDefault? }
  */
 
+import { getMaxSavedAddressesLimit } from "@/lib/address-settings";
+
 async function getAuth(req: NextRequest) {
   const token = req.cookies.get(CUSTOMER_ACCESS_COOKIE)?.value;
   if (!token) return null;
@@ -43,23 +45,26 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const addresses = await prisma.address.findMany({
-      where: { userId: claims.sub },
-      orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        type: true,
-        line1: true,
-        line2: true,
-        landmark: true,
-        city: true,
-        pincode: true,
-        isDefault: true,
-        createdAt: true,
-      },
-    });
+    const [addresses, maxLimit] = await Promise.all([
+      prisma.address.findMany({
+        where: { userId: claims.sub },
+        orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          type: true,
+          line1: true,
+          line2: true,
+          landmark: true,
+          city: true,
+          pincode: true,
+          isDefault: true,
+          createdAt: true,
+        },
+      }),
+      getMaxSavedAddressesLimit(),
+    ]);
 
-    return NextResponse.json({ addresses });
+    return NextResponse.json({ addresses, maxLimit });
   } catch (error) {
     console.error("[CUSTOMER ADDRESSES GET]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { type, line1, line2, landmark, city, pincode, setAsDefault = false } = body;
+    const { type, line1, line2, landmark, setAsDefault = false } = body;
 
     if (!type || !["WORK", "HOME"].includes(type)) {
       return NextResponse.json(
@@ -114,6 +119,23 @@ export async function POST(req: NextRequest) {
     }
 
     const userId = claims.sub;
+
+    // Enforce maximum saved address limit per user
+    const [currentCount, maxLimit] = await Promise.all([
+      prisma.address.count({ where: { userId } }),
+      getMaxSavedAddressesLimit(),
+    ]);
+
+    if (currentCount >= maxLimit) {
+      return NextResponse.json(
+        {
+          error: `Address limit reached. You can save at most ${maxLimit} addresses. Please remove an existing address to add a new one.`,
+          maxLimit,
+          currentCount,
+        },
+        { status: 400 }
+      );
+    }
 
     // If setAsDefault or it's the first address of that type, auto-set as default
     const existing = await prisma.address.findFirst({
@@ -138,8 +160,6 @@ export async function POST(req: NextRequest) {
         line1: line1.trim(),
         line2: line2?.trim() || null,
         landmark: landmark?.trim() || null,
-        city: city?.trim() || null,
-        pincode: pincode?.trim() || null,
         isDefault: shouldBeDefault,
       },
       select: {
@@ -148,8 +168,6 @@ export async function POST(req: NextRequest) {
         line1: true,
         line2: true,
         landmark: true,
-        city: true,
-        pincode: true,
         isDefault: true,
         createdAt: true,
       },

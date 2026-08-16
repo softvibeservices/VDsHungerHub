@@ -10,12 +10,17 @@ import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { useToast } from "@/hooks/useToast";
+import { Building2 } from "lucide-react";
 
 const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
-  location: z.string().optional(),
-  address: z.string().optional(),
+  
+  // Standardized 3-field address structure (matches registration & profile forms)
+  line1: z.string().optional(),
+  line2: z.string().optional(),
+  landmark: z.string().optional(),
 });
+
 type FormData = z.infer<typeof schema>;
 
 interface Company {
@@ -32,6 +37,21 @@ interface CompanyModalProps {
   company?: Company | null;
 }
 
+function parseAddressParts(raw: string | null | undefined): { line1: string; line2: string; landmark: string } {
+  if (!raw || !raw.trim()) return { line1: "", line2: "", landmark: "" };
+  const parts = raw.split(",").map((p) => p.trim());
+  return {
+    line1: parts[0] ?? "",
+    line2: parts[1] ?? "",
+    landmark: parts[2] ?? "",
+  };
+}
+
+function combineAddressParts(line1?: string, line2?: string, landmark?: string): string | null {
+  const parts = [line1?.trim(), line2?.trim(), landmark?.trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 export default function CompanyModal({ isOpen, onClose, onSuccess, company }: CompanyModalProps) {
   const toast = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -46,10 +66,13 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, company }: Co
 
   useEffect(() => {
     if (isOpen) {
+      const rawAddress = company?.address || company?.location;
+      const parsedAddr = parseAddressParts(rawAddress);
       reset({
         name: company?.name ?? "",
-        location: company?.location ?? "",
-        address: company?.address ?? "",
+        line1: parsedAddr.line1,
+        line2: parsedAddr.line2,
+        landmark: parsedAddr.landmark,
       });
     }
   }, [isOpen, company, reset]);
@@ -60,10 +83,16 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, company }: Co
       const url = isEdit ? `/api/companies/${company.id}` : "/api/companies";
       const method = isEdit ? "PUT" : "POST";
 
+      const formattedAddress = combineAddressParts(data.line1, data.line2, data.landmark);
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          name: data.name.trim(),
+          location: data.line1?.trim() || formattedAddress || null,
+          address: formattedAddress,
+        }),
       });
 
       const json = await res.json();
@@ -108,26 +137,30 @@ export default function CompanyModal({ isOpen, onClose, onSuccess, company }: Co
           error={errors.name?.message}
           {...register("name")}
         />
-        <Input
-          label="Location"
-          placeholder="e.g. Satellite, Ahmedabad (optional)"
-          error={errors.location?.message}
-          {...register("location")}
-        />
-        <div className="space-y-1.5">
-          <label className="block text-sm font-medium text-gray-700">
-            Delivery Address
-            <span className="text-gray-400 font-normal ml-1">(optional — used in PDF &amp; WhatsApp digest)</span>
+
+        {/* Standardized 3-Field Delivery Address (Identical to Customer Registration) */}
+        <div className="space-y-2 pt-1 border-t border-gray-100">
+          <label className="block text-xs font-semibold text-gray-700 flex items-center gap-1.5">
+            <Building2 size={13} className="text-orange-500" /> Company Delivery Address
           </label>
-          <textarea
-            {...register("address")}
-            rows={3}
-            placeholder="e.g. A-402, Iscon Elegance, SG Highway, Ahmedabad — 380054"
-            className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent resize-none"
+          <Input
+            placeholder="Address line 1 (Required for auto-lock)"
+            error={errors.line1?.message}
+            {...register("line1")}
           />
-          {errors.address && (
-            <p className="text-xs text-red-500">{errors.address.message}</p>
-          )}
+          <Input
+            placeholder="Floor / Building (optional)"
+            error={errors.line2?.message}
+            {...register("line2")}
+          />
+          <Input
+            placeholder="Landmark (optional)"
+            error={errors.landmark?.message}
+            {...register("landmark")}
+          />
+          <p className="text-[10px] text-gray-400">
+            This delivery address will be automatically fetched and locked for all employees of this company.
+          </p>
         </div>
       </div>
     </Modal>

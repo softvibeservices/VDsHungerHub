@@ -6,7 +6,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut, ClipboardList, ShoppingBag } from "lucide-react";
+import { Menu, X, LogOut, ClipboardList, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
 
 interface Props {
   loggedIn: boolean;
@@ -80,6 +80,7 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
             <nav className="hidden md:flex items-center gap-2">
               {navLink("/menu", "Order", <ShoppingBag size={16} />)}
               {navLink("/menu/orders", "My Orders", <ClipboardList size={16} />)}
+              {navLink("/menu/profile", "Profile", <User size={16} />)}
             </nav>
           ) : (
             <nav className="hidden md:flex items-center gap-4">
@@ -91,6 +92,13 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
               </Link>
               <Link href="/verify" className={guestLinkClass("/verify")}>
                 Verify Mobile
+              </Link>
+              <Link
+                href="/menu"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#C9A84C] hover:bg-[#b8963f] text-[#0F1E3D] font-extrabold text-xs rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer"
+              >
+                <UtensilsCrossed size={15} />
+                <span>Order Now</span>
               </Link>
             </nav>
           )}
@@ -116,7 +124,7 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
             )}
 
             <button
-              className="md:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-[#1B2D5A] transition-colors"
+              className="md:hidden p-2 rounded-xl text-gray-500 hover:bg-gray-100 hover:text-[#1B2D5A] transition-colors cursor-pointer"
               aria-label="Toggle menu"
               aria-expanded={mobileOpen}
               onClick={() => setMobileOpen((v) => !v)}
@@ -137,13 +145,14 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                 )}
                 {navLink("/menu", "Order", <ShoppingBag size={16} />)}
                 {navLink("/menu/orders", "My Orders", <ClipboardList size={16} />)}
+                {navLink("/menu/profile", "Profile", <User size={16} />)}
                 <button
                   type="button"
                   onClick={() => {
                     setMobileOpen(false);
                     setShowLogoutConfirm(true);
                   }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
                 >
                   <LogOut size={16} />
                   Log out
@@ -151,6 +160,13 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
               </>
             ) : (
               <div className="flex flex-col gap-2 p-2">
+                <Link
+                  href="/menu"
+                  onClick={() => setMobileOpen(false)}
+                  className="w-full py-2.5 text-center text-sm font-extrabold rounded-xl bg-[#C9A84C] text-[#0F1E3D] shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <UtensilsCrossed size={16} /> Order Now
+                </Link>
                 <Link
                   href="/register"
                   onClick={() => setMobileOpen(false)}

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const companies = await prisma.company.findMany({
       where: { isVerifiedByAdmin: true, isFlaggedFake: false, isActive: true },
-      select: { id: true, name: true },
+      select: { id: true, name: true, address: true, location: true },
       orderBy: { name: "asc" },
     });
 

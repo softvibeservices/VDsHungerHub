@@ -3,17 +3,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight, Loader2, Building2, Plus, Phone, KeyRound, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, Loader2, Building2, Plus, Phone, KeyRound, Eye, EyeOff, Home, Lock, MapPin } from "lucide-react";
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
-
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Step = "DETAILS" | "OTP" | "PIN";
+type OrderingMode = "WORK" | "HOME_ONLY";
 
 interface Company {
   id: string;
   name: string;
+  address?: string | null;
+  location?: string | null;
 }
 
 interface Props {
@@ -23,7 +25,14 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function hasCanonicalAddress(c: Company | undefined | null): boolean {
+  return !!c?.address && c.address.trim().length >= 5;
+}
 
+function combineAddress(line1: string, line2: string, landmark: string): string {
+  const parts = [line1.trim(), line2.trim(), landmark.trim()].filter(Boolean);
+  return parts.join(", ");
+}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -33,8 +42,18 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   // Step 1 state
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
-  const [workAddress, setWorkAddress] = useState("");
-  const [homeAddress, setHomeAddress] = useState("");
+  const [orderingMode, setOrderingMode] = useState<OrderingMode>("WORK");
+  
+  // Work address state
+  const [workLine1, setWorkLine1] = useState("");
+  const [workLine2, setWorkLine2] = useState("");
+  const [workLandmark, setWorkLandmark] = useState("");
+
+  // Home address state
+  const [homeLine1, setHomeLine1] = useState("");
+  const [homeLine2, setHomeLine2] = useState("");
+  const [homeLandmark, setHomeLandmark] = useState("");
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [companyId, setCompanyId] = useState("");
   const [newCompany, setNewCompany] = useState(false);
@@ -70,12 +89,37 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
     return () => clearTimeout(t);
   }, [otpCooldown]);
 
+  // ── Auto-fill & lock work address when selected company changes ────────────
+  const selectedCompany = companies.find((c) => c.id === companyId);
+  const workAddressLocked =
+    orderingMode === "WORK" && !newCompany && !!companyId && hasCanonicalAddress(selectedCompany);
+
+  useEffect(() => {
+    if (newCompany || !companyId) return;
+    const selected = companies.find((c) => c.id === companyId);
+    if (hasCanonicalAddress(selected)) {
+      setWorkLine1(selected!.address!.trim());
+      setWorkLine2("");
+      setWorkLandmark("");
+    } else {
+      setWorkLine1("");
+      setWorkLine2("");
+      setWorkLandmark("");
+    }
+  }, [companyId, newCompany, companies]);
+
+  // Derived formatted addresses
+  const computedWorkAddress = workAddressLocked
+    ? selectedCompany!.address!.trim()
+    : combineAddress(workLine1, workLine2, workLandmark);
+
+  const computedHomeAddress = combineAddress(homeLine1, homeLine2, homeLandmark);
+
   // ── Step 1: Submit details ──────────────────────────────────────────────────
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
-    // Client-side validations
     if (!fullName.trim() || fullName.trim().length < 2 || fullName.trim().length > 80) {
       setError("Full name must be between 2 and 80 characters.");
       return;
@@ -87,24 +131,26 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       return;
     }
 
-    if (!workAddress.trim() || workAddress.trim().length < 10 || workAddress.trim().length > 300) {
-      setError("Work / Delivery Address must be between 10 and 300 characters.");
-      return;
-    }
+    if (orderingMode === "HOME_ONLY") {
+      if (!homeLine1.trim() || homeLine1.trim().length < 5) {
+        setError("Home Address Line 1 must be at least 5 characters.");
+        return;
+      }
+    } else {
+      if (!newCompany && !companyId) {
+        setError("Please select a company.");
+        return;
+      }
 
-    if (homeAddress.trim() && (homeAddress.trim().length < 10 || homeAddress.trim().length > 300)) {
-      setError("Home Address must be between 10 and 300 characters if provided.");
-      return;
-    }
+      if (newCompany && (!newCompanyName.trim() || newCompanyName.trim().length < 2 || newCompanyName.trim().length > 100)) {
+        setError("Company name must be between 2 and 100 characters.");
+        return;
+      }
 
-    if (!newCompany && !companyId) {
-      setError("Please select a company.");
-      return;
-    }
-
-    if (newCompany && (!newCompanyName.trim() || newCompanyName.trim().length < 2 || newCompanyName.trim().length > 100)) {
-      setError("Company name must be between 2 and 100 characters.");
-      return;
+      if (!workAddressLocked && (!workLine1.trim() || workLine1.trim().length < 5)) {
+        setError("Work Address Line 1 must be at least 5 characters.");
+        return;
+      }
     }
 
     setLoading(true);
@@ -112,16 +158,16 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
     try {
       const visitorId = await getDeviceVisitorId();
 
-      // 1. Create the user draft
       const res = await fetch("/api/customer/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          fullName,
-          workAddress,
-          homeAddress: homeAddress || undefined,
-          companyId: newCompany ? undefined : companyId,
-          newCompanyName: newCompany ? newCompanyName : undefined,
+          fullName: fullName.trim(),
+          orderingMode,
+          workAddress: orderingMode === "WORK" ? computedWorkAddress : undefined,
+          homeAddress: orderingMode === "HOME_ONLY" ? computedHomeAddress : undefined,
+          companyId: orderingMode === "WORK" && !newCompany ? companyId : undefined,
+          newCompanyName: orderingMode === "WORK" && newCompany ? newCompanyName.trim() : undefined,
           deviceVisitorId: visitorId,
         }),
       });
@@ -136,7 +182,6 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       const registeredDraftId = data.draftId;
       setDraftId(registeredDraftId);
 
-      // 2. Immediately send OTP to the mobile number
       const otpRes = await fetch("/api/customer/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -257,7 +302,6 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       return;
     }
 
-    // Avoid simple PINs (consecutive or identical digits)
     const simplePins = [
       "000000", "111111", "222222", "333333", "444444", "555555", "666666", "777777", "888888", "999999",
       "123456", "654321"
@@ -279,7 +323,6 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
-        // Pre-auth token expired (10-min window) → bounce back to OTP step for re-verification
         if (res.status === 401) {
           setPreAuthToken("");
           setOtp("");
@@ -304,6 +347,9 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   // ── Step indicators ─────────────────────────────────────────────────────────
   const steps = ["Details", "Verify Mobile", "Set PIN"];
   const currentStepIdx = step === "DETAILS" ? 0 : step === "OTP" ? 1 : 2;
+
+  const inputCls =
+    "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all bg-white text-gray-800 placeholder-gray-400";
 
   return (
     <div>
@@ -347,7 +393,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
       {/* ── STEP 1: DETAILS ──────────────────────────────────────────────────── */}
       {step === "DETAILS" && (
-        <form onSubmit={handleDetailsSubmit} className="space-y-3">
+        <form onSubmit={handleDetailsSubmit} className="space-y-3.5">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
               Full Name *
@@ -361,7 +407,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               minLength={2}
               maxLength={80}
               placeholder="Your full name"
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              className={inputCls}
             />
           </div>
 
@@ -387,93 +433,188 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
             </div>
           </div>
 
+          {/* Delivery mode toggle */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Work / Delivery Address *
+            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+              Where should we deliver? *
             </label>
-            <textarea
-              id="register-work-address"
-              value={workAddress}
-              onChange={(e) => setWorkAddress(e.target.value)}
-              required
-              minLength={10}
-              maxLength={300}
-              rows={2}
-              placeholder="Office / delivery location"
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all resize-none"
-            />
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                id="ordering-mode-work"
+                onClick={() => setOrderingMode("WORK")}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
+                  orderingMode === "WORK"
+                    ? "border-orange-500 bg-orange-500 text-white shadow-sm"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                }`}
+              >
+                <Building2 size={14} /> Work (via Company)
+              </button>
+              <button
+                type="button"
+                id="ordering-mode-home"
+                onClick={() => setOrderingMode("HOME_ONLY")}
+                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
+                  orderingMode === "HOME_ONLY"
+                    ? "border-orange-500 bg-orange-500 text-white shadow-sm"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                }`}
+              >
+                <Home size={14} /> Home Only
+              </button>
+            </div>
+            <p className="text-[10px] text-gray-400 mt-1">
+              {orderingMode === "WORK"
+                ? "We'll deliver to your workplace via your company."
+                : "We'll deliver directly to your home address — no company needed."}
+            </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Home Address <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <textarea
-              id="register-home-address"
-              value={homeAddress}
-              onChange={(e) => setHomeAddress(e.target.value)}
-              maxLength={300}
-              rows={2}
-              placeholder="Residential address"
-              className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all resize-none"
-            />
-          </div>
+          {/* WORK MODE: Render Company Selector + Work Address ONLY */}
+          {orderingMode === "WORK" && (
+            <div className="space-y-3 pt-1 border-t border-gray-100">
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                  <Building2 size={13} className="text-orange-500" /> Company *
+                </label>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-              <Building2 size={13} /> Company *
-            </label>
-
-            {!newCompany ? (
-              <div className="flex gap-2">
-                <select
-                  id="register-company-select"
-                  value={companyId}
-                  onChange={(e) => setCompanyId(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white transition-all"
-                >
-                  <option value="">Select company...</option>
-                  {companies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => setNewCompany(true)}
-                  className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold px-2.5 py-2 border border-orange-200 rounded-xl hover:bg-orange-50 transition-colors shrink-0"
-                >
-                  <Plus size={14} /> New
-                </button>
+                {!newCompany ? (
+                  <div className="flex gap-2">
+                    <select
+                      id="register-company-select"
+                      value={companyId}
+                      onChange={(e) => setCompanyId(e.target.value)}
+                      className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white transition-all text-gray-800"
+                    >
+                      <option value="">Select company...</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => { setNewCompany(true); setCompanyId(""); setWorkLine1(""); setWorkLine2(""); setWorkLandmark(""); }}
+                      className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold px-3 py-2 border border-orange-200 rounded-xl hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
+                    >
+                      <Plus size={14} /> New
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      id="register-new-company"
+                      type="text"
+                      value={newCompanyName}
+                      onChange={(e) => setNewCompanyName(e.target.value)}
+                      placeholder="Enter company name"
+                      maxLength={120}
+                      className="flex-1 px-3 py-2 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => { setNewCompany(false); setNewCompanyName(""); setWorkLine1(""); setWorkLine2(""); setWorkLandmark(""); }}
+                      className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shrink-0 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  id="register-new-company"
-                  type="text"
-                  value={newCompanyName}
-                  onChange={(e) => setNewCompanyName(e.target.value)}
-                  placeholder="Enter company name"
-                  maxLength={120}
-                  className="flex-1 px-3 py-2 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => { setNewCompany(false); setNewCompanyName(""); }}
-                  className="text-xs text-gray-500 hover:text-gray-700 px-2.5 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shrink-0"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
 
-            {!newCompany && !companyId && (
-              <p className="text-[10px] text-gray-400 mt-1">
-                Don&apos;t see your company? Click &quot;New&quot; to add it.
-              </p>
-            )}
-          </div>
+              {/* Work Address: locked if company address is present; 3-field input otherwise */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                  <MapPin size={13} className="text-orange-500" /> Work / Delivery Address *
+                </label>
+                {workAddressLocked ? (
+                  <div className="w-full px-3.5 py-3 border border-orange-200 bg-orange-50/50 rounded-xl text-sm text-gray-800 font-medium flex items-start gap-2.5">
+                    <Lock size={15} className="text-orange-500 mt-0.5 shrink-0" />
+                    <span>{selectedCompany!.address}</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <input
+                      id="register-work-line1"
+                      type="text"
+                      value={workLine1}
+                      onChange={(e) => setWorkLine1(e.target.value)}
+                      required
+                      minLength={5}
+                      maxLength={150}
+                      placeholder="Address line 1 *"
+                      className={inputCls}
+                    />
+                    <input
+                      id="register-work-line2"
+                      type="text"
+                      value={workLine2}
+                      onChange={(e) => setWorkLine2(e.target.value)}
+                      maxLength={150}
+                      placeholder="Floor / Building (optional)"
+                      className={inputCls}
+                    />
+                    <input
+                      id="register-work-landmark"
+                      type="text"
+                      value={workLandmark}
+                      onChange={(e) => setWorkLandmark(e.target.value)}
+                      maxLength={150}
+                      placeholder="Landmark (optional)"
+                      className={inputCls}
+                    />
+                  </div>
+                )}
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {workAddressLocked
+                    ? "This address is set by your company and cannot be changed here."
+                    : companyId && !newCompany
+                    ? "This company doesn't have a saved address yet — the address you enter will be saved as your delivery location."
+                    : ""}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* HOME ONLY MODE: Render Home Address ONLY */}
+          {orderingMode === "HOME_ONLY" && (
+            <div className="space-y-2 pt-1 border-t border-gray-100">
+              <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                <Home size={13} className="text-orange-500" /> Home Delivery Address *
+              </label>
+              <input
+                id="register-home-line1"
+                type="text"
+                value={homeLine1}
+                onChange={(e) => setHomeLine1(e.target.value)}
+                required
+                minLength={5}
+                maxLength={150}
+                placeholder="Address line 1 *"
+                className={inputCls}
+              />
+              <input
+                id="register-home-line2"
+                type="text"
+                value={homeLine2}
+                onChange={(e) => setHomeLine2(e.target.value)}
+                maxLength={150}
+                placeholder="Floor / Building (optional)"
+                className={inputCls}
+              />
+              <input
+                id="register-home-landmark"
+                type="text"
+                value={homeLandmark}
+                onChange={(e) => setHomeLandmark(e.target.value)}
+                maxLength={150}
+                placeholder="Landmark (optional)"
+                className={inputCls}
+              />
+            </div>
+          )}
 
           <button
             id="register-step1-submit"
@@ -482,11 +623,15 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               loading ||
               !fullName.trim() ||
               mobile.length !== 10 ||
-              !workAddress.trim() ||
-              (!newCompany && !companyId) ||
-              (newCompany && !newCompanyName.trim())
+              (orderingMode === "HOME_ONLY"
+                ? !homeLine1.trim()
+                : (
+                    (!workAddressLocked && !workLine1.trim()) ||
+                    (!newCompany && !companyId) ||
+                    (newCompany && !newCompanyName.trim())
+                  ))
             }
-            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 mt-2 cursor-pointer"
+            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 mt-3 cursor-pointer"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
             Continue
@@ -594,7 +739,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               <button
                 type="button"
                 onClick={() => setShowPin((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
               >
                 {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>

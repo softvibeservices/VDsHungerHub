@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
           statusReason: true,
           statusChangedAt: true,
           company: { select: { id: true, name: true } },
-          _count: { select: { deviceFingerprints: true } },
+          _count: { select: { deviceFingerprints: true, addresses: true } },
         },
       }),
       prisma.user.count({ where }),
@@ -78,12 +78,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Valid 10-digit mobile number is required" }, { status: 400 });
     if (!companyId) return NextResponse.json({ error: "Company is required" }, { status: 400 });
 
+    let finalWorkAddress = workAddress?.trim() || null;
+    if (!finalWorkAddress && companyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { address: true },
+      });
+      if (company?.address) {
+        finalWorkAddress = company.address.trim();
+      }
+    }
+
     const user = await prisma.user.create({
       data: {
         name: name.trim(),
         number: cleanNumber,
         companyId,
-        workAddress: workAddress?.trim() || null,
+        workAddress: finalWorkAddress,
         homeAddress: homeAddress?.trim() || null,
         isVerified: true,
         verifiedAt: new Date(),
