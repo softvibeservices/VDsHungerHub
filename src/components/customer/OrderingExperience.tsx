@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   UtensilsCrossed, Plus, Minus, PackagePlus, CheckCircle2,
   ShoppingCart, Clock, AlertCircle, ChevronDown, ChevronUp, Trash2,
@@ -65,6 +65,7 @@ interface DailyMenu {
   date: string;
   mealType: "LUNCH" | "DINNER";
   cutoffTime?: string | null;
+  menuVisibleFrom?: string | null;
   thalis: DailyMenuThali[];
   sabjiOptions: SabjiOption[];
 }
@@ -288,6 +289,9 @@ export default function OrderingExperience({ userId, menu }: Props) {
   const [maxThaliLimit, setMaxThaliLimit] = useState<number>(10);
   const [maxAddonLimit, setMaxAddonLimit] = useState<number>(30);
 
+  // Customer Credit & Balance State for Pre-Checkout Validation
+  const [customerCredit, setCustomerCredit] = useState<{ balance: number; creditLimit: number } | null>(null);
+
   useEffect(() => {
     fetch("/api/public/order-limits")
       .then((r) => r.json())
@@ -297,6 +301,18 @@ export default function OrderingExperience({ userId, menu }: Props) {
       })
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetch("/api/customer/credit")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.balance !== undefined && d.creditLimit !== undefined) {
+          setCustomerCredit({ balance: d.balance, creditLimit: d.creditLimit });
+        }
+      })
+      .catch(() => {});
+  }, [userId]);
 
   // Fetch add-on products
   useEffect(() => {
@@ -462,10 +478,28 @@ export default function OrderingExperience({ userId, menu }: Props) {
     ]);
   };
 
+  const checkPreCheckoutCredit = (): boolean => {
+    if (!customerCredit) return true;
+    const projected = Math.round((customerCredit.balance + grandTotal) * 100) / 100;
+    if (projected > customerCredit.creditLimit) {
+      setCreditLimitBreach({
+        currentBalance: customerCredit.balance,
+        limit: customerCredit.creditLimit,
+        projectedBalance: projected,
+        orderAmount: grandTotal,
+        message: `Your current outstanding due is ₹${customerCredit.balance.toFixed(2)} and adding this order (₹${grandTotal.toFixed(2)}) would bring your total balance to ₹${projected.toFixed(2)}, which exceeds your allowed credit limit of ₹${customerCredit.creditLimit.toFixed(2)}.`,
+      });
+      return false;
+    }
+    return true;
+  };
+
   // FIX #1: select thali → add line AND switch to order view
   const handleSelectThali = (thali: Thali) => {
     addThaliLine(thali);
-    setView("order");
+    if (checkPreCheckoutCredit()) {
+      setView("order");
+    }
   };
 
   const removeThaliLine = (lineId: string) => {
@@ -545,6 +579,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
   const handleSubmit = async () => {
     if (!userId) { window.location.href = "/login"; return; }
     if (thaliLines.length === 0) { toast.error("Add at least one thali to place order"); return; }
+    if (!checkPreCheckoutCredit()) return;
 
     // Validate sabji selection (only for thalis that require it)
     for (const line of thaliLines) {
@@ -686,6 +721,70 @@ export default function OrderingExperience({ userId, menu }: Props) {
     );
   }
 
+  const formattedCutoffTime = useMemo(() => {
+    if (!menu.cutoffTime) return null;
+    const d = new Date(menu.cutoffTime);
+    if (isNaN(d.getTime())) return String(menu.cutoffTime);
+    return d.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }, [menu.cutoffTime]);
+
+  const timingHeaderBanner = (
+    <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/10 border border-orange-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-orange-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-orange-500/20">
+          <Clock size={20} />
+        </div>
+        <div>
+          <h2 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
+            {menu.mealType === "LUNCH" ? "🌅 Lunch Ordering Cycle" : "🌙 Dinner Ordering Cycle"}
+            <span
+              className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                isCutoffPassed ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800"
+              }`}
+            >
+              {isCutoffPassed ? "Cutoff Passed" : "Ordering Active"}
+            </span>
+          </h2>
+          <p className="text-xs text-gray-600 font-medium mt-0.5 flex items-center gap-3 flex-wrap">
+            {formattedCutoffTime ? (
+              <span>
+                ⏰ Order Cutoff Time: <strong className="text-gray-900 font-bold">{formattedCutoffTime} IST</strong>
+              </span>
+            ) : (
+              <span>⏰ Ordering is active for this meal</span>
+            )}
+            {menu.menuVisibleFrom && (
+              <span className="text-gray-500">
+                👁️ Visible From: <strong className="text-gray-800 font-bold">{menu.menuVisibleFrom} IST</strong>
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      {customerCredit && (
+        <div className="self-stretch sm:self-auto bg-white border border-gray-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between sm:justify-end gap-3 text-xs shrink-0 shadow-2xs">
+          <div>
+            <p className="text-[10px] text-gray-400 font-black uppercase">Outstanding Due</p>
+            <p className={`font-black text-sm ${customerCredit.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+              ₹{customerCredit.balance.toFixed(2)}
+            </p>
+          </div>
+          <div className="h-6 w-px bg-gray-200" />
+          <div>
+            <p className="text-[10px] text-gray-400 font-black uppercase">Credit Limit</p>
+            <p className="font-black text-sm text-gray-800">₹{customerCredit.creditLimit.toFixed(2)}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // ── Closed/cutoff banner ────────────────────────────────────────────────────
   const closedBanner = !(menu as any).isOrderingOpen ? (
     <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-2xl p-3.5 text-sm font-medium text-red-600">
@@ -702,7 +801,7 @@ export default function OrderingExperience({ userId, menu }: Props) {
   // ────────────────────────────────────────────────────────────────────────────
   if (view === "browse") {
     return (
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 pb-40">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-40">
         {/* Page header */}
         <div className="space-y-1">
           <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
@@ -714,6 +813,8 @@ export default function OrderingExperience({ userId, menu }: Props) {
             })}
           </p>
         </div>
+
+        {timingHeaderBanner}
 
         {closedBanner}
 
@@ -848,7 +949,11 @@ export default function OrderingExperience({ userId, menu }: Props) {
               </div>
               <button
                 type="button"
-                onClick={() => setView("order")}
+                onClick={() => {
+                  if (checkPreCheckoutCredit()) {
+                    setView("order");
+                  }
+                }}
                 className="px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-2xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg shadow-orange-500/30 text-sm flex items-center gap-2 cursor-pointer"
               >
                 <ShoppingCart size={16} /> View Cart &amp; Place Order
@@ -875,6 +980,8 @@ export default function OrderingExperience({ userId, menu }: Props) {
           <ArrowLeft size={16} className="group-hover:-translate-x-0.5 transition-transform" />
           Back to Menu
         </button>
+
+        {timingHeaderBanner}
 
         {closedBanner}
 

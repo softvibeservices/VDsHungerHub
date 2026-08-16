@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import {
   User as UserIcon, Phone, Building2, Home, Briefcase, MapPin, Plus, Pencil, Trash2,
   Star, Loader2, X, Check, AlertCircle, CalendarCheck, MessageSquare, ShoppingBag,
-  ShieldCheck, ArrowRight, LogOut, ExternalLink,
+  ShieldCheck, ArrowRight, LogOut, ExternalLink, Wallet, CreditCard, ArrowDownRight,
+  ArrowUpRight, CheckCircle2, Clock,
 } from "lucide-react";
 import { authedFetch } from "@/lib/customer-api-client";
 import { toast } from "react-hot-toast";
@@ -28,7 +29,30 @@ interface MeResponse {
   company: { id: string; name: string } | null;
 }
 
-type ProfileTab = "account" | "addresses" | "quick_links";
+interface CreditResponse {
+  balance: number;
+  creditLimit: number;
+  remainingCredit: number;
+  totalDebit: number;
+  totalPaid: number;
+  payments: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    note: string | null;
+    paidAtUtc: string;
+  }>;
+  timeline: Array<{
+    type: "DEBIT" | "CREDIT";
+    id: string;
+    date: string;
+    amount: number;
+    label: string;
+    status: string | null;
+  }>;
+}
+
+type ProfileTab = "account" | "payments" | "addresses" | "quick_links";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -226,6 +250,7 @@ function AddressCard({
 
 export default function ProfilePage() {
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [credit, setCredit] = useState<CreditResponse | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [maxLimit, setMaxLimit] = useState<number>(5);
   const [loading, setLoading] = useState(true);
@@ -242,9 +267,10 @@ export default function ProfilePage() {
     setLoading(true);
     setError("");
     try {
-      const [meRes, addrRes] = await Promise.all([
+      const [meRes, addrRes, creditRes] = await Promise.all([
         authedFetch("/api/customer/me"),
         authedFetch("/api/customer/addresses"),
+        authedFetch("/api/customer/credit"),
       ]);
       if (!meRes.ok) {
         setError("Could not load your profile. Please try again.");
@@ -255,6 +281,11 @@ export default function ProfilePage() {
       setMe(meData.user);
       setAddresses(addrData.addresses ?? []);
       if (addrData.maxLimit) setMaxLimit(addrData.maxLimit);
+
+      if (creditRes.ok) {
+        const creditData = await creditRes.json();
+        setCredit(creditData);
+      }
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -349,6 +380,9 @@ export default function ProfilePage() {
   const whatsappMsg = `Hello ViTa Cuisine Admin, I need assistance regarding my user account details (Name: ${me.name}, Mobile: ${me.number}).`;
   const whatsappLink = getWhatsAppInquiryLink(whatsappMsg);
 
+  const payoffMsg = `Hello ViTa Cuisine Admin, I would like to pay off my current outstanding balance of ₹${(credit?.balance ?? 0).toFixed(2)} for account ${me.name} (${me.number}). Please guide me with payment options.`;
+  const payoffWhatsAppLink = getWhatsAppInquiryLink(payoffMsg);
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 sm:space-y-6 pb-28">
       {/* User Header Card */}
@@ -366,17 +400,22 @@ export default function ProfilePage() {
               <span className="bg-white/20 backdrop-blur-sm px-2.5 py-1 rounded-xl font-extrabold text-[11px] text-white">
                 {me.company ? me.company.name : "Home Orders Only"}
               </span>
+              {credit && credit.balance > 0 && (
+                <span className="bg-red-500 text-white font-extrabold px-2.5 py-1 rounded-xl text-[11px] flex items-center gap-1 shadow-sm">
+                  <AlertCircle size={12} /> ₹{credit.balance.toFixed(2)} Due
+                </span>
+              )}
             </div>
           </div>
         </div>
       </div>
 
       {/* Tabs Control Bar — Responsive Grid on Mobile */}
-      <div className="grid grid-cols-3 bg-gray-100/90 p-1.5 rounded-2xl gap-1 border border-gray-200/80 shadow-xs">
+      <div className="grid grid-cols-4 bg-gray-100/90 p-1.5 rounded-2xl gap-1 border border-gray-200/80 shadow-xs">
         <button
           type="button"
           onClick={() => setActiveTab("account")}
-          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "account"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -388,8 +427,24 @@ export default function ProfilePage() {
 
         <button
           type="button"
+          onClick={() => setActiveTab("payments")}
+          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+            activeTab === "payments"
+              ? "bg-white text-orange-600 shadow-sm"
+              : "text-gray-500 hover:text-gray-800"
+          }`}
+        >
+          <Wallet size={16} className="shrink-0 text-amber-500" />
+          <span className="truncate">Payments</span>
+          {credit && credit.balance > 0 && (
+            <span className="w-2 h-2 rounded-full bg-red-500 shrink-0 animate-pulse" />
+          )}
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveTab("addresses")}
-          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "addresses"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -397,23 +452,12 @@ export default function ProfilePage() {
         >
           <MapPin size={16} className="shrink-0" />
           <span className="truncate">Addresses</span>
-          {addresses.length > 0 && (
-            <span
-              className={`hidden sm:inline-flex text-[10px] font-black px-1.5 py-0.2 rounded-full ${
-                activeTab === "addresses"
-                  ? "bg-orange-100 text-orange-700"
-                  : "bg-gray-200 text-gray-600"
-              }`}
-            >
-              {addresses.length}
-            </span>
-          )}
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("quick_links")}
-          className={`flex items-center justify-center gap-1.5 sm:gap-2 py-2.5 px-2 sm:px-4 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "quick_links"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -501,7 +545,162 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── TAB 2: ADDRESSES ────────────────────────────────────────────────── */}
+      {/* ── TAB 2: PAYMENTS & CREDIT DEBIT ──────────────────────────────────── */}
+      {activeTab === "payments" && credit && (
+        <div className="space-y-5 animate-fadeIn">
+          {/* Main Due Balance Card */}
+          <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+              <div>
+                <p className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <Wallet size={15} className="text-amber-500" /> Current Outstanding Payoff Balance
+                </p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className={`text-3xl sm:text-4xl font-black ${credit.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    ₹{credit.balance.toFixed(2)}
+                  </span>
+                  <span className="text-xs text-gray-400 font-semibold">Total Due</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {credit.balance > 0 ? (
+                  <a
+                    href={payoffWhatsAppLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-2xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                  >
+                    💬 Pay Off Balance with Admin <ExternalLink size={14} />
+                  </a>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs px-4 py-2.5 rounded-2xl">
+                    <CheckCircle2 size={16} /> Account Completely Clear
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Credit Limit Meter */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-gray-600 flex items-center gap-1.5">
+                  <CreditCard size={14} className="text-orange-500" /> Approved Credit Limit
+                </span>
+                <span className="text-gray-900 font-black">
+                  ₹{credit.balance.toFixed(2)} / ₹{credit.creditLimit.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden p-0.5 border border-gray-200/60">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    credit.balance >= credit.creditLimit
+                      ? "bg-red-500"
+                      : credit.balance > credit.creditLimit * 0.75
+                      ? "bg-amber-500"
+                      : "bg-gradient-to-r from-orange-500 to-amber-500"
+                  }`}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, (credit.balance / credit.creditLimit) * 100))}%`,
+                  }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-gray-500 font-medium pt-0.5">
+                <span>Remaining Available Credit: <strong className="text-gray-900 font-bold">₹{credit.remainingCredit.toFixed(2)}</strong></span>
+                <span>{((credit.balance / credit.creditLimit) * 100).toFixed(0)}% Used</span>
+              </div>
+            </div>
+
+            {/* Stats Summary Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+              <div className="bg-orange-50/70 border border-orange-100 rounded-2xl p-4 space-y-1">
+                <p className="text-[10px] text-orange-700 font-black uppercase tracking-wider">Total Debit (Orders)</p>
+                <p className="text-base sm:text-lg font-black text-gray-900">₹{credit.totalDebit.toFixed(2)}</p>
+              </div>
+
+              <div className="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-4 space-y-1">
+                <p className="text-[10px] text-emerald-700 font-black uppercase tracking-wider">Total Paid (Credits)</p>
+                <p className="text-base sm:text-lg font-black text-gray-900">₹{credit.totalPaid.toFixed(2)}</p>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1 bg-gray-50 border border-gray-200/80 rounded-2xl p-4 space-y-1">
+                <p className="text-[10px] text-gray-500 font-black uppercase tracking-wider">Credit Limit</p>
+                <p className="text-base sm:text-lg font-black text-gray-900">₹{credit.creditLimit.toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Statement & Payment History Timeline */}
+          <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                <Clock size={18} className="text-orange-500" /> Statement &amp; Payment History
+              </h3>
+              <span className="text-xs text-gray-400 font-semibold">{credit.timeline.length} transactions</span>
+            </div>
+
+            {credit.timeline.length === 0 ? (
+              <div className="text-center py-8 text-xs text-gray-400">
+                No orders or payments recorded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {credit.timeline.map((item) => (
+                  <div key={item.id} className="py-3.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div
+                        className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                          item.type === "DEBIT"
+                            ? "bg-red-50 text-red-600"
+                            : "bg-emerald-50 text-emerald-600"
+                        }`}
+                      >
+                        {item.type === "DEBIT" ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-bold text-gray-900 truncate">{item.label}</p>
+                        <p className="text-[11px] text-gray-400 font-medium">
+                          {new Date(item.date).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <p
+                        className={`font-black text-sm ${
+                          item.type === "DEBIT" ? "text-gray-900" : "text-emerald-600"
+                        }`}
+                      >
+                        {item.type === "DEBIT" ? "+" : "-"}₹{item.amount.toFixed(2)}
+                      </p>
+                      <span
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-block uppercase ${
+                          item.type === "DEBIT"
+                            ? "bg-gray-100 text-gray-600"
+                            : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}
+                      >
+                        {item.type === "DEBIT" ? (item.status ?? "Order") : "Payment Received"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: ADDRESSES ────────────────────────────────────────────────── */}
       {activeTab === "addresses" && (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 sm:p-7 space-y-5 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
@@ -618,7 +817,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* ── TAB 3: SHORTCUTS ────────────────────────────────────────────────── */}
+      {/* ── TAB 4: SHORTCUTS ────────────────────────────────────────────────── */}
       {activeTab === "quick_links" && (
         <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 sm:p-7 space-y-5 animate-fadeIn">
           <div className="border-b border-gray-100 pb-3">
@@ -665,7 +864,7 @@ export default function ProfilePage() {
               href={whatsappLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="p-4 sm:p-5 rounded-2xl border border-gray-200/90 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all flex items-center justify-between group cursor-pointer"
+              className="p-4 sm:p-5 rounded-2xl border border-emerald-200/90 hover:border-emerald-400 hover:bg-emerald-50/40 transition-all flex items-center justify-between group cursor-pointer"
             >
               <div className="flex items-center gap-3.5 min-w-0">
                 <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors shrink-0">
