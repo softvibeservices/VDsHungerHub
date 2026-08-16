@@ -99,3 +99,47 @@ export function getErrorMessage(error: unknown): string {
   if (typeof error === "string") return error;
   return "An unexpected error occurred";
 }
+
+/**
+ * Format any time string or Date object into 12-hour format "hh:mm am/pm" (e.g. "03:35 pm")
+ */
+export function formatTo12Hour(timeStr?: string | Date | null): string | null {
+  if (!timeStr) return null;
+  if (timeStr instanceof Date) {
+    if (isNaN(timeStr.getTime())) return null;
+    return timeStr.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase();
+  }
+  const str = String(timeStr).trim();
+  if (!str) return null;
+  const match12 = str.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (match12) {
+    const hh = match12[1].padStart(2, "0");
+    const mm = match12[2];
+    const period = match12[3].toLowerCase();
+    return `${hh}:${mm} ${period}`;
+  }
+  const match24 = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    let hours = parseInt(match24[1], 10);
+    const minutes = match24[2];
+    const period = hours >= 12 ? "pm" : "am";
+    hours = hours % 12 || 12;
+    const hh = String(hours).padStart(2, "0");
+    return `${hh}:${minutes} ${period}`;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase();
+  }
+  return str;
+}

@@ -7,6 +7,7 @@ import { getEffectiveCutoffDate } from "@/lib/time";
 import { resolveAuthState } from "@/lib/customer-auth";
 import OrderingExperience from "@/components/customer/OrderingExperience";
 import { WHATSAPP_LINK } from "@/lib/constants";
+import { formatTo12Hour } from "@/lib/utils";
 
 // ── Page component ────────────────────────────────────────────────────────────
 // Renders ordering experience or status banner based on dynamic mealType settings.
@@ -61,7 +62,7 @@ export default async function MenuPage({
             </h1>
             <p className="text-gray-500 text-sm leading-relaxed">
               The {(todayMenu as any).mealType === "DINNER" ? "dinner" : "lunch"} menu will be available
-              from <strong className="text-[#1B2D5A]">{visibleFrom} IST</strong> today. Check back soon!
+              from <strong className="text-[#1B2D5A]">{formatTo12Hour(visibleFrom) ?? visibleFrom}</strong> today. Check back soon!
             </p>
           </div>
           <div className="bg-[#0F1E3D] rounded-2xl px-6 py-4 text-white text-sm">

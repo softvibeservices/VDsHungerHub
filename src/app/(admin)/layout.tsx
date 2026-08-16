@@ -1,4 +1,4 @@
-// src\app\(admin)\layout.tsx
+// src/app/(admin)/layout.tsx
 
 "use client";
 
@@ -6,55 +6,24 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import toast from "react-hot-toast";
 import Sidebar from "@/components/admin/Sidebar";
-import Header from "../../components/admin/Header"; // Admin top navigation header
+import Header from "../../components/admin/Header";
 import { useKeyboard } from "@/hooks/useKeyboard";
-import { useCurrentUserWithRefresh } from "@/hooks/useCurrentUser";
+import { StaffUserProvider, useCurrentUserWithRefresh } from "@/hooks/useCurrentUser";
 import { isAdminOnlyPage, requiredPermissionForPage } from "@/lib/rbac";
 import { hasPermission } from "@/lib/rbac-client";
 
-export default function AdminLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const [currentUser, refreshCurrentUser] = useCurrentUserWithRefresh();
-  const hasLoadedOnce = useRef(false);
+  const [currentUser] = useCurrentUserWithRefresh();
   const prevPermissionsKey = useRef<string | null>(null);
   useKeyboard();
 
-  // Initial auth gate: wait for the first /api/staff/me response before
-  // rendering anything, exactly as before.
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setIsAuthChecking(true);
-      await refreshCurrentUser();
-      if (!cancelled) {
-        hasLoadedOnce.current = true;
-        setIsAuthChecking(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Re-run the authorization decision whenever EITHER the route changes OR
-  // the live user data changes (permission/role edited by an admin,
-  // account deactivated/deleted, etc. — picked up by the polling/focus
-  // refetch inside useCurrentUserWithRefresh without the user navigating).
-  useEffect(() => {
-    if (!hasLoadedOnce.current) return;
-
     if (!currentUser) {
       setIsAuthorized(false);
-      router.replace("/staff-login");
       return;
     }
 
@@ -75,10 +44,6 @@ export default function AdminLayout({
 
     setIsAuthorized(true);
 
-    // Detect an in-place permission change (admin edited this staff
-    // member's permissions while they stayed on an ALLOWED page) and let
-    // them know, without forcing a redirect since the current page is
-    // still valid for them.
     const key = JSON.stringify([currentUser.role, [...(currentUser.permissions ?? [])].sort()]);
     if (prevPermissionsKey.current !== null && prevPermissionsKey.current !== key) {
       toast.success("Your permissions were updated by an admin.");
@@ -86,7 +51,7 @@ export default function AdminLayout({
     prevPermissionsKey.current = key;
   }, [currentUser, pathname, router]);
 
-  if (isAuthChecking) {
+  if (!currentUser) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-900 text-white space-y-4">
         <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -131,5 +96,13 @@ export default function AdminLayout({
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <StaffUserProvider>
+      <AdminLayoutInner>{children}</AdminLayoutInner>
+    </StaffUserProvider>
   );
 }

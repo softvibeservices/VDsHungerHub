@@ -2,11 +2,11 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
-import { Menu, X, LogOut, ClipboardList, ShoppingBag, User, UtensilsCrossed } from "lucide-react";
+import { Menu, X, LogOut, ClipboardList, ShoppingBag, User, UtensilsCrossed, AlertCircle } from "lucide-react";
 
 interface Props {
   loggedIn: boolean;
@@ -17,7 +17,18 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [dueBalance, setDueBalance] = useState<number | null>(null);
   const pathname = usePathname();
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    fetch("/api/customer/credit")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.balance === "number") setDueBalance(d.balance);
+      })
+      .catch(() => {});
+  }, [loggedIn]);
 
   const handleLogout = async () => {
     setLoggingOut(true);
@@ -106,6 +117,15 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
           <div className="flex items-center gap-3">
             {loggedIn && (
               <>
+                {dueBalance !== null && dueBalance > 0 && (
+                  <Link
+                    href="/menu/profile?tab=payments"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-extrabold rounded-xl transition-all shadow-2xs"
+                  >
+                    <AlertCircle size={14} className="text-red-600 animate-pulse shrink-0" />
+                    <span>Due: ₹{dueBalance.toFixed(2)}</span>
+                  </Link>
+                )}
                 {userName && (
                   <span className="hidden md:block text-sm text-gray-600 font-semibold truncate max-w-[12rem]">
                     {userName}
@@ -142,6 +162,19 @@ export default function UserNavbar({ loggedIn, userName }: Props) {
                   <p className="px-3 pb-2 text-sm text-gray-500 border-b border-gray-100 mb-2">
                     Signed in as <strong className="text-[#1B2D5A]">{userName}</strong>
                   </p>
+                )}
+                {dueBalance !== null && dueBalance > 0 && (
+                  <Link
+                    href="/menu/profile?tab=payments"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center justify-between p-3 mb-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-black"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle size={14} className="text-red-600 animate-pulse" />
+                      Outstanding Balance Due:
+                    </span>
+                    <span className="text-sm">₹{dueBalance.toFixed(2)}</span>
+                  </Link>
                 )}
                 {navLink("/menu", "Order", <ShoppingBag size={16} />)}
                 {navLink("/menu/orders", "My Orders", <ClipboardList size={16} />)}

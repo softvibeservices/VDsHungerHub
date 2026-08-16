@@ -2,12 +2,13 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   User as UserIcon, Phone, Building2, Home, Briefcase, MapPin, Plus, Pencil, Trash2,
   Star, Loader2, X, Check, AlertCircle, CalendarCheck, MessageSquare, ShoppingBag,
   ShieldCheck, ArrowRight, LogOut, ExternalLink, Wallet, CreditCard, ArrowDownRight,
-  ArrowUpRight, CheckCircle2, Clock,
+  ArrowUpRight, CheckCircle2, Clock, Smartphone, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { authedFetch } from "@/lib/customer-api-client";
 import { toast } from "react-hot-toast";
@@ -50,6 +51,12 @@ interface CreditResponse {
     label: string;
     status: string | null;
   }>;
+  pagination?: {
+    page: number;
+    limit: number;
+    totalItems: number;
+    totalPages: number;
+  };
 }
 
 type ProfileTab = "account" | "payments" | "addresses" | "quick_links";
@@ -61,10 +68,26 @@ function formatAddress(a: Address): string {
   return parts.join(", ");
 }
 
+function format12HourDate(isoString: string): string {
+  const d = new Date(isoString);
+  if (isNaN(d.getTime())) return isoString;
+  const datePart = d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const timePart = d.toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).toLowerCase();
+  return `${datePart}, ${timePart}`;
+}
+
 // ── Address Form (create or edit) ──────────────────────────────────────────────
 
 interface AddressFormProps {
-  initial?: Address | null; // present → edit mode (PATCH); absent → create mode (POST)
+  initial?: Address | null;
   defaultType?: "WORK" | "HOME";
   onSaved: (address: Address) => void;
   onCancel: () => void;
@@ -219,7 +242,7 @@ function AddressCard({
           </div>
         </div>
       </div>
-      
+
       <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-gray-100">
         {!address.isDefault && (
           <button
@@ -246,9 +269,12 @@ function AddressCard({
   );
 }
 
-// ── Main Profile Page ────────────────────────────────────────────────────────────
+// ── Profile Content Component ───────────────────────────────────────────────────
 
-export default function ProfilePage() {
+function ProfileContent() {
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+
   const [me, setMe] = useState<MeResponse | null>(null);
   const [credit, setCredit] = useState<CreditResponse | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -257,11 +283,62 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<ProfileTab>("account");
 
+  // Sync activeTab with URL search param tab=payments (Directive #4)
+  useEffect(() => {
+    if (tabParam === "payments" || tabParam === "account" || tabParam === "addresses" || tabParam === "quick_links") {
+      setActiveTab(tabParam as ProfileTab);
+    }
+  }, [tabParam]);
+
+  // Device detection state for Mobile & Tablet UPI button (Step 1)
+  const [isMobileOrTablet, setIsMobileOrTablet] = useState(false);
+
+  // Statement Filters & Pagination State
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [typeFilter, setTypeFilter] = useState<"ALL" | "DEBIT" | "CREDIT">("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [creditLoading, setCreditLoading] = useState(false);
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [addFormType, setAddFormType] = useState<"WORK" | "HOME">("HOME");
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Device detection effect (Step 1 of UPI requirements)
+  useEffect(() => {
+    const checkDevice = () => {
+      const widthCheck = window.innerWidth < 1024;
+      const touchCheck = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const uaCheck = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobileOrTablet((widthCheck || touchCheck) && (uaCheck || widthCheck));
+    };
+    checkDevice();
+    window.addEventListener("resize", checkDevice);
+    return () => window.removeEventListener("resize", checkDevice);
+  }, []);
+
+  const loadCredit = useCallback(async (p = 1, sd = startDate, ed = endDate, tf = typeFilter) => {
+    setCreditLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(p), limit: "10" });
+      if (sd) params.set("startDate", sd);
+      if (ed) params.set("endDate", ed);
+      if (tf !== "ALL") params.set("type", tf);
+
+      const res = await authedFetch(`/api/customer/credit?${params.toString()}`);
+      if (res.ok) {
+        const creditData = await res.json();
+        setCredit(creditData);
+        setCurrentPage(p);
+      }
+    } catch {
+      toast.error("Could not load statement history");
+    } finally {
+      setCreditLoading(false);
+    }
+  }, [startDate, endDate, typeFilter]);
 
   const loadAll = async () => {
     setLoading(true);
@@ -270,7 +347,7 @@ export default function ProfilePage() {
       const [meRes, addrRes, creditRes] = await Promise.all([
         authedFetch("/api/customer/me"),
         authedFetch("/api/customer/addresses"),
-        authedFetch("/api/customer/credit"),
+        authedFetch("/api/customer/credit?page=1&limit=10"),
       ]);
       if (!meRes.ok) {
         setError("Could not load your profile. Please try again.");
@@ -297,6 +374,29 @@ export default function ProfilePage() {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-apply filters when inputs change (Directive #2)
+  const handleStartDateChange = (val: string) => {
+    setStartDate(val);
+    loadCredit(1, val, endDate, typeFilter);
+  };
+
+  const handleEndDateChange = (val: string) => {
+    setEndDate(val);
+    loadCredit(1, startDate, val, typeFilter);
+  };
+
+  const handleTypeFilterChange = (val: "ALL" | "DEBIT" | "CREDIT") => {
+    setTypeFilter(val);
+    loadCredit(1, startDate, endDate, val);
+  };
+
+  const handleResetFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setTypeFilter("ALL");
+    loadCredit(1, "", "", "ALL");
+  };
 
   const handleAddressSaved = (addr: Address) => {
     setAddresses((prev) => {
@@ -383,8 +483,22 @@ export default function ProfilePage() {
   const payoffMsg = `Hello ViTa Cuisine Admin, I would like to pay off my current outstanding balance of ₹${(credit?.balance ?? 0).toFixed(2)} for account ${me.name} (${me.number}). Please guide me with payment options.`;
   const payoffWhatsAppLink = getWhatsAppInquiryLink(payoffMsg);
 
+  // UPI Deep Link for Mobile & Tablet Pay Now button
+  const upiId = "7016625488@axl";
+  const upiMerchantName = "ViTa Cuisine";
+  const payoffAmount = (credit?.balance ?? 0).toFixed(2);
+  const upiNote = encodeURIComponent(`Payoff for ${me.name}`);
+  const upiDeepLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(upiMerchantName)}&am=${payoffAmount}&cu=INR&tn=${upiNote}`;
+
+  const handleUpiPayClick = () => {
+    window.location.href = upiDeepLink;
+    setTimeout(() => {
+      toast("If your UPI app didn't open automatically, please open GPay/PhonePe or scan QR.", { icon: "📱" });
+    }, 2000);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-5 sm:space-y-6 pb-28">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-6 pb-28 w-full overflow-hidden">
       {/* User Header Card */}
       <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 rounded-3xl p-5 sm:p-7 text-white shadow-lg shadow-orange-500/15">
         <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4 sm:gap-5">
@@ -410,12 +524,12 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* Tabs Control Bar — Responsive Grid on Mobile */}
-      <div className="grid grid-cols-4 bg-gray-100/90 p-1.5 rounded-2xl gap-1 border border-gray-200/80 shadow-xs">
+      {/* Tabs Control Bar — Fully Responsive Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 bg-gray-100/90 p-1.5 rounded-2xl gap-1.5 border border-gray-200/80 shadow-xs">
         <button
           type="button"
           onClick={() => setActiveTab("account")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "account"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -428,7 +542,7 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={() => setActiveTab("payments")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "payments"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -444,7 +558,7 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={() => setActiveTab("addresses")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "addresses"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -457,7 +571,7 @@ export default function ProfilePage() {
         <button
           type="button"
           onClick={() => setActiveTab("quick_links")}
-          className={`flex items-center justify-center gap-1 sm:gap-2 py-2.5 px-1.5 sm:px-3 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
             activeTab === "quick_links"
               ? "bg-white text-orange-600 shadow-sm"
               : "text-gray-500 hover:text-gray-800"
@@ -470,7 +584,7 @@ export default function ProfilePage() {
 
       {/* ── TAB 1: ACCOUNT DETAILS ──────────────────────────────────────────── */}
       {activeTab === "account" && (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 sm:p-7 space-y-6 animate-fadeIn">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-7 space-y-6 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-4">
             <div>
               <h2 className="font-extrabold text-gray-900 text-base sm:text-lg flex items-center gap-2">
@@ -549,7 +663,7 @@ export default function ProfilePage() {
       {activeTab === "payments" && credit && (
         <div className="space-y-5 animate-fadeIn">
           {/* Main Due Balance Card */}
-          <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-sm space-y-6">
+          <div className="bg-white rounded-3xl border border-gray-200 p-4 sm:p-7 shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
               <div>
                 <p className="text-xs font-black text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
@@ -563,16 +677,30 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              {/* Action Buttons Section — Directive #1 */}
+              <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
                 {credit.balance > 0 ? (
-                  <a
-                    href={payoffWhatsAppLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-extrabold text-xs sm:text-sm px-5 py-3 rounded-2xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
-                  >
-                    💬 Pay Off Balance with Admin <ExternalLink size={14} />
-                  </a>
+                  isMobileOrTablet ? (
+                    /* Mobile & Tablet Only UPI Pay Now Button */
+                    <button
+                      type="button"
+                      onClick={handleUpiPayClick}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs sm:text-sm px-6 py-3.5 rounded-2xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer animate-pulse"
+                    >
+                      <Smartphone size={18} /> Pay Now via UPI (7016625488@axl)
+                    </button>
+                  ) : (
+                    /* Desktop/Laptop Notice */
+                    <div className="w-full sm:w-auto p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs space-y-1">
+                      <p className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                        <Smartphone size={14} className="text-amber-600" /> Pay via UPI App
+                      </p>
+                      <p className="text-amber-800 text-[11px]">
+                        Open this page on your mobile phone or tablet to launch <strong>GPay / PhonePe / Paytm</strong> directly.
+                      </p>
+                      <p className="text-[11px] text-gray-600 font-bold">UPI VPA: <span className="font-mono text-gray-900">7016625488@axl</span></p>
+                    </div>
+                  )
                 ) : (
                   <span className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 font-extrabold text-xs px-4 py-2.5 rounded-2xl">
                     <CheckCircle2 size={16} /> Account Completely Clear
@@ -585,7 +713,7 @@ export default function ProfilePage() {
             <div className="space-y-2.5">
               <div className="flex items-center justify-between text-xs font-bold">
                 <span className="text-gray-600 flex items-center gap-1.5">
-                  <CreditCard size={14} className="text-orange-500" /> Approved Credit Limit
+                  <CreditCard size={14} className="text-orange-500" /> Approved Postpaid Credit Limit
                 </span>
                 <span className="text-gray-900 font-black">
                   ₹{credit.balance.toFixed(2)} / ₹{credit.creditLimit.toFixed(2)}
@@ -633,26 +761,84 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {/* Statement & Payment History Timeline */}
-          <div className="bg-white rounded-3xl border border-gray-200 p-5 sm:p-7 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="font-extrabold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-                <Clock size={18} className="text-orange-500" /> Statement &amp; Payment History
-              </h3>
-              <span className="text-xs text-gray-400 font-semibold">{credit.timeline.length} transactions</span>
+          {/* Statement & Payment History Timeline with Auto-Applying Filters & Pagination (Directive #2) */}
+          <div className="bg-white rounded-3xl border border-gray-200 p-4 sm:p-7 shadow-sm space-y-5">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+              <div>
+                <h3 className="font-extrabold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                  <Clock size={18} className="text-orange-500" /> Statement &amp; Payment History
+                </h3>
+                <p className="text-xs text-gray-400 font-medium">Automatic real-time filtering</p>
+              </div>
+              <span className="text-xs text-gray-500 font-bold bg-gray-100 px-3 py-1 rounded-xl">
+                {credit.pagination?.totalItems ?? credit.timeline.length} transactions
+              </span>
             </div>
 
-            {credit.timeline.length === 0 ? (
+            {/* Filter Bar — Auto Applies on Selection (Directive #2) */}
+            <div className="bg-gray-50/80 border border-gray-200/80 rounded-2xl p-3.5 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">From Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">To Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => handleEndDateChange(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-gray-400 mb-1">Transaction Type</label>
+                  <select
+                    value={typeFilter}
+                    onChange={(e) => handleTypeFilterChange(e.target.value as any)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-gray-800 focus:ring-2 focus:ring-orange-400 outline-none font-medium cursor-pointer"
+                  >
+                    <option value="ALL">All Transactions</option>
+                    <option value="DEBIT">Orders (Debits)</option>
+                    <option value="CREDIT">Payments Received</option>
+                  </select>
+                </div>
+              </div>
+
+              {(startDate || endDate || typeFilter !== "ALL") && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="px-3 py-1.5 border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-bold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Reset Filters
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Timeline Item List */}
+            {creditLoading ? (
+              <div className="text-center py-10">
+                <Loader2 size={24} className="animate-spin text-orange-500 mx-auto" />
+              </div>
+            ) : credit.timeline.length === 0 ? (
               <div className="text-center py-8 text-xs text-gray-400">
-                No orders or payments recorded yet.
+                No statement records found for the selected filters.
               </div>
             ) : (
               <div className="divide-y divide-gray-100">
                 {credit.timeline.map((item) => (
-                  <div key={item.id} className="py-3.5 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-start gap-3 min-w-0">
+                  <div key={item.id} className="py-4 flex items-start justify-between gap-3 text-xs hover:bg-gray-50/50 px-2 rounded-xl transition-colors">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                       <div
-                        className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+                        className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${
                           item.type === "DEBIT"
                             ? "bg-red-50 text-red-600"
                             : "bg-emerald-50 text-emerald-600"
@@ -660,40 +846,65 @@ export default function ProfilePage() {
                       >
                         {item.type === "DEBIT" ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
                       </div>
-                      <div className="min-w-0">
-                        <p className="font-bold text-gray-900 truncate">{item.label}</p>
-                        <p className="text-[11px] text-gray-400 font-medium">
-                          {new Date(item.date).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className="font-extrabold text-gray-900 text-xs sm:text-sm leading-snug break-words">
+                          {item.label}
+                        </p>
+                        <p className="text-[11px] text-gray-400 font-semibold flex items-center gap-1">
+                          <Clock size={11} /> {format12HourDate(item.date)}
                         </p>
                       </div>
                     </div>
 
                     <div className="text-right shrink-0">
                       <p
-                        className={`font-black text-sm ${
+                        className={`font-black text-sm sm:text-base ${
                           item.type === "DEBIT" ? "text-gray-900" : "text-emerald-600"
                         }`}
                       >
                         {item.type === "DEBIT" ? "+" : "-"}₹{item.amount.toFixed(2)}
                       </p>
                       <span
-                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md inline-block uppercase ${
+                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-md inline-block uppercase mt-1 ${
                           item.type === "DEBIT"
-                            ? "bg-gray-100 text-gray-600"
+                            ? "bg-gray-100 text-gray-700 border border-gray-200"
                             : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                         }`}
                       >
-                        {item.type === "DEBIT" ? (item.status ?? "Order") : "Payment Received"}
+                        {item.type === "DEBIT" ? (item.status ?? "ORDER") : "PAYMENT RECEIVED"}
                       </span>
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Pagination Controls */}
+            {credit.pagination && credit.pagination.totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100 text-xs">
+                <span className="text-gray-500 font-medium">
+                  Page <strong className="text-gray-900 font-bold">{credit.pagination.page}</strong> of{" "}
+                  <strong className="text-gray-900 font-bold">{credit.pagination.totalPages}</strong>
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={credit.pagination.page <= 1 || creditLoading}
+                    onClick={() => loadCredit(credit.pagination!.page - 1)}
+                    className="px-3 py-1.5 border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <ChevronLeft size={14} /> Previous
+                  </button>
+                  <button
+                    type="button"
+                    disabled={credit.pagination.page >= credit.pagination.totalPages || creditLoading}
+                    onClick={() => loadCredit(credit.pagination!.page + 1)}
+                    className="px-3 py-1.5 border border-gray-200 rounded-xl text-gray-700 font-bold hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    Next <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -702,7 +913,7 @@ export default function ProfilePage() {
 
       {/* ── TAB 3: ADDRESSES ────────────────────────────────────────────────── */}
       {activeTab === "addresses" && (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 sm:p-7 space-y-5 animate-fadeIn">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-7 space-y-5 animate-fadeIn">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
             <div>
               <h2 className="font-extrabold text-gray-900 text-base sm:text-lg flex items-center gap-2">
@@ -819,7 +1030,7 @@ export default function ProfilePage() {
 
       {/* ── TAB 4: SHORTCUTS ────────────────────────────────────────────────── */}
       {activeTab === "quick_links" && (
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-5 sm:p-7 space-y-5 animate-fadeIn">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-4 sm:p-7 space-y-5 animate-fadeIn">
           <div className="border-b border-gray-100 pb-3">
             <h2 className="font-extrabold text-gray-900 text-base sm:text-lg flex items-center gap-2">
               <ShieldCheck size={20} className="text-orange-500" /> Quick Account Actions
@@ -933,5 +1144,17 @@ export default function ProfilePage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 size={32} className="animate-spin text-orange-500" />
+      </div>
+    }>
+      <ProfileContent />
+    </Suspense>
   );
 }

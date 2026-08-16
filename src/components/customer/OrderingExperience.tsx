@@ -234,6 +234,47 @@ function OrderConfirmModal({
   );
 }
 
+function formatTo12Hour(timeStr?: string | Date | null): string | null {
+  if (!timeStr) return null;
+  if (timeStr instanceof Date) {
+    if (isNaN(timeStr.getTime())) return null;
+    return timeStr.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase();
+  }
+  const str = String(timeStr).trim();
+  if (!str) return null;
+  const match12 = str.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/i);
+  if (match12) {
+    const hh = match12[1].padStart(2, "0");
+    const mm = match12[2];
+    const period = match12[3].toLowerCase();
+    return `${hh}:${mm} ${period}`;
+  }
+  const match24 = str.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    let hours = parseInt(match24[1], 10);
+    const minutes = match24[2];
+    const period = hours >= 12 ? "pm" : "am";
+    hours = hours % 12 || 12;
+    const hh = String(hours).padStart(2, "0");
+    return `${hh}:${minutes} ${period}`;
+  }
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).toLowerCase();
+  }
+  return str;
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export default function OrderingExperience({ userId, menu }: Props) {
@@ -247,6 +288,36 @@ export default function OrderingExperience({ userId, menu }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [orderPlaced, setOrderPlaced] = useState(false);
   const [addonProducts, setAddonProducts] = useState<Product[]>([]);
+
+  // Live countdown timer state
+  const [timeLeftStr, setTimeLeftStr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!menu?.cutoffTime) return;
+    const cutoffDate = new Date(menu.cutoffTime);
+    if (isNaN(cutoffDate.getTime())) return;
+
+    const updateTimer = () => {
+      const now = new Date();
+      const diffMs = cutoffDate.getTime() - now.getTime();
+      if (diffMs <= 0) {
+        setTimeLeftStr("00h 00m 00s");
+        return;
+      }
+      const totalSec = Math.floor(diffMs / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+      const hStr = String(hrs).padStart(2, "0");
+      const mStr = String(mins).padStart(2, "0");
+      const sStr = String(secs).padStart(2, "0");
+      setTimeLeftStr(`${hStr}h ${mStr}m ${sStr}s`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [menu?.cutoffTime]);
 
   // FIX #8: address state
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -722,16 +793,29 @@ export default function OrderingExperience({ userId, menu }: Props) {
   }
 
   const formattedCutoffTime = useMemo(() => {
-    if (!menu.cutoffTime) return null;
-    const d = new Date(menu.cutoffTime);
-    if (isNaN(d.getTime())) return String(menu.cutoffTime);
-    return d.toLocaleTimeString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
+    return formatTo12Hour(menu.cutoffTime);
   }, [menu.cutoffTime]);
+
+  const formattedVisibleTime = useMemo(() => {
+    return formatTo12Hour(menu.menuVisibleFrom);
+  }, [menu.menuVisibleFrom]);
+
+  const isBeforeVisibleTime = useMemo(() => {
+    if (!menu.menuVisibleFrom) return false;
+    const match = String(menu.menuVisibleFrom).match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
+    if (!match) return false;
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    const period = match[3]?.toLowerCase();
+    if (period === "pm" && hours < 12) hours += 12;
+    if (period === "am" && hours === 12) hours = 0;
+
+    const nowIST = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+    const currentMinutes = nowIST.getHours() * 60 + nowIST.getMinutes();
+    const visibleMinutes = hours * 60 + minutes;
+
+    return currentMinutes < visibleMinutes;
+  }, [menu.menuVisibleFrom]);
 
   const timingHeaderBanner = (
     <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-orange-500/10 border border-orange-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
@@ -741,45 +825,34 @@ export default function OrderingExperience({ userId, menu }: Props) {
         </div>
         <div>
           <h2 className="text-sm font-extrabold text-gray-900 flex items-center gap-2">
-            {menu.mealType === "LUNCH" ? "🌅 Lunch Ordering Cycle" : "🌙 Dinner Ordering Cycle"}
+            {menu.mealType === "LUNCH" ? "🌅 Lunch Menu" : "🌙 Dinner Menu"}
             <span
               className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
                 isCutoffPassed ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-800"
               }`}
             >
-              {isCutoffPassed ? "Cutoff Passed" : "Ordering Active"}
+              {isCutoffPassed ? "Ordering Closed" : "Ordering Active"}
             </span>
           </h2>
-          <p className="text-xs text-gray-600 font-medium mt-0.5 flex items-center gap-3 flex-wrap">
-            {formattedCutoffTime ? (
+          <p className="text-xs text-gray-600 font-medium mt-1 flex items-center gap-3 flex-wrap">
+            {formattedCutoffTime && (
               <span>
-                ⏰ Order Cutoff Time: <strong className="text-gray-900 font-bold">{formattedCutoffTime} IST</strong>
+                ⏰ Order Closes At: <strong className="text-gray-900 font-bold">{formattedCutoffTime}</strong>
               </span>
-            ) : (
-              <span>⏰ Ordering is active for this meal</span>
             )}
-            {menu.menuVisibleFrom && (
+            {isBeforeVisibleTime && formattedVisibleTime && (
               <span className="text-gray-500">
-                👁️ Visible From: <strong className="text-gray-800 font-bold">{menu.menuVisibleFrom} IST</strong>
+                👁️ Menu Visible From: <strong className="text-gray-800 font-bold">{formattedVisibleTime}</strong>
               </span>
             )}
           </p>
         </div>
       </div>
 
-      {customerCredit && (
-        <div className="self-stretch sm:self-auto bg-white border border-gray-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between sm:justify-end gap-3 text-xs shrink-0 shadow-2xs">
-          <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase">Outstanding Due</p>
-            <p className={`font-black text-sm ${customerCredit.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
-              ₹{customerCredit.balance.toFixed(2)}
-            </p>
-          </div>
-          <div className="h-6 w-px bg-gray-200" />
-          <div>
-            <p className="text-[10px] text-gray-400 font-black uppercase">Credit Limit</p>
-            <p className="font-black text-sm text-gray-800">₹{customerCredit.creditLimit.toFixed(2)}</p>
-          </div>
+      {!isCutoffPassed && timeLeftStr && (
+        <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-2 rounded-2xl shadow-md flex items-center gap-2 font-black text-xs sm:text-sm animate-pulse shrink-0">
+          <Clock size={16} />
+          <span>Closes in {timeLeftStr}</span>
         </div>
       )}
     </div>

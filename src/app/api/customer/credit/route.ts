@@ -7,13 +7,12 @@ import { getUserLedgerDetail, getEffectiveCreditLimit } from "@/lib/credit";
 /**
  * GET /api/customer/credit
  *
- * Returns the authenticated customer's credit details:
- * - balance (current outstanding due)
- * - creditLimit (effective credit limit)
- * - remainingCredit (creditLimit - balance)
- * - totalDebit & totalPaid
- * - payments (history of payments recorded by admin)
- * - timeline (chronological statement of debits and credits)
+ * Query Params:
+ * - startDate? string (YYYY-MM-DD)
+ * - endDate? string (YYYY-MM-DD)
+ * - type? "ALL" | "DEBIT" | "CREDIT"
+ * - page? number (default 1)
+ * - limit? number (default 10)
  */
 export async function GET(req: NextRequest) {
   try {
@@ -34,14 +33,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: statusCheck.message, code: statusCheck.code }, { status: 403 });
     }
 
+    const { searchParams } = new URL(req.url);
+    const startDate = searchParams.get("startDate") || undefined;
+    const endDate = searchParams.get("endDate") || undefined;
+    const type = (searchParams.get("type")?.toUpperCase() || "ALL") as "ALL" | "DEBIT" | "CREDIT";
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.max(1, Math.min(50, parseInt(searchParams.get("limit") || "10", 10)));
+
     const [ledger, creditLimitInfo] = await Promise.all([
-      getUserLedgerDetail(userId),
+      getUserLedgerDetail(userId, startDate, endDate),
       getEffectiveCreditLimit(userId),
     ]);
 
     if (!ledger) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
+
+    let filteredTimeline = ledger.timeline;
+    if (type === "DEBIT") {
+      filteredTimeline = filteredTimeline.filter((item) => item.type === "DEBIT");
+    } else if (type === "CREDIT") {
+      filteredTimeline = filteredTimeline.filter((item) => item.type === "CREDIT");
+    }
+
+    const totalItems = filteredTimeline.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+    const startIndex = (page - 1) * limit;
+    const paginatedTimeline = filteredTimeline.slice(startIndex, startIndex + limit);
 
     const remainingCredit = Math.max(0, Math.round((creditLimitInfo.limit - ledger.balance) * 100) / 100);
 
@@ -52,7 +70,13 @@ export async function GET(req: NextRequest) {
       totalDebit: ledger.totalDebit,
       totalPaid: ledger.totalPaid,
       payments: ledger.payments,
-      timeline: ledger.timeline,
+      timeline: paginatedTimeline,
+      pagination: {
+        page,
+        limit,
+        totalItems,
+        totalPages,
+      },
     });
   } catch (error) {
     console.error("[CUSTOMER CREDIT GET]", error);
