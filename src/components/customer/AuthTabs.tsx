@@ -25,8 +25,8 @@ const TAB_CONFIG = {
     emoji: "👋",
   },
   verify: {
-    title: "Verify Your Mobile",
-    subtitle: "Enter the OTP sent to your registered number",
+    title: "Verify & Set PIN",
+    subtitle: "Complete your account setup in one go",
     emoji: "📱",
   },
 };
@@ -35,7 +35,7 @@ export default function AuthTabs({ activeTab, draftId }: Props) {
   const router = useRouter();
 
   const handleSuccess = () => {
-    // Force a full reload to menu so that cookie state is reread server-side
+    // Force a full reload so cookie state is re-read server-side
     window.location.href = "/menu";
   };
 
@@ -86,7 +86,7 @@ export default function AuthTabs({ activeTab, draftId }: Props) {
                     : "text-gray-400 hover:text-[#1B2D5A] hover:bg-white/60"
                 }`}
               >
-                {tab === "verify" ? "Verify OTP" : tab}
+                {tab === "verify" ? "Verify" : tab}
               </button>
             ))}
           </div>

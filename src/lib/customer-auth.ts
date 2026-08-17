@@ -434,6 +434,8 @@ export async function checkResendCooldown(mobile: string, action: "SEND_OTP_REGI
   }
 }
 
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Pre-auth token (issued after OTP verify, before PIN is set)
 // Used only to gate the /api/customer/set-pin route

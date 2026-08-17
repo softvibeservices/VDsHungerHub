@@ -3,12 +3,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight, Loader2, Building2, Plus, Phone, KeyRound, Eye, EyeOff, Home, Lock, MapPin } from "lucide-react";
+import { ChevronRight, Loader2, Building2, Plus, Phone, KeyRound, Eye, EyeOff, Home, Lock, MapPin, CheckCircle, ShieldCheck, RefreshCw } from "lucide-react";
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
+import toast from "react-hot-toast";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Step = "DETAILS" | "OTP" | "PIN";
+type Step = "DETAILS" | "VERIFY_AND_PIN";
 type OrderingMode = "WORK" | "HOME_ONLY";
 
 interface Company {
@@ -60,13 +61,10 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
   const [newCompanyName, setNewCompanyName] = useState("");
   const [draftId, setDraftId] = useState("");
 
-  // Step 2 state
+  // Step 2 state (OTP + PIN combined)
   const [otp, setOtp] = useState("");
-  const [preAuthToken, setPreAuthToken] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
-
-  // Step 3 state
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [showPin, setShowPin] = useState(false);
@@ -154,6 +152,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
     }
 
     setLoading(true);
+    const toastId = toast.loading("Saving your details…");
 
     try {
       const visitorId = await getDeviceVisitorId();
@@ -175,12 +174,17 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? "Registration failed");
+        toast.dismiss(toastId);
+        const msg = data.error ?? "Registration failed. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
         return;
       }
 
       const registeredDraftId = data.draftId;
       setDraftId(registeredDraftId);
+
+      toast.loading("Sending OTP to your mobile…", { id: toastId });
 
       const otpRes = await fetch("/api/customer/send-otp", {
         method: "POST",
@@ -196,28 +200,42 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       const otpData = await otpRes.json();
 
       if (!otpRes.ok) {
+        toast.dismiss(toastId);
         if (otpData.error === "MOBILE_ALREADY_REGISTERED") {
-          setError("This number is already registered. Please go to the Login page.");
+          const msg = "This number is already registered. Please use the Login tab.";
+          setError(msg);
+          toast.error(msg, { duration: 5000 });
           return;
         }
-        setError(otpData.error ?? "Failed to send OTP");
+        if (otpRes.status === 429) {
+          const msg = otpData.error ?? "Too many OTP requests. Please wait a moment.";
+          setError(msg);
+          toast.error(msg, { duration: 5000 });
+          return;
+        }
+        const msg = otpData.error ?? "Could not send OTP. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
         return;
       }
 
+      toast.success("OTP sent to your mobile! Enter OTP & set your PIN below.", { id: toastId, duration: 4000 });
       setOtpSent(true);
       setOtpCooldown(60);
-      setStep("OTP");
+      setStep("VERIFY_AND_PIN");
     } catch {
-      setError("Network error. Please try again.");
+      toast.error("Connection error. Please check your internet and try again.", { id: toastId });
+      setError("Connection error. Please check your internet and try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Step 2a: Resend OTP ─────────────────────────────────────────────────────
-  const handleSendOtp = async () => {
+  // ── Resend OTP ─────────────────────────────────────────────────────────────
+  const handleResendOtp = async () => {
     setError("");
     setLoading(true);
+    const toastId = toast.loading("Resending OTP…");
 
     try {
       const visitorId = await getDeviceVisitorId();
@@ -235,70 +253,56 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       const data = await res.json();
 
       if (!res.ok) {
+        toast.dismiss(toastId);
         if (data.error === "MOBILE_ALREADY_REGISTERED") {
-          setError("This number is already registered. Please go to the Login page.");
+          const msg = "This number is already registered. Please use the Login tab.";
+          setError(msg);
+          toast.error(msg, { duration: 5000 });
           return;
         }
-        setError(data.error ?? "Failed to send OTP");
+        if (res.status === 429) {
+          const msg = data.error ?? "Too many OTP requests. Please wait a moment.";
+          setError(msg);
+          toast.error(msg, { duration: 5000 });
+          return;
+        }
+        const msg = data.error ?? "Could not send OTP. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
         return;
       }
 
+      toast.success("OTP resent! Check your SMS.", { id: toastId, duration: 3000 });
       setOtpSent(true);
       setOtpCooldown(60);
     } catch {
-      setError("Network error. Please try again.");
+      toast.error("Connection error. Please try again.", { id: toastId });
+      setError("Connection error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Step 2b: Verify OTP ─────────────────────────────────────────────────────
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  // ── Step 2: Combined OTP Verification & PIN Creation ────────────────────────
+  const handleCombinedSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (otp.length !== 6) {
-      setError("OTP must be exactly 6 digits.");
+      toast.error("Please enter the 6-digit OTP.");
+      setError("Please enter the 6-digit OTP.");
       return;
     }
 
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/customer/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile, otp, purpose: "REGISTER" }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data.error ?? "OTP verification failed");
-        return;
-      }
-
-      setPreAuthToken(data.preAuthToken);
-      setStep("PIN");
-    } catch {
-      setError("Network error. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ── Step 3: Complete registration (Set PIN) ──────────────────────────────────
-  const handleSetPin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
     if (pin.length !== 6) {
-      setError("PIN must be exactly 6 digits.");
+      toast.error("Please enter a 6-digit PIN.");
+      setError("Please enter a 6-digit PIN.");
       return;
     }
 
     if (pin !== confirmPin) {
-      setError("PINs do not match.");
+      toast.error("PINs don't match — please re-enter.");
+      setError("PINs do not match. Please re-enter.");
       return;
     }
 
@@ -307,76 +311,105 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       "123456", "654321"
     ];
     if (simplePins.includes(pin)) {
-      setError("PIN is too simple. Please choose a more secure PIN.");
+      toast.error("PIN too simple — choose something harder to guess.");
+      setError("This PIN is too simple. Please choose a less obvious 6-digit number.");
       return;
     }
 
     setLoading(true);
+    const toastId = toast.loading("Verifying OTP & creating account…");
 
     try {
-      const res = await fetch("/api/customer/set-pin", {
+      const visitorId = await getDeviceVisitorId();
+
+      // 1. Verify OTP first
+      const verifyRes = await fetch("/api/customer/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draftId, preAuthToken, pin, confirmPin }),
+        body: JSON.stringify({ mobile, otp, purpose: "REGISTER" }),
       });
 
-      const data = await res.json();
+      const verifyData = await verifyRes.json();
 
-      if (!res.ok) {
-        if (res.status === 401) {
-          setPreAuthToken("");
-          setOtp("");
-          setOtpSent(false);
-          setOtpCooldown(0);
-          setStep("OTP");
-          setError("Your verification session expired. Please re-verify your mobile number to continue.");
-          return;
-        }
-        setError(data.error ?? "Failed to set PIN");
+      if (!verifyRes.ok) {
+        toast.dismiss(toastId);
+        const msg =
+          verifyRes.status === 404
+            ? "OTP has expired. Please click Resend OTP."
+            : verifyData.error ?? "Incorrect OTP. Please check and try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
         return;
       }
 
+      const preAuthToken = verifyData.preAuthToken;
+
+      // 2. Immediately set PIN (atomic chain, no UI split)
+      const pinRes = await fetch("/api/customer/set-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, preAuthToken, pin, confirmPin, deviceVisitorId: visitorId }),
+      });
+
+      const pinData = await pinRes.json();
+
+      if (!pinRes.ok) {
+        toast.dismiss(toastId);
+        const msg = pinData.error ?? "Could not set PIN. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
+        return;
+      }
+
+      toast.success("Account created! Welcome to ViTa Cuisine 🎉", { id: toastId, duration: 2500 });
       onSuccess();
     } catch {
-      setError("Network error. Please try again.");
+      toast.error("Connection error. Please try again.", { id: toastId });
+      setError("Connection error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // ── Step indicators ─────────────────────────────────────────────────────────
-  const steps = ["Details", "Verify Mobile", "Set PIN"];
-  const currentStepIdx = step === "DETAILS" ? 0 : step === "OTP" ? 1 : 2;
+  // ── Step indicators (2 steps now!) ──────────────────────────────────────────
+  const steps = ["Details", "Verify & Set PIN"];
+  const currentStepIdx = step === "DETAILS" ? 0 : 1;
 
   const inputCls =
     "w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all bg-white text-gray-800 placeholder-gray-400";
 
   return (
-    <div>
-      {/* Step indicator */}
+    <div className="space-y-4">
+      {/* ── Step Indicator ──────────────────────────────────────────────────── */}
       <div className="flex items-center mb-5">
         {steps.map((s, i) => (
           <div key={s} className="flex items-center flex-1">
             <div
               className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
-                i <= currentStepIdx
-                  ? "bg-orange-500 text-white"
+                i < currentStepIdx
+                  ? "bg-green-500 text-white"
+                  : i === currentStepIdx
+                  ? "bg-orange-500 text-white shadow-md shadow-orange-200"
                   : "bg-gray-100 text-gray-400"
               }`}
             >
-              {i < currentStepIdx ? "✓" : i + 1}
+              {i < currentStepIdx ? <CheckCircle size={14} /> : i + 1}
             </div>
             <span
-              className={`ml-1.5 text-xs font-medium hidden sm:block ${
-                i === currentStepIdx ? "text-orange-600" : "text-gray-400"
+              className={`ml-1.5 text-[11px] font-semibold hidden sm:block ${
+                i === currentStepIdx
+                  ? "text-orange-600"
+                  : i < currentStepIdx
+                  ? "text-green-600"
+                  : "text-gray-400"
               }`}
             >
               {s}
             </span>
             {i < steps.length - 1 && (
               <div
-                className={`flex-1 h-0.5 mx-2 rounded ${
-                  i < currentStepIdx ? "bg-orange-400" : "bg-gray-100"
+                className={`flex-1 h-0.5 mx-2 rounded transition-all ${
+                  i < currentStepIdx ? "bg-green-400" : "bg-gray-100"
                 }`}
               />
             )}
@@ -384,16 +417,17 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
         ))}
       </div>
 
-      {/* Error */}
+      {/* Error alert */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600">
+        <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 leading-relaxed">
           {error}
         </div>
       )}
 
-      {/* ── STEP 1: DETAILS ──────────────────────────────────────────────────── */}
+      {/* ── STEP 1: Details ─────────────────────────────────────────────────── */}
       {step === "DETAILS" && (
-        <form onSubmit={handleDetailsSubmit} className="space-y-3.5">
+        <form onSubmit={handleDetailsSubmit} className="space-y-4">
+          {/* Full Name */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
               Full Name *
@@ -404,13 +438,13 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
-              minLength={2}
-              maxLength={80}
               placeholder="Your full name"
+              autoFocus
               className={inputCls}
             />
           </div>
 
+          {/* Mobile */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">
               Mobile Number *
@@ -428,111 +462,117 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 maxLength={10}
                 placeholder="10-digit mobile number"
                 autoComplete="tel"
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+                className={inputCls}
               />
             </div>
           </div>
 
-          {/* Delivery mode toggle */}
+          {/* Ordering Mode Selector */}
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Where should we deliver? *
+              Where will you order most often? *
             </label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                id="ordering-mode-work"
                 onClick={() => setOrderingMode("WORK")}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                   orderingMode === "WORK"
-                    ? "border-orange-500 bg-orange-500 text-white shadow-sm"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                    ? "border-orange-500 bg-orange-50/60 text-orange-600 shadow-sm"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
                 }`}
               >
-                <Building2 size={14} /> Work (via Company)
+                <Building2 size={15} />
+                Office / Work
               </button>
               <button
                 type="button"
-                id="ordering-mode-home"
                 onClick={() => setOrderingMode("HOME_ONLY")}
-                className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-sm font-semibold border transition-all cursor-pointer ${
+                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
                   orderingMode === "HOME_ONLY"
-                    ? "border-orange-500 bg-orange-500 text-white shadow-sm"
-                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                    ? "border-orange-500 bg-orange-50/60 text-orange-600 shadow-sm"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300"
                 }`}
               >
-                <Home size={14} /> Home Only
+                <Home size={15} />
+                Home Only
               </button>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1">
-              {orderingMode === "WORK"
-                ? "We'll deliver to your workplace via your company."
-                : "We'll deliver directly to your home address — no company needed."}
-            </p>
           </div>
 
-          {/* WORK MODE: Render Company Selector + Work Address ONLY */}
+          {/* WORK mode fields */}
           {orderingMode === "WORK" && (
-            <div className="space-y-3 pt-1 border-t border-gray-100">
+            <div className="space-y-3 p-3.5 bg-gray-50/70 border border-gray-200/80 rounded-2xl">
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-                  <Building2 size={13} className="text-orange-500" /> Company *
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Company / Workplace *
                 </label>
 
                 {!newCompany ? (
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <select
                       id="register-company-select"
                       value={companyId}
-                      onChange={(e) => setCompanyId(e.target.value)}
-                      className="flex-1 px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent bg-white transition-all text-gray-800"
+                      onChange={(e) => {
+                        if (e.target.value === "ADD_NEW") {
+                          setNewCompany(true);
+                          setCompanyId("");
+                        } else {
+                          setCompanyId(e.target.value);
+                        }
+                      }}
+                      className={inputCls}
                     >
-                      <option value="">Select company...</option>
+                      <option value="">Select your company…</option>
                       {companies.map((c) => (
                         <option key={c.id} value={c.id}>
-                          {c.name}
+                          {c.name} {c.location ? `(${c.location})` : ""}
                         </option>
                       ))}
+                      <option value="ADD_NEW">+ My company is not listed</option>
                     </select>
-                    <button
-                      type="button"
-                      onClick={() => { setNewCompany(true); setCompanyId(""); setWorkLine1(""); setWorkLine2(""); setWorkLandmark(""); }}
-                      className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold px-3 py-2 border border-orange-200 rounded-xl hover:bg-orange-50 transition-colors shrink-0 cursor-pointer"
-                    >
-                      <Plus size={14} /> New
-                    </button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <input
-                      id="register-new-company"
-                      type="text"
-                      value={newCompanyName}
-                      onChange={(e) => setNewCompanyName(e.target.value)}
-                      placeholder="Enter company name"
-                      maxLength={120}
-                      className="flex-1 px-3 py-2 border border-orange-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => { setNewCompany(false); setNewCompanyName(""); setWorkLine1(""); setWorkLine2(""); setWorkLandmark(""); }}
-                      className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shrink-0 cursor-pointer"
-                    >
-                      Cancel
-                    </button>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        id="register-new-company-input"
+                        type="text"
+                        value={newCompanyName}
+                        onChange={(e) => setNewCompanyName(e.target.value)}
+                        placeholder="Type your company name"
+                        className={inputCls}
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewCompany(false);
+                          setNewCompanyName("");
+                        }}
+                        className="px-3 py-2 text-xs font-medium text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl bg-white shrink-0 cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Work Address: locked if company address is present; 3-field input otherwise */}
+              {/* Work Address Fields */}
               <div>
-                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-                  <MapPin size={13} className="text-orange-500" /> Work / Delivery Address *
+                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center justify-between">
+                  <span>Work Address *</span>
+                  {workAddressLocked && (
+                    <span className="text-[10px] text-green-600 font-normal flex items-center gap-1">
+                      <Lock size={10} /> Auto-filled from company
+                    </span>
+                  )}
                 </label>
+
                 {workAddressLocked ? (
-                  <div className="w-full px-3.5 py-3 border border-orange-200 bg-orange-50/50 rounded-xl text-sm text-gray-800 font-medium flex items-start gap-2.5">
-                    <Lock size={15} className="text-orange-500 mt-0.5 shrink-0" />
-                    <span>{selectedCompany!.address}</span>
+                  <div className="p-2.5 bg-white border border-gray-200 rounded-xl text-xs text-gray-700 font-medium leading-relaxed">
+                    {selectedCompany!.address}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -541,10 +581,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                       type="text"
                       value={workLine1}
                       onChange={(e) => setWorkLine1(e.target.value)}
-                      required
-                      minLength={5}
-                      maxLength={150}
-                      placeholder="Address line 1 *"
+                      placeholder="Building, Floor, Suite / Desk location *"
                       className={inputCls}
                     />
                     <input
@@ -552,8 +589,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                       type="text"
                       value={workLine2}
                       onChange={(e) => setWorkLine2(e.target.value)}
-                      maxLength={150}
-                      placeholder="Floor / Building (optional)"
+                      placeholder="Area / Street (optional)"
                       className={inputCls}
                     />
                     <input
@@ -561,38 +597,27 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                       type="text"
                       value={workLandmark}
                       onChange={(e) => setWorkLandmark(e.target.value)}
-                      maxLength={150}
-                      placeholder="Landmark (optional)"
+                      placeholder="Landmark (e.g. Near Main Gate) (optional)"
                       className={inputCls}
                     />
                   </div>
                 )}
-                <p className="text-[10px] text-gray-400 mt-1">
-                  {workAddressLocked
-                    ? "This address is set by your company and cannot be changed here."
-                    : companyId && !newCompany
-                    ? "This company doesn't have a saved address yet — the address you enter will be saved as your delivery location."
-                    : ""}
-                </p>
               </div>
             </div>
           )}
 
-          {/* HOME ONLY MODE: Render Home Address ONLY */}
+          {/* HOME_ONLY mode fields */}
           {orderingMode === "HOME_ONLY" && (
-            <div className="space-y-2 pt-1 border-t border-gray-100">
-              <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-                <Home size={13} className="text-orange-500" /> Home Delivery Address *
+            <div className="space-y-2 p-3.5 bg-gray-50/70 border border-gray-200/80 rounded-2xl">
+              <label className="block text-xs font-semibold text-gray-700 mb-1">
+                Home Delivery Address *
               </label>
               <input
                 id="register-home-line1"
                 type="text"
                 value={homeLine1}
                 onChange={(e) => setHomeLine1(e.target.value)}
-                required
-                minLength={5}
-                maxLength={150}
-                placeholder="Address line 1 *"
+                placeholder="House / Flat / Building No. & Street *"
                 className={inputCls}
               />
               <input
@@ -600,8 +625,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 type="text"
                 value={homeLine2}
                 onChange={(e) => setHomeLine2(e.target.value)}
-                maxLength={150}
-                placeholder="Floor / Building (optional)"
+                placeholder="Area / Colony (optional)"
                 className={inputCls}
               />
               <input
@@ -609,60 +633,54 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 type="text"
                 value={homeLandmark}
                 onChange={(e) => setHomeLandmark(e.target.value)}
-                maxLength={150}
                 placeholder="Landmark (optional)"
                 className={inputCls}
               />
             </div>
           )}
 
+          {/* Submit Step 1 button */}
           <button
-            id="register-step1-submit"
+            id="register-submit-details"
             type="submit"
-            disabled={
-              loading ||
-              !fullName.trim() ||
-              mobile.length !== 10 ||
-              (orderingMode === "HOME_ONLY"
-                ? !homeLine1.trim()
-                : (
-                    (!workAddressLocked && !workLine1.trim()) ||
-                    (!newCompany && !companyId) ||
-                    (newCompany && !newCompanyName.trim())
-                  ))
-            }
-            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 mt-3 cursor-pointer"
+            disabled={loading}
+            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 cursor-pointer"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Continue
-            {!loading && <ChevronRight size={16} />}
+            {loading ? "Processing…" : "Continue to Verification →"}
           </button>
 
-          <p className="text-center text-xs text-gray-500 mt-1">
-            Already registered?{" "}
-            <button type="button" onClick={onSwitchToLogin} className="text-orange-600 font-semibold hover:underline cursor-pointer">
-              Login
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={onSwitchToLogin}
+              className="text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+            >
+              Already have an account?{" "}
+              <span className="text-orange-600 font-semibold">Sign in</span>
             </button>
-          </p>
+          </div>
         </form>
       )}
 
-      {/* ── STEP 2: OTP ──────────────────────────────────────────────────────── */}
-      {step === "OTP" && (
-        <form onSubmit={handleVerifyOtp} className="space-y-3">
-          <div className="text-center mb-5">
-            <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3 border border-orange-100">
+      {/* ── STEP 2: Combined OTP Verification + PIN Creation ──────────────── */}
+      {step === "VERIFY_AND_PIN" && (
+        <form onSubmit={handleCombinedSubmit} className="space-y-4">
+          <div className="text-center mb-1">
+            <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-2 border border-orange-100">
               <Phone size={22} className="text-orange-500" />
             </div>
-            <h3 className="font-bold text-gray-900 text-sm">Verify Mobile</h3>
+            <h3 className="font-bold text-gray-900 text-sm">Verify Mobile & Create PIN</h3>
             <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-              Enter the 6-digit OTP code sent to <strong className="text-gray-800">+91 {mobile}</strong>
+              We sent a 6-digit OTP code to <strong className="text-gray-800">+91 {mobile}</strong>.
+              Enter it below and set your login PIN to complete registration in one step.
             </p>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Enter 6-digit OTP
+          {/* Section 1: OTP Code */}
+          <div className="p-3.5 bg-orange-50/40 border border-orange-100 rounded-2xl space-y-2">
+            <label className="block text-xs font-semibold text-gray-800">
+              1. Enter 6-digit OTP Code *
             </label>
             <input
               id="register-otp"
@@ -670,112 +688,104 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
               inputMode="numeric"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
               maxLength={6}
               placeholder="••••••"
               autoComplete="one-time-code"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
+              autoFocus
+              className="w-full px-3.5 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
             />
-          </div>
-
-          <button
-            id="register-verify-otp"
-            type="submit"
-            disabled={loading || otp.length !== 6}
-            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 cursor-pointer"
-          >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Verify OTP
-          </button>
-
-          <div className="flex flex-col items-center gap-1.5 mt-3">
-            <button
-              type="button"
-              onClick={handleSendOtp}
-              disabled={loading || otpCooldown > 0}
-              className="text-xs text-orange-600 hover:text-orange-700 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer"
-            >
-              {otpCooldown > 0 ? `Resend OTP in ${otpCooldown}s` : "Resend OTP"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => { setStep("DETAILS"); setOtpSent(false); }}
-              className="text-xs text-gray-500 hover:text-gray-700 font-medium hover:underline mt-1 cursor-pointer"
-            >
-              Change Mobile Number
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* ── STEP 3: PIN ──────────────────────────────────────────────────────── */}
-      {step === "PIN" && (
-        <form onSubmit={handleSetPin} className="space-y-3">
-          <div className="text-center mb-2">
-            <div className="w-12 h-12 rounded-2xl bg-orange-50 flex items-center justify-center mx-auto mb-3 border border-orange-100">
-              <KeyRound size={22} className="text-orange-500" />
-            </div>
-            <h3 className="font-bold text-gray-900 text-sm">Create your PIN</h3>
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-              6-digit PIN you&apos;ll use to log in on any device
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">PIN *</label>
-            <div className="relative">
-              <input
-                id="register-pin"
-                type={showPin ? "text" : "password"}
-                inputMode="numeric"
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                required
-                maxLength={6}
-                placeholder="••••••"
-                className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all pr-10"
-              />
+            <div className="flex justify-end">
               <button
                 type="button"
-                onClick={() => setShowPin((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                onClick={handleResendOtp}
+                disabled={loading || otpCooldown > 0}
+                className="inline-flex items-center gap-1 text-[11px] text-orange-600 hover:text-orange-700 font-semibold disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer"
               >
-                {showPin ? <EyeOff size={16} /> : <Eye size={16} />}
+                <RefreshCw size={11} />
+                {otpCooldown > 0 ? `Resend OTP in ${otpCooldown}s` : "Resend OTP"}
               </button>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
-              Confirm PIN *
+          {/* Section 2: PIN Creation */}
+          <div className="p-3.5 bg-gray-50/70 border border-gray-200/80 rounded-2xl space-y-3">
+            <label className="block text-xs font-semibold text-gray-800 flex items-center gap-1.5">
+              <KeyRound size={14} className="text-orange-500" />
+              2. Create Your 6-digit Security PIN *
             </label>
-            <input
-              id="register-confirm-pin"
-              type={showPin ? "text" : "password"}
-              inputMode="numeric"
-              value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              maxLength={6}
-              placeholder="••••••"
-              className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-lg font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent transition-all"
-            />
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                Choose PIN
+              </label>
+              <div className="relative">
+                <input
+                  id="register-pin"
+                  type={showPin ? "text" : "password"}
+                  inputMode="numeric"
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  maxLength={6}
+                  placeholder="••••••"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-base font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPin((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  {showPin ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                Confirm PIN
+              </label>
+              <input
+                id="register-confirm-pin"
+                type={showPin ? "text" : "password"}
+                inputMode="numeric"
+                value={confirmPin}
+                onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                maxLength={6}
+                placeholder="••••••"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-base font-mono tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+              />
+            </div>
+
+            {/* Real-time PIN match indicator */}
+            {pin.length === 6 && confirmPin.length > 0 && (
+              <p className={`text-xs font-medium ${pin === confirmPin ? "text-green-600" : "text-red-500"}`}>
+                {pin === confirmPin ? "✓ PINs match" : "✗ PINs do not match"}
+              </p>
+            )}
           </div>
 
-          <p className="text-[10px] text-gray-400">
-            Avoid simple PINs like 123456 or 000000.
-          </p>
-
+          {/* Submit combined button */}
           <button
-            id="register-set-pin"
+            id="register-complete-submit"
             type="submit"
-            disabled={loading || pin.length !== 6 || confirmPin.length !== 6}
-            className="w-full py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-semibold rounded-xl text-sm hover:from-orange-600 hover:to-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-orange-500/20 cursor-pointer"
+            disabled={loading || otp.length !== 6 || pin.length !== 6 || confirmPin.length !== 6 || pin !== confirmPin}
+            className="w-full py-2.5 bg-gradient-to-r from-green-500 to-green-600 text-white font-semibold rounded-xl text-sm hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md shadow-green-500/20 cursor-pointer"
           >
             {loading ? <Loader2 size={16} className="animate-spin" /> : null}
-            Complete Registration
+            {loading ? "Creating Account…" : "Verify OTP & Complete Account Setup ✓"}
           </button>
+
+          <div className="text-center pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setStep("DETAILS");
+                setError("");
+              }}
+              className="text-xs text-gray-400 hover:text-gray-600 hover:underline cursor-pointer"
+            >
+              ← Edit details / mobile number
+            </button>
+          </div>
         </form>
       )}
     </div>

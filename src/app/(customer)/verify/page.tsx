@@ -6,19 +6,20 @@ import AuthTabs from "@/components/customer/AuthTabs";
 import Footer from "@/components/public/Footer";
 
 export const metadata = {
-  title: "Verify Mobile | ViTa Cuisine",
-  description: "Verify your mobile number to complete your ViTa Cuisine registration.",
+  title: "Verify & Set PIN | ViTa Cuisine",
+  description: "Verify your mobile number and create your PIN to complete your ViTa Cuisine account setup.",
 };
 
 export default async function VerifyPage() {
   const authState = await resolveAuthState();
 
-  // If already logged in, redirect to menu
+  // If already fully logged in, go to menu
   if (authState.state === "VERIFIED_SESSION") {
     redirect("/menu");
   }
 
-  const draftId = authState.state === "DRAFT_PENDING_VERIFICATION" ? authState.draftId : undefined;
+  const draftId =
+    authState.state === "DRAFT_PENDING_VERIFICATION" ? authState.draftId : undefined;
 
   return (
     <>

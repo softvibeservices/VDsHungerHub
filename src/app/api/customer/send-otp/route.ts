@@ -15,14 +15,14 @@ import { sendOtp } from "@/lib/message-central";
 /**
  * POST /api/customer/send-otp
  *
- * Step 2 of registration (also shared by login-otp and forgot-pin flows).
+ * Step 2 of registration (also shared by forgot-pin flows).
  * Validates mobile, rate-limits on 3 axes, calls Message Central, stores OtpVerification row.
  *
  * Body:
- *   draftId         string   (from reg_draft cookie / register response)
+ *   draftId?        string   (optional — auto-resolved by mobile if omitted for REGISTER)
  *   mobile          string   (10-digit Indian)
  *   deviceVisitorId string
- *   purpose?        "REGISTER" | "LOGIN" | "FORGOT_PIN"  (default: REGISTER)
+ *   purpose?        "REGISTER" | "FORGOT_PIN"  (default: REGISTER; LOGIN is disabled)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     if (purpose === "LOGIN") {
       return NextResponse.json(
-        { error: "OTP login is disabled. Please log in with your PIN or click Forgot PIN to reset." },
+        { error: "OTP login is disabled. Please log in with your PIN or use Forgot PIN to reset." },
         { status: 400 }
       );
     }
@@ -76,37 +76,37 @@ export async function POST(req: NextRequest) {
     const rlAction =
       purpose === "REGISTER"
         ? "SEND_OTP_REGISTER"
-        : purpose === "LOGIN"
-        ? "SEND_OTP_LOGIN"
         : "SEND_OTP_FORGOT_PIN";
 
     // ── Rate limits (all checked BEFORE calling the OTP provider) ─────────────
-    // 60-second resend cooldown
+    // 60-second resend cooldown per mobile
     await checkResendCooldown(mobile, rlAction);
 
-    // Per-mobile limits
+    // Per-mobile limits — generous thresholds for smooth user experience
     const mobileWindow = purpose === "FORGOT_PIN" ? 24 * 60 * 60 * 1000 : 60 * 60 * 1000;
-    const mobileMax = purpose === "REGISTER" ? 3 : purpose === "LOGIN" ? 5 : 3;
+    const mobileMax = purpose === "REGISTER" ? 30 : 20;
     await checkRateLimit("MOBILE", mobile, rlAction, mobileWindow, mobileMax);
 
-    // Per-IP limits (Generous for corporate Wi-Fi networks where many employees share 1 public IP)
-    const ipMax = purpose === "REGISTER" ? 25 : purpose === "LOGIN" ? 30 : 15;
+    // Per-IP limits (Registration: 30 / hr, Forgot PIN: 100 / hr)
+    const ipMax = purpose === "REGISTER" ? 30 : 100;
     await checkRateLimit("IP", ip, rlAction, 60 * 60 * 1000, ipMax);
 
-    // Per-device limits
+    // Per-device limits (Registration: 50 / day, Forgot PIN: 15 / day)
     const deviceWindow = 24 * 60 * 60 * 1000;
-    const deviceMax = purpose === "REGISTER" ? 10 : purpose === "LOGIN" ? 15 : 5;
+    const deviceMax = purpose === "REGISTER" ? 50 : 15;
     await checkRateLimit("DEVICE", fingerprintHash, rlAction, deviceWindow, deviceMax);
+
+
 
     // ── Business rules ────────────────────────────────────────────────────────
 
     if (purpose === "REGISTER") {
-      // Reject if mobile already belongs to a verified customer
-      const alreadyVerified = await prisma.user.findFirst({
-        where: { number: mobile, isVerified: true },
+      // Reject if mobile already belongs to a fully verified customer WITH a PIN
+      const alreadyComplete = await prisma.user.findFirst({
+        where: { number: mobile, isVerified: true, NOT: { pinHash: null } },
         select: { id: true },
       });
-      if (alreadyVerified) {
+      if (alreadyComplete) {
         return NextResponse.json(
           {
             error: "MOBILE_ALREADY_REGISTERED",
@@ -116,19 +116,46 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Validate draft
-      if (!draftId) {
-        return NextResponse.json({ error: "draftId is required for registration" }, { status: 400 });
+      // If verified but NO PIN yet, reject with a specific code so frontend can redirect to PIN setup
+      const verifiedNoPIN = await prisma.user.findFirst({
+        where: { number: mobile, isVerified: true, pinHash: null },
+        select: { id: true },
+      });
+      if (verifiedNoPIN) {
+        return NextResponse.json(
+          {
+            error: "MOBILE_ALREADY_REGISTERED",
+            code: "VERIFIED_NO_PIN",
+            message: "Your mobile is already verified. Please set your PIN to complete registration.",
+          },
+          { status: 409 }
+        );
+      }
+
+      // Resolve draftId — either from request body or auto-found by mobile number
+      let resolvedDraftId = draftId;
+      if (!resolvedDraftId) {
+        const draftByMobile = await prisma.user.findFirst({
+          where: { number: mobile, isVerified: false },
+          select: { id: true, status: true, statusReason: true },
+        });
+        if (!draftByMobile) {
+          return NextResponse.json(
+            { error: "No pending registration found for this number. Please start a new registration." },
+            { status: 404 }
+          );
+        }
+        resolvedDraftId = draftByMobile.id;
       }
 
       const draft = await prisma.user.findUnique({
-        where: { id: draftId, isVerified: false },
+        where: { id: resolvedDraftId, isVerified: false },
         select: { id: true, status: true, statusReason: true },
       });
 
       if (!draft) {
         return NextResponse.json(
-          { error: "Registration draft not found or already verified" },
+          { error: "No pending registration found for this number. Please start a new registration." },
           { status: 404 }
         );
       }
@@ -143,7 +170,7 @@ export async function POST(req: NextRequest) {
       // If there is an existing unverified user with this number (stale draft),
       // delete it to avoid unique constraint violations when we update this draft
       const existingUnverified = await prisma.user.findFirst({
-        where: { number: mobile, isVerified: false, NOT: { id: draftId } },
+        where: { number: mobile, isVerified: false, NOT: { id: resolvedDraftId } },
         select: { id: true },
       });
       if (existingUnverified) {
@@ -159,29 +186,9 @@ export async function POST(req: NextRequest) {
 
       // Update the draft's number placeholder with the real mobile
       await prisma.user.update({
-        where: { id: draftId },
+        where: { id: resolvedDraftId },
         data: { number: mobile },
       });
-    }
-
-    if (purpose === "LOGIN") {
-      // User must already be verified
-      const user = await prisma.user.findFirst({
-        where: { number: mobile, isVerified: true },
-        select: { id: true, status: true, statusReason: true },
-      });
-      if (!user) {
-        return NextResponse.json(
-          { error: "No verified account found for this number. Please register first." },
-          { status: 404 }
-        );
-      }
-      if (user.status !== "ACTIVE") {
-        return NextResponse.json(
-          { error: user.statusReason ?? `Account is ${user.status.toLowerCase()}.`, code: `USER_${user.status}` },
-          { status: 403 }
-        );
-      }
     }
 
     if (purpose === "FORGOT_PIN") {
@@ -213,7 +220,7 @@ export async function POST(req: NextRequest) {
     let linkedUserId: string | undefined;
     if (purpose === "REGISTER" && draftId) {
       linkedUserId = draftId;
-    } else if (purpose === "LOGIN" || purpose === "FORGOT_PIN") {
+    } else if (purpose === "FORGOT_PIN") {
       const user = await prisma.user.findFirst({
         where: { number: mobile, isVerified: true },
         select: { id: true },
@@ -237,20 +244,24 @@ export async function POST(req: NextRequest) {
     });
   } catch (error: any) {
     if (error?.name === "RateLimitExceededError") {
-      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "some time";
+      const waitTime = error.waitTimeMs ? formatRateLimitWaitTime(error.waitTimeMs) : "a moment";
+      const waitSec = error.waitTimeMs ? Math.ceil(error.waitTimeMs / 1000) : 60;
       return NextResponse.json(
-        { error: `Too many OTP requests. Please try again after ${waitTime}.` },
+        {
+          error: `Please wait ${waitTime} before requesting another OTP.`,
+          waitSeconds: waitSec,
+        },
         { status: 429 }
       );
     }
     if (error?.name === "MessageCentralError") {
       console.error("[SEND-OTP] Message Central error:", error.message);
       return NextResponse.json(
-        { error: "Failed to send OTP. Please try again." },
+        { error: "Failed to send OTP. Please try again in a moment." },
         { status: 502 }
       );
     }
     console.error("[CUSTOMER SEND-OTP]", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }
 }

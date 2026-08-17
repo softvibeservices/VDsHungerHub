@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // ── Rate limit: PIN attempts per IP ───────────────────────────────────────
     const ip = getClientIp(req);
-    await checkRateLimit("IP", ip, "LOGIN_PIN_ATTEMPT", 60 * 60 * 1000, 20);
+    await checkRateLimit("IP", ip, "LOGIN_PIN_ATTEMPT", 60 * 60 * 1000, 50);
 
     const userAgent = req.headers.get("user-agent") ?? "";
     const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
@@ -90,10 +90,14 @@ export async function POST(req: NextRequest) {
 
     if (!user.pinHash) {
       return NextResponse.json(
-        { error: "No PIN set. Please log in via OTP and set a PIN." },
+        {
+          error: "Your account setup isn't complete yet — you haven't created a PIN.",
+          code: "NO_PIN",
+        },
         { status: 403 }
       );
     }
+
 
     // ── Check lockout ─────────────────────────────────────────────────────────
     if (user.pinLockedUntil && user.pinLockedUntil > new Date()) {
@@ -130,7 +134,7 @@ export async function POST(req: NextRequest) {
     if (!valid) {
       const newFailCount = user.pinFailedAttempts + 1;
 
-      if (newFailCount >= 5) {
+      if (newFailCount >= 10) {
         // Lock for 15 minutes
         const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
         await prisma.user.update({
@@ -153,7 +157,7 @@ export async function POST(req: NextRequest) {
       });
 
       return NextResponse.json(
-        { error: "Invalid PIN", attemptsRemaining: 5 - newFailCount },
+        { error: "Invalid PIN", attemptsRemaining: 10 - newFailCount },
         { status: 401 }
       );
     }

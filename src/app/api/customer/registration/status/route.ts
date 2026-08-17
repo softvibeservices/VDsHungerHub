@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     // Rate limit per IP to prevent enumeration
     const ip = getClientIp(req);
-    await checkRateLimit("IP", ip, "VERIFY_OTP", 15 * 60 * 1000, 10);
+    await checkRateLimit("IP", ip, "VERIFY_OTP", 15 * 60 * 1000, 20);
 
     // If no draftId is provided, do not query the DB. Return a generic response (enumeration protection)
     if (!draftId) {

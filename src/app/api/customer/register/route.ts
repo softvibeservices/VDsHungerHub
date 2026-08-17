@@ -120,9 +120,11 @@ export async function POST(req: NextRequest) {
     const ip = getClientIp(req);
     const fingerprintHash = computeFingerprintHash(deviceVisitorId, userAgent);
 
-    // ── Rate limit ────────────────────────────────────────────────────────────
-    await checkRateLimit("DEVICE", fingerprintHash, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 3);
-    await checkRateLimit("IP", ip, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 50);
+    // ── Rate limit ────────────────────────────────────────────────────────────────────────────────────
+    // NOTE: Device-level rate limit is intentionally omitted here. It is already
+    // enforced inside /api/customer/send-otp. Double-checking here was causing false
+    // 429 errors for users making their first registration attempt.
+    await checkRateLimit("IP", ip, "SEND_OTP_REGISTER", 24 * 60 * 60 * 1000, 100);
 
     // ── Resolve work address (WORK mode only) — Fix #1 lock enforcement ────────
     let resolvedWorkAddress: string | null = null;
