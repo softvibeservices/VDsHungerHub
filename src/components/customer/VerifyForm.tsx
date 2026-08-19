@@ -13,14 +13,14 @@ interface Props {
   initialDraftId?: string;
   onSuccess: () => void;
   onSwitchToRegister: () => void;
-  onSwitchToLogin: () => void;
+  onSwitchToLogin?: () => void;
 }
 
 export default function VerifyForm({
   initialDraftId,
   onSuccess,
   onSwitchToRegister,
-  onSwitchToLogin,
+  onSwitchToLogin = () => {},
 }: Props) {
   const [step, setStep] = useState<VerifyStep>("MOBILE_INPUT");
   const [mode, setMode] = useState<"REGISTER" | "FORGOT_PIN">("REGISTER");

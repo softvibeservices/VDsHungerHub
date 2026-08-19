@@ -150,6 +150,7 @@ export default function AuthOverlay({
             <VerifyForm
               onSuccess={onSuccess}
               onSwitchToRegister={() => onModeChange("register")}
+              onSwitchToLogin={() => onModeChange("login")}
             />
           )}
         </div>
