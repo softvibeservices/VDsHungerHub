@@ -5,9 +5,9 @@
 import { useEffect, useState, useCallback, Fragment } from "react";
 import { formatCurrency } from "@/lib/utils";
 import {
-  UtensilsCrossed, Clock, CheckCircle2, Package, XCircle, Truck,
-  AlertCircle, ChevronDown, ChevronUp, Filter, Search,
-  Calendar, Loader2, MessageSquare, RefreshCw, MapPin
+  Clock, CheckCircle2, Package, XCircle, Truck,
+  AlertCircle, ChevronDown, ChevronUp, Filter,
+  Calendar, Loader2, MessageSquare, RefreshCw, MapPin, Eye
 } from "lucide-react";
 import { getWhatsAppInquiryLink } from "@/lib/constants";
 
@@ -70,7 +70,7 @@ export default function UserOrdersPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [dueBalance, setDueBalance] = useState<number | null>(null);
 
-  // Expanded row state (mobile accordion)
+  // Expanded row ID state
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchDueBalance = useCallback(async () => {
@@ -131,7 +131,7 @@ export default function UserOrdersPage() {
     setToDate("");
   };
 
-  // Requirement #1: Quick Date Selection Preset Helpers (1-15, 16-31, This Month)
+  // Quick Date Range Preset Helpers
   const setQuickDatePreset = (preset: "1-15" | "16-31" | "this-month") => {
     const now = new Date();
     const year = now.getFullYear();
@@ -167,7 +167,6 @@ export default function UserOrdersPage() {
     return null;
   };
 
-  // Date checking for today's active orders
   const isTodayDate = (dateStr?: string | null) => {
     if (!dateStr) return false;
     const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
@@ -180,7 +179,6 @@ export default function UserOrdersPage() {
     return isPendingOrOut && (isTodayDate(order.createdAt) || isTodayDate(order.menu.date));
   };
 
-  // Requirement #4: Smart Page Number Windowing for 1000s of Orders
   const getPageNumbers = (current: number, max: number) => {
     const pages: (number | string)[] = [];
     if (max <= 7) {
@@ -190,31 +188,39 @@ export default function UserOrdersPage() {
       if (current > 3) pages.push("...");
       const start = Math.max(2, current - 1);
       const end = Math.min(max - 1, current + 1);
-      for (let i = start; i <= end; i++) {
-        pages.push(i);
-      }
+      for (let i = start; i <= end; i++) pages.push(i);
       if (current < max - 2) pages.push("...");
       pages.push(max);
     }
     return pages;
   };
 
-  // ── Render helpers ──────────────────────────────────────────────────────────
-
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString("en-IN", {
       timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric"
-    });
-
-  const formatDateHeader = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("en-IN", {
-      timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", year: "numeric"
     });
 
   const formatTime = (dateStr: string) =>
     new Date(dateStr).toLocaleTimeString("en-IN", {
       timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true
     });
+
+  // Summary string builder for compact table view
+  const buildItemsSummary = (order: OrderListItem) => {
+    const parts: string[] = [];
+    if (order.thaliItems && order.thaliItems.length > 0) {
+      order.thaliItems.forEach((t) => {
+        parts.push(`${t.quantity}× ${t.thali.name}${t.sabjiProduct ? ` (${t.sabjiProduct.name})` : ""}`);
+      });
+    } else if (order.thali) {
+      parts.push(order.thali.name);
+    }
+    if (order.addonItems && order.addonItems.length > 0) {
+      const addonCount = order.addonItems.reduce((acc, a) => acc + a.quantity, 0);
+      parts.push(`+ ${addonCount} add-on${addonCount > 1 ? "s" : ""}`);
+    }
+    return parts.join(", ") || "Order Items";
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
@@ -223,7 +229,7 @@ export default function UserOrdersPage() {
         <div>
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">My Orders</h1>
-            
+
             {!loading && total > 0 && (
               <span className="text-xs font-black text-orange-800 bg-orange-50 border border-orange-200 px-3 py-1.5 rounded-full shadow-2xs">
                 {hasFilters ? "Filtered Orders Sum: " : "Orders Billed: "}
@@ -244,7 +250,7 @@ export default function UserOrdersPage() {
         </div>
       </div>
 
-      {/* Quick Date Presets Bar — Always Visible directly on main page (outside filter dialog) */}
+      {/* Quick Date Presets Bar */}
       <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-extrabold text-gray-500 uppercase tracking-wide mr-1">
@@ -303,7 +309,7 @@ export default function UserOrdersPage() {
             onClick={() => loadOrders(page)}
             disabled={loading}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 bg-white hover:bg-orange-50 hover:border-orange-300 text-gray-700 hover:text-orange-600 text-xs font-bold transition-all cursor-pointer shadow-2xs disabled:opacity-50"
-            title="Refresh order status & list"
+            title="Refresh order list"
           >
             <RefreshCw size={14} className={loading ? "animate-spin text-orange-500" : ""} />
             <span>Refresh</span>
@@ -329,7 +335,7 @@ export default function UserOrdersPage() {
         </div>
       </div>
 
-      {/* Advanced Filter panel (optional expansion) */}
+      {/* Advanced Filter panel */}
       {showFilters && (
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 shadow-sm animate-fadeIn">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -384,7 +390,7 @@ export default function UserOrdersPage() {
         </div>
       )}
 
-      {/* Requirement #2: Highlighted Beautiful Active Filter Applied Callout Banner */}
+      {/* Active Filter Callout Banner */}
       {hasFilters && !loading && !error && (
         <div className="bg-gradient-to-r from-orange-500 via-amber-500 to-orange-600 rounded-2xl p-4 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
           <div className="flex items-center gap-3">
@@ -453,196 +459,257 @@ export default function UserOrdersPage() {
         </div>
       )}
 
-      {/* Zomato-Style Order Card Feed */}
+      {/* ── Table Format View (Clean, Compact with Expandable View Button) ────── */}
       {!loading && !error && orders.length > 0 && (
-        <div className="space-y-4">
-          {orders.map((order, index) => {
-            const sc = STATUS_CONFIG[order.status];
-            const isCurrent = isCurrentActiveOrder(order);
+        <div className="bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto min-w-full">
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead>
+                <tr className="bg-slate-50 border-b border-gray-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+                  <th className="py-3.5 px-4">Date & Meal</th>
+                  <th className="py-3.5 px-4">Items Summary</th>
+                  <th className="py-3.5 px-4">Delivery Address</th>
+                  <th className="py-3.5 px-4">Total Amount</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  <th className="py-3.5 px-4 text-right">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-sm">
+                {orders.map((order) => {
+                  const sc = STATUS_CONFIG[order.status];
+                  const isCurrent = isCurrentActiveOrder(order);
+                  const isExpanded = expandedId === order.id;
 
-            // Requirement #3: Date Group Divider
-            const prevOrder = index > 0 ? orders[index - 1] : null;
-            const showDateDivider = !prevOrder || prevOrder.menu.date !== order.menu.date;
-
-            return (
-              <Fragment key={`order_group_${order.id}`}>
-                {showDateDivider && (
-                  <div key={`date_divider_${order.id}`} className="flex items-center gap-2 pt-5 pb-2">
-                    <div className="w-7 h-7 rounded-xl bg-orange-500 text-white flex items-center justify-center text-xs font-black shadow-sm">
-                      <Calendar size={14} />
-                    </div>
-                    <h3 className="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
-                      {formatDateHeader(order.menu.date)}
-                    </h3>
-                    <span className="text-[10px] font-extrabold text-orange-700 bg-orange-100 border border-orange-200 px-2.5 py-0.5 rounded-lg uppercase tracking-wider">
-                      {order.menu.mealType === "LUNCH" ? "🌅 Lunch" : "🌙 Dinner"}
-                    </span>
-                    <div className="h-0.5 bg-gray-200 flex-1 ml-2 rounded-full" />
-                  </div>
-                )}
-
-                <div
-                  key={order.id}
-                  className={`bg-white rounded-3xl border transition-all duration-300 p-5 sm:p-6 space-y-4 hover:shadow-md ${
-                    isCurrent
-                      ? "border-2 border-orange-400 ring-4 ring-orange-400/10 shadow-lg shadow-orange-500/5 bg-gradient-to-br from-white via-amber-50/20 to-orange-50/30"
-                      : "border-gray-200 shadow-sm"
-                  }`}
-                >
-                  {/* Card Header: Meal Type + Time + Status Badge */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 text-white flex items-center justify-center text-lg font-bold shadow-md shadow-orange-500/20 shrink-0">
-                        🍱
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-extrabold text-gray-900 text-base sm:text-lg">
-                            {order.menu.mealType === "LUNCH" ? "🌅 Lunch Thali" : "🌙 Dinner Thali"}
-                          </h3>
-                          {isCurrent && (
-                            <span className="text-[10px] font-black bg-orange-500 text-white px-2.5 py-0.5 rounded-full uppercase shadow-xs">
-                              TODAY
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-500 font-medium mt-0.5">
-                          {formatDate(order.menu.date)} at <strong className="text-gray-700">{formatTime(order.createdAt)}</strong>
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Status Badge */}
-                    {isCurrent ? (
-                      <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-black shadow-md shadow-orange-500/20">
-                        <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                        {order.status === "OUT_FOR_DELIVERY" ? "🚚 OUT FOR DELIVERY" : "⏳ PREPARING IN KITCHEN"}
-                      </span>
-                    ) : (
-                      <span className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold border ${sc.bg} ${sc.text} ${sc.border}`}>
-                        {sc.icon} {sc.label}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Card Content: Items & Extras */}
-                  <div className="space-y-3">
-                    {order.thaliItems.length > 0 ? (
-                      <div className="space-y-2">
-                        {order.thaliItems.map((item) => {
-                          const sabjiName = item.sabjiProduct?.name;
-                          return (
-                            <div key={item.id} className="flex items-center justify-between gap-3 text-sm flex-wrap">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-extrabold text-gray-900 text-sm sm:text-base">
-                                  {item.quantity} × {item.thali.name}
+                  return (
+                    <Fragment key={order.id}>
+                      {/* Main Table Row */}
+                      <tr
+                        className={`transition-colors duration-150 ${
+                          isExpanded
+                            ? "bg-orange-50/40"
+                            : isCurrent
+                            ? "bg-orange-50/20 hover:bg-orange-50/40"
+                            : "hover:bg-gray-50/80"
+                        }`}
+                      >
+                        {/* Date & Meal */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-xl bg-orange-500 text-white flex items-center justify-center text-xs font-black shadow-2xs shrink-0">
+                              {order.menu.mealType === "LUNCH" ? "🌅" : "🌙"}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-extrabold text-gray-900 text-xs">
+                                  {order.menu.mealType === "LUNCH" ? "Lunch" : "Dinner"}
                                 </span>
-                                {sabjiName && (
-                                  <span className="text-xs font-bold text-orange-800 bg-orange-100/90 border border-orange-200 px-3 py-0.5 rounded-full">
-                                    Sabji: {sabjiName}
+                                {isCurrent && (
+                                  <span className="text-[9px] font-black bg-orange-500 text-white px-1.5 py-0.2 rounded-full uppercase">
+                                    TODAY
                                   </span>
                                 )}
                               </div>
+                              <p className="text-[11px] text-gray-500 font-medium">
+                                {formatDate(order.menu.date)} · <span className="text-gray-700">{formatTime(order.createdAt)}</span>
+                              </p>
                             </div>
-                          );
-                        })}
-                      </div>
-                    ) : order.thali ? (
-                      <p className="font-extrabold text-gray-900 text-sm">{order.thali.name}</p>
-                    ) : null}
+                          </div>
+                        </td>
 
-                    {/* Add-on items */}
-                    {order.addonItems.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 pt-1">
-                        {order.addonItems.map((item) => (
-                          <span
-                            key={item.id}
-                            className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1 rounded-full"
-                          >
-                            + {item.quantity}× {item.addonProduct.name} ({formatCurrency(item.priceSnapshot * item.quantity)})
+                        {/* Items Summary */}
+                        <td className="py-3.5 px-4">
+                          <p className="font-medium text-gray-800 text-xs line-clamp-2 max-w-xs">
+                            {buildItemsSummary(order)}
+                          </p>
+                        </td>
+
+                        {/* Delivery Address */}
+                        <td className="py-3.5 px-4 max-w-[220px]">
+                          <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                            <MapPin size={13} className="text-orange-500 shrink-0" />
+                            <span className="truncate" title={order.address ? order.address.line1 : "Workplace Delivery"}>
+                              {order.address ? order.address.line1 : "Workplace Delivery"}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Total Amount */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          <span className="font-black text-orange-600 text-sm">
+                            {formatCurrency(order.totalAmount)}
                           </span>
-                        ))}
-                      </div>
-                    )}
+                        </td>
 
-                    {/* Cooking Instructions / Customer Note */}
-                    {order.note && (
-                      <div className="flex items-start gap-2 bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3 text-xs text-amber-950 font-medium">
-                        <MessageSquare size={14} className="text-amber-600 shrink-0 mt-0.5" />
-                        <p><strong>Note:</strong> {order.note}</p>
-                      </div>
-                    )}
+                        {/* Status */}
+                        <td className="py-3.5 px-4 whitespace-nowrap">
+                          {isCurrent ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[11px] font-black shadow-xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                              {order.status === "OUT_FOR_DELIVERY" ? "OUT FOR DELIVERY" : "PREPARING"}
+                            </span>
+                          ) : (
+                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                              {sc.icon} {sc.label}
+                            </span>
+                          )}
+                        </td>
 
-                    {/* Staff / Kitchen Replies */}
-                    {order.comments && order.comments.filter((c) => c.authorType === "STAFF").length > 0 && (
-                      <div className="space-y-1.5 pt-1">
-                        {order.comments
-                          .filter((c) => c.authorType === "STAFF")
-                          .map((c) => (
-                            <div key={c.id} className="flex items-start gap-2 bg-blue-50/90 border border-blue-200 rounded-2xl p-3 text-xs text-blue-950 font-medium">
-                              <span className="text-blue-500 shrink-0">💬</span>
-                              <p><strong>Kitchen Reply:</strong> {c.message}</p>
+                        {/* View Button */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl transition-all cursor-pointer shadow-2xs"
+                          >
+                            <Eye size={13} />
+                            <span>{isExpanded ? "Hide" : "View"}</span>
+                            {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {/* Expandable Order Details Panel */}
+                      {isExpanded && (
+                        <tr className="bg-slate-50/70 border-b border-gray-200">
+                          <td colSpan={6} className="p-4 sm:p-6">
+                            <div className="bg-white rounded-2xl border border-gray-200/80 p-5 space-y-4 shadow-sm animate-fadeIn">
+                              <div className="flex justify-between items-start gap-3 border-b border-gray-100 pb-3 flex-wrap">
+                                <div>
+                                  <h4 className="font-extrabold text-gray-900 text-sm flex items-center gap-2">
+                                    <span>Order Details</span>
+                                    <span className="text-xs font-medium text-gray-400 font-mono">#{order.id.slice(-8)}</span>
+                                  </h4>
+                                  <p className="text-xs text-gray-500 mt-0.5">
+                                    Placed on {formatDate(order.createdAt)} at {formatTime(order.createdAt)}
+                                  </p>
+                                </div>
+                                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                                  {sc.icon} {sc.label}
+                                </span>
+                              </div>
+
+                              {/* Thalis Breakdown */}
+                              <div className="space-y-2">
+                                <h5 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">Thali Items</h5>
+                                {order.thaliItems.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {order.thaliItems.map((item) => (
+                                      <div key={item.id} className="flex items-center justify-between text-xs bg-gray-50 p-2.5 rounded-xl border border-gray-100 flex-wrap gap-2">
+                                        <span className="font-bold text-gray-900">
+                                          {item.quantity} × {item.thali.name}
+                                        </span>
+                                        {item.sabjiProduct?.name && (
+                                          <span className="text-[11px] font-bold text-orange-800 bg-orange-100/90 border border-orange-200 px-2.5 py-0.5 rounded-full">
+                                            Sabji: {item.sabjiProduct.name}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : order.thali ? (
+                                  <div className="text-xs font-bold text-gray-900 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                                    {order.thali.name}
+                                  </div>
+                                ) : null}
+                              </div>
+
+                              {/* Add-ons Breakdown */}
+                              {order.addonItems.length > 0 && (
+                                <div className="space-y-1.5">
+                                  <h5 className="text-xs font-extrabold text-gray-500 uppercase tracking-wider">Add-on Extras</h5>
+                                  <div className="flex flex-wrap gap-2">
+                                    {order.addonItems.map((item) => (
+                                      <span key={item.id} className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1 rounded-full">
+                                        + {item.quantity}× {item.addonProduct.name} ({formatCurrency(item.priceSnapshot * item.quantity)})
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Customer Note */}
+                              {order.note && (
+                                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-950">
+                                  <MessageSquare size={14} className="text-amber-600 shrink-0 mt-0.5" />
+                                  <p><strong>Note:</strong> {order.note}</p>
+                                </div>
+                              )}
+
+                              {/* Kitchen Replies */}
+                              {order.comments && order.comments.filter((c) => c.authorType === "STAFF").length > 0 && (
+                                <div className="space-y-1.5">
+                                  {order.comments
+                                    .filter((c) => c.authorType === "STAFF")
+                                    .map((c) => (
+                                      <div key={c.id} className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-950">
+                                        <span className="text-blue-500 shrink-0">💬</span>
+                                        <p><strong>Kitchen Reply:</strong> {c.message}</p>
+                                      </div>
+                                    ))}
+                                </div>
+                              )}
+
+                              {/* Delivery Address */}
+                              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between text-xs flex-wrap gap-2">
+                                <div className="flex items-center gap-2">
+                                  <MapPin size={15} className="text-orange-500 shrink-0" />
+                                  <div>
+                                    <span className="font-extrabold text-[10px] text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded mr-1.5">
+                                      📍 {order.address?.type || "WORKPLACE"}
+                                    </span>
+                                    <span className="font-bold text-gray-800">
+                                      {order.address ? order.address.line1 : "Primary Office Address (Workplace Delivery)"}
+                                    </span>
+                                    {order.address?.city && <span className="text-gray-500">, {order.address.city}</span>}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Footer Actions */}
+                              <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3 flex-wrap">
+                                <div>
+                                  <span className="text-[10px] font-black uppercase text-gray-400 block">Total Billed</span>
+                                  <span className="text-lg font-black text-orange-600">{formatCurrency(order.totalAmount)}</span>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    href={getWhatsAppInquiryLink(`Hi ViTa Cuisine! I have a question about my Order dated ${formatDate(order.menu.date)} (${order.menu.mealType === "LUNCH" ? "Lunch" : "Dinner"})`)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                                  >
+                                    <span>💬 Order Support</span>
+                                  </a>
+                                  <a
+                                    href="/menu"
+                                    className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    <span>Reorder 🍲</span>
+                                  </a>
+                                </div>
+                              </div>
                             </div>
-                          ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Delivery Location Banner (Zomato Style) */}
-                  <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <MapPin size={16} className="text-orange-500 shrink-0" />
-                      <div className="min-w-0">
-                        <span className="font-extrabold uppercase text-[10px] text-blue-700 bg-blue-100 border border-blue-200 px-2 py-0.5 rounded-md mr-1.5">
-                          📍 {order.address?.type || "WORKPLACE"}
-                        </span>
-                        <span className="font-bold text-gray-800">
-                          {order.address ? order.address.line1 : "Primary Office Address (Workplace Delivery)"}
-                        </span>
-                        {order.address?.city && <span className="text-gray-500 font-medium">, {order.address.city}</span>}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card Footer: Total Price + Quick Actions */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
-                    <div>
-                      <span className="text-[10px] font-black uppercase text-gray-400 block tracking-wider">Order Total</span>
-                      <span className="text-xl font-black text-orange-600">{formatCurrency(order.totalAmount)}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={getWhatsAppInquiryLink(`Hi ViTa Cuisine! I have a question about my Order dated ${formatDate(order.menu.date)} (${order.menu.mealType === "LUNCH" ? "Lunch" : "Dinner"})`)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs rounded-2xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                      >
-                        <span>💬 Order Support</span>
-                      </a>
-                      <a
-                        href="/menu"
-                        className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xs rounded-2xl transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5 cursor-pointer"
-                      >
-                        <span>Reorder 🍲</span>
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </Fragment>
-            );
-          })}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Requirement #4: Scalable Multi-Page Pagination Controls (Handles Thousands of Orders) */}
+      {/* Pagination Controls */}
       {!loading && !error && orders.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm space-y-3">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-gray-500 font-medium">
               Showing <span className="font-bold text-gray-900">{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}</span> of <span className="font-bold text-gray-900">{total}</span> orders (15 per page)
             </p>
-            
+
             <div className="flex items-center gap-1.5 flex-wrap justify-center">
               <button
                 type="button"

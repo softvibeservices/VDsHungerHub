@@ -31,6 +31,7 @@ const CUSTOMER_PUBLIC_SUBROUTES = [
   "/api/customer/register",
   "/api/customer/send-otp",
   "/api/customer/verify-otp",
+  "/api/customer/set-pin",   // self-authenticated via preAuthToken JWT — no session cookie needed
   "/api/customer/login-pin",
   "/api/customer/forgot-pin",
   "/api/customer/companies",

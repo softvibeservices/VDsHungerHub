@@ -13,11 +13,20 @@ interface Props {
   initialDraftId?: string;
   onSuccess: () => void;
   onSwitchToRegister: () => void;
+  onSwitchToLogin: () => void;
 }
 
-export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegister }: Props) {
+export default function VerifyForm({
+  initialDraftId,
+  onSuccess,
+  onSwitchToRegister,
+  onSwitchToLogin,
+}: Props) {
   const [step, setStep] = useState<VerifyStep>("MOBILE_INPUT");
   const [mode, setMode] = useState<"REGISTER" | "FORGOT_PIN">("REGISTER");
+  // Set to true when the backend tells us the mobile is already verified but has no PIN.
+  // Instead of silently retrying as FORGOT_PIN, we show the user a clear message.
+  const [verifiedNoPinBanner, setVerifiedNoPinBanner] = useState(false);
 
   const [mobile, setMobile] = useState("");
   const [draftId] = useState(initialDraftId ?? "");
@@ -34,7 +43,10 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
 
   // ── Countdown timer ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (otpCooldown <= 0) return;
+    if (otpCooldown <= 0) {
+      setError((prev) => (/Please wait \d+ second/i.test(prev) ? "" : prev));
+      return;
+    }
     const t = setTimeout(() => setOtpCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [otpCooldown]);
@@ -44,11 +56,20 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
   const stepIdx = step === "MOBILE_INPUT" ? 0 : 1;
 
   // ── Step 1: Send OTP ───────────────────────────────────────────────────────
-  const handleSendOtp = async () => {
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError("");
-    setLoading(true);
 
-    const toastId = toast.loading("Sending OTP to your mobile…");
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(mobile)) {
+      const msg = "Please enter a valid 10-digit Indian mobile number.";
+      setError(msg);
+      toast.error(msg);
+      return;
+    }
+
+    setLoading(true);
+    const toastId = toast.loading("Sending verification OTP…");
 
     try {
       const visitorId = await getDeviceVisitorId();
@@ -72,44 +93,41 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
         // Mobile already registered
         if (data.error === "MOBILE_ALREADY_REGISTERED") {
           if (data.code === "VERIFIED_NO_PIN") {
+            // Mobile is verified but the user never created a PIN.
+            // Do NOT silently fire a second hidden API call — that caused the
+            // "Unauthorized" banner and wasted OTP credits.
+            // Instead: switch to FORGOT_PIN mode and show the user a clear banner
+            // so they know to press the "Send OTP" button themselves.
             setMode("FORGOT_PIN");
-
-            const retryRes = await fetch("/api/customer/send-otp", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ mobile, deviceVisitorId: visitorId, purpose: "FORGOT_PIN" }),
+            setVerifiedNoPinBanner(true);
+            setError("");
+            toast("Your mobile is already verified — please set your PIN below.", {
+              icon: "ℹ️",
+              duration: 5000,
             });
-            const retryData = await retryRes.json();
-
-            if (!retryRes.ok) {
-              if (retryData.waitSeconds) setOtpCooldown(retryData.waitSeconds);
-              const msg = retryData.error ?? "Could not send OTP. Please try again.";
-              setError(msg);
-              toast.error(msg, { duration: 4000 });
-              return;
-            }
-
-            toast.success("OTP sent! Enter OTP and set your PIN below.", { duration: 4000 });
-            setOtpCooldown(60);
-            setStep("VERIFY_AND_PIN");
             return;
           }
 
-          const msg = "This number is already registered. Please use the Login tab to sign in.";
-          setError(msg);
-          toast.error(msg, { duration: 5000 });
+          toast.error("This number is already registered — redirecting to Login...", {
+            id: toastId,
+            duration: 3000,
+          });
+          setTimeout(() => onSwitchToLogin(), 1200);
           return;
         }
 
-        // No pending registration
+        // No pending registration found for this mobile — redirect to Register
         if (
           res.status === 404 ||
           (data.error ?? "").toLowerCase().includes("no pending") ||
           (data.error ?? "").toLowerCase().includes("draftid")
         ) {
-          const msg = "No pending registration found for this number. Please sign up first.";
-          setError(msg);
-          toast.error("No pending registration found — please sign up first.", { duration: 5000 });
+          toast.error(
+            "No registration found for this number — let's sign you up first!",
+            { id: toastId, duration: 3000 }
+          );
+          // Give the toast a moment to display, then switch to the Register tab
+          setTimeout(() => onSwitchToRegister(), 1200);
           return;
         }
 
@@ -130,6 +148,8 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
 
       toast.success("OTP sent! Enter OTP and set your PIN below.", { id: toastId, duration: 3000 });
       setOtpCooldown(60);
+      setVerifiedNoPinBanner(false);
+      setOtp(""); // Bug 3 fix: clear stale OTP so user can't accidentally re-submit old code
       setStep("VERIFY_AND_PIN");
     } catch {
       toast.error("Connection error. Please check your internet and try again.", { id: toastId });
@@ -274,10 +294,23 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
         ))}
       </div>
 
+      {/* Verified-but-no-PIN banner — shown before user presses Send OTP in FORGOT_PIN mode */}
+      {verifiedNoPinBanner && !error && (
+        <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700 leading-relaxed space-y-1">
+          <p className="font-semibold">Your mobile is already verified ✓</p>
+          <p className="text-xs text-blue-600">
+            You never set a PIN. Press <strong>&quot;Send Verification OTP&quot;</strong> below to
+            receive a code, then create your PIN to complete setup.
+          </p>
+        </div>
+      )}
+
       {/* Error alert */}
       {error && (
         <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 leading-relaxed">
-          {error}
+          {otpCooldown > 0 && /Please wait \d+ second/i.test(error)
+            ? `Please wait ${otpCooldown} second${otpCooldown === 1 ? "" : "s"} before requesting another OTP.`
+            : error}
         </div>
       )}
 
@@ -385,6 +418,12 @@ export default function VerifyForm({ initialDraftId, onSuccess, onSwitchToRegist
                 {otpCooldown > 0 ? `Resend OTP in ${otpCooldown}s` : "Resend OTP"}
               </button>
             </div>
+            {/* Hint when there are previous failed attempts */}
+            {otp.length === 6 && (
+              <p className="text-[10px] text-gray-400 text-center">
+                OTP not working? Use the Resend button — it clears the old code automatically.
+              </p>
+            )}
           </div>
 
           {/* Section 2: PIN */}

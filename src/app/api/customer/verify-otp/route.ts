@@ -105,116 +105,18 @@ export async function POST(req: NextRequest) {
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        select: {
-          id: true,
-          companyId: true,
-          companyNameManual: true,
-          workAddress: true,
-          homeAddress: true,
-          company: { select: { id: true, status: true } },
-        },
+        select: { id: true },
       });
 
       if (!user) {
         return NextResponse.json({ error: "Draft user not found" }, { status: 404 });
       }
 
-      // ── THIS IS THE CRITICAL MOMENT (§6.4):
-      // If the user typed a new company name (companyNameManual), create the Company
-      // row HERE — only now that OTP is verified — then link it and clear the field.
-      // This is what ensures "company name stored in DB only if user is verified."
-      let resolvedCompanyId = user.companyId;
-
-      if (user.companyNameManual && !user.companyId) {
-        // Check for existing company with same name (case-insensitive)
-        const existing = await prisma.company.findFirst({
-          where: { name: { equals: user.companyNameManual, mode: "insensitive" } },
-          select: { id: true },
-        });
-
-        if (existing) {
-          resolvedCompanyId = existing.id;
-        } else {
-          // Create the Company row now (OTP just verified — user is now confirmed)
-          const newCompany = await prisma.company.create({
-            data: {
-              name: user.companyNameManual,
-              location: user.workAddress?.trim() || null,
-              // FIX #1 (Decision D3): seed the canonical address from this first
-              // user's typed workAddress. Safe only because the Company row is
-              // brand-new here — there is no existing address being overwritten.
-              // Admin can still correct it later via the CompanyModal.
-              address: user.workAddress?.trim() || null,
-              status: "CONFIRMED", // will appear in admin Pending tab since isVerifiedByAdmin=false
-              addedByUserId: userId,
-              isVerifiedByAdmin: false,
-              isFlaggedFake: false,
-            },
-          });
-          resolvedCompanyId = newCompany.id;
-        }
-      }
-
-      // Transaction: verify user + link company + clear companyNameManual + auto-create Address
-      await prisma.$transaction(async (tx: any) => {
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            isVerified: true,
-            verifiedAt: new Date(),
-            companyId: resolvedCompanyId,
-            companyNameManual: null, // cleared once company row is created
-          },
-        });
-
-        if (resolvedCompanyId && user.workAddress?.trim()) {
-          const comp = await tx.company.findUnique({
-            where: { id: resolvedCompanyId },
-            select: { address: true },
-          });
-          if (comp && (!comp.address || !comp.address.trim())) {
-            await tx.company.update({
-              where: { id: resolvedCompanyId },
-              data: { address: user.workAddress.trim() },
-            });
-          }
-        }
-
-        if (user.workAddress?.trim()) {
-          const existingAddr = await tx.address.findFirst({
-            where: { userId, type: "WORK" },
-          });
-          if (!existingAddr) {
-            await tx.address.create({
-              data: {
-                userId,
-                type: "WORK",
-                line1: user.workAddress.trim(),
-                isDefault: true,
-              },
-            });
-          }
-        }
-
-        if (user.homeAddress?.trim()) {
-          const existingHome = await tx.address.findFirst({
-            where: { userId, type: "HOME" },
-          });
-          if (!existingHome) {
-            await tx.address.create({
-              data: {
-                userId,
-                type: "HOME",
-                line1: user.homeAddress.trim(),
-                isDefault: false,
-              },
-            });
-          }
-        }
-      });
-
-      // Issue a short-lived pre-auth token to gate the set-pin step
-      const preAuthToken = signPreAuthToken(userId);
+      // OTP is verified and consumed above.
+      // isVerified is NOT set here — it is set atomically in /api/customer/set-pin
+      // together with the PIN hash. This guarantees a user is never marked as
+      // verified unless they have completed BOTH OTP verification AND PIN creation.
+      const preAuthToken = signPreAuthToken(userId, "REGISTER");
 
       return NextResponse.json({
         verified: true,
@@ -246,7 +148,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const preAuthToken = signPreAuthToken(user.id);
+      const preAuthToken = signPreAuthToken(user.id, "RESET_PIN");
       return NextResponse.json({ verified: true, preAuthToken, nextStep: "RESET_PIN" });
     }
 

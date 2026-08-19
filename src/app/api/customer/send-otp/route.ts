@@ -99,6 +99,9 @@ export async function POST(req: NextRequest) {
 
 
     // ── Business rules ────────────────────────────────────────────────────────
+    // resolvedDraftId is declared here (outer scope) so it is accessible when
+    // building the OtpVerification row after the purpose-specific blocks.
+    let resolvedDraftId: string | undefined;
 
     if (purpose === "REGISTER") {
       // Reject if mobile already belongs to a fully verified customer WITH a PIN
@@ -133,7 +136,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Resolve draftId — either from request body or auto-found by mobile number
-      let resolvedDraftId = draftId;
+      resolvedDraftId = draftId;
       if (!resolvedDraftId) {
         const draftByMobile = await prisma.user.findFirst({
           where: { number: mobile, isVerified: false },
@@ -216,10 +219,14 @@ export async function POST(req: NextRequest) {
     // ── Store OtpVerification row ─────────────────────────────────────────────
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-    // Link to userId if known
+    // Link to userId if known.
+    // IMPORTANT: resolvedDraftId is hoisted from the REGISTER block above so we can
+    // reference it here. Using the raw `draftId` from the request body was wrong —
+    // that value is often "" when the user navigates to /verify directly, which caused
+    // userId=null on the OtpVerification row and verify-otp returning 404 "Draft user not found".
     let linkedUserId: string | undefined;
-    if (purpose === "REGISTER" && draftId) {
-      linkedUserId = draftId;
+    if (purpose === "REGISTER" && resolvedDraftId) {
+      linkedUserId = resolvedDraftId;
     } else if (purpose === "FORGOT_PIN") {
       const user = await prisma.user.findFirst({
         where: { number: mobile, isVerified: true },

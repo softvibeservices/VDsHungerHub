@@ -113,6 +113,7 @@ export default function AuthTabs({ activeTab, draftId }: Props) {
                 initialDraftId={draftId}
                 onSuccess={handleSuccess}
                 onSwitchToRegister={() => router.push("/register")}
+                onSwitchToLogin={() => router.push("/login")}
               />
             )}
           </div>

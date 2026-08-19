@@ -66,12 +66,12 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
       if (!res.ok) {
         toast.dismiss(toastId);
 
-        // Account setup incomplete — no PIN created yet
+        // Account setup incomplete — verified mobile but no PIN created
         if (data.code === "NO_PIN") {
           setInfoBox({
             message:
-              "Your account isn't fully set up yet — you still need to verify your mobile and create a PIN.",
-            action: { label: "Complete Setup →", href: "/verify" },
+              "Your mobile is verified, but you never created a PIN. Click below to set your PIN — no re-verification needed.",
+            action: { label: "Set PIN now →", href: "/verify" },
           });
           return;
         }

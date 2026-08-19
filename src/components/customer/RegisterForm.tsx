@@ -82,7 +82,10 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
   // ── OTP resend cooldown timer ───────────────────────────────────────────────
   useEffect(() => {
-    if (otpCooldown <= 0) return;
+    if (otpCooldown <= 0) {
+      setError((prev) => (/Please wait \d+ second/i.test(prev) ? "" : prev));
+      return;
+    }
     const t = setTimeout(() => setOtpCooldown((c) => c - 1), 1000);
     return () => clearTimeout(t);
   }, [otpCooldown]);
@@ -162,6 +165,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fullName: fullName.trim(),
+          mobile,                // ← real number stored immediately, no placeholder
           orderingMode,
           workAddress: orderingMode === "WORK" ? computedWorkAddress : undefined,
           homeAddress: orderingMode === "HOME_ONLY" ? computedHomeAddress : undefined,
@@ -175,6 +179,21 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
       if (!res.ok) {
         toast.dismiss(toastId);
+        // Duplicate mobile — caught now at register stage (not just send-otp)
+        if (data.error === "MOBILE_ALREADY_REGISTERED") {
+          if (data.code === "VERIFIED_NO_PIN") {
+            const msg = "Your mobile is already verified — please set your PIN.";
+            setError(msg);
+            toast.error(msg, { duration: 5000 });
+          } else {
+            toast.error("This number is already registered — redirecting to Login...", {
+              id: toastId,
+              duration: 3000,
+            });
+            setTimeout(() => onSwitchToLogin(), 1200);
+          }
+          return;
+        }
         const msg = data.error ?? "Registration failed. Please try again.";
         setError(msg);
         toast.error(msg, { duration: 4000 });
@@ -202,15 +221,22 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       if (!otpRes.ok) {
         toast.dismiss(toastId);
         if (otpData.error === "MOBILE_ALREADY_REGISTERED") {
-          const msg = "This number is already registered. Please use the Login tab.";
-          setError(msg);
-          toast.error(msg, { duration: 5000 });
+          toast.error("This number is already registered — redirecting to Login...", {
+            id: toastId,
+            duration: 3000,
+          });
+          setTimeout(() => onSwitchToLogin(), 1200);
           return;
         }
         if (otpRes.status === 429) {
+          // Start the live countdown so the number ticks down rather than staying frozen
+          if (otpData.waitSeconds) setOtpCooldown(otpData.waitSeconds);
           const msg = otpData.error ?? "Too many OTP requests. Please wait a moment.";
           setError(msg);
           toast.error(msg, { duration: 5000 });
+          // Move to step 2 so the user sees the ticking "Resend OTP in Xs" button
+          setOtpSent(true);
+          setStep("VERIFY_AND_PIN");
           return;
         }
         const msg = otpData.error ?? "Could not send OTP. Please try again.";
@@ -420,7 +446,9 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
       {/* Error alert */}
       {error && (
         <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 leading-relaxed">
-          {error}
+          {otpCooldown > 0 && /Please wait \d+ second/i.test(error)
+            ? `Please wait ${otpCooldown} second${otpCooldown === 1 ? "" : "s"} before requesting another OTP.`
+            : error}
         </div>
       )}
 

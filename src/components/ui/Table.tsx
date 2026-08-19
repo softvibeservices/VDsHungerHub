@@ -6,7 +6,7 @@ import { Inbox } from "lucide-react";
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   width?: string;
   render: (row: T) => React.ReactNode;
 }

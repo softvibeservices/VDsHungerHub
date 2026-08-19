@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Issue short-lived pre-auth token (10 min) gating the reset step
-    const preAuthToken = signPreAuthToken(user.id);
+    const preAuthToken = signPreAuthToken(user.id, "RESET_PIN");
 
     return NextResponse.json({
       verified: true,

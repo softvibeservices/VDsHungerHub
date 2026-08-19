@@ -441,17 +441,24 @@ export async function checkResendCooldown(mobile: string, action: "SEND_OTP_REGI
 // Used only to gate the /api/customer/set-pin route
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function signPreAuthToken(userId: string): string {
-  return jwt.sign({ sub: userId, type: "PRE_AUTH" }, ACCESS_SECRET, {
+export function signPreAuthToken(userId: string, flow: "REGISTER" | "RESET_PIN"): string {
+  return jwt.sign({ sub: userId, type: "PRE_AUTH", flow }, ACCESS_SECRET, {
     expiresIn: 10 * 60, // 10 minutes to complete PIN setup
   });
 }
 
-export function verifyPreAuthToken(token: string): { sub: string } | null {
+export function verifyPreAuthToken(
+  token: string
+): { sub: string; flow: "REGISTER" | "RESET_PIN" } | null {
   try {
-    const payload = jwt.verify(token, ACCESS_SECRET) as { sub: string; type: string };
+    const payload = jwt.verify(token, ACCESS_SECRET) as {
+      sub: string;
+      type: string;
+      flow: string;
+    };
     if (payload.type !== "PRE_AUTH") return null;
-    return { sub: payload.sub };
+    if (payload.flow !== "REGISTER" && payload.flow !== "RESET_PIN") return null;
+    return { sub: payload.sub, flow: payload.flow as "REGISTER" | "RESET_PIN" };
   } catch {
     return null;
   }
