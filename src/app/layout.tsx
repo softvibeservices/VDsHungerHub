@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
 import { FingerprintWarmup } from "@/components/FingerprintWarmup";
+import Script from "next/script";
 import "./globals.css";
 
 const inter = Inter({
@@ -45,6 +46,28 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
       </head>
       <body className="min-h-full font-sans">
+        {/* MSG91 OTP Widget JS — loaded lazily, never blocks first paint.
+            With exposeMethods: true, this attaches window.sendOTP / window.verifyOTP.
+            initSendOTP() is called from VerifyForm / LoginForm / staff-login page
+            at the point of OTP send, not here. */}
+        <Script
+          id="msg91-otp-widget-loader"
+          strategy="lazyOnload"
+          dangerouslySetInnerHTML={{
+            __html: `
+(function loadOtpScript(urls) {
+  var i = 0;
+  function attempt() {
+    var s = document.createElement('script');
+    s.src = urls[i]; s.async = true;
+    s.onerror = function() { i++; if (i < urls.length) attempt(); };
+    document.head.appendChild(s);
+  }
+  attempt();
+})(['https://verify.msg91.com/otp-provider.js','https://verify.phone91.com/otp-provider.js']);
+`,
+          }}
+        />
         <FingerprintWarmup />
         {children}
         <Toaster

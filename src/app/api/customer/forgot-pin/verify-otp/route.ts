@@ -6,34 +6,28 @@ import {
   normalizeAndValidateMobile,
   signPreAuthToken,
 } from "@/lib/customer-auth";
-import { verifyOtp } from "@/lib/message-central";
+import { verifyWidgetToken } from "@/lib/msg91";
 
 /**
  * POST /api/customer/forgot-pin/verify-otp
  *
- * Step 2 of forgot-PIN flow. Verifies the OTP sent by send-otp.
+ * Step 2 of forgot-PIN flow. Verifies the JWT access token returned by the
+ * MSG91 OTP Widget (window.verifyOTP).
  * On success issues a short-lived `preAuthToken` (10-min JWT) required
  * to call /api/customer/forgot-pin/reset.
  *
  * Body:
- *   mobile  string  (10-digit Indian)
- *   otp     string  (6 digits)
+ *   mobile       string  (10-digit Indian)
+ *   widgetToken  string  (JWT from MSG91 widget success callback)
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { mobile: rawMobile, otp } = body;
+    const { mobile: rawMobile, widgetToken } = body;
 
-    if (!rawMobile || !otp) {
+    if (!rawMobile || !widgetToken) {
       return NextResponse.json(
-        { error: "mobile and otp are required" },
-        { status: 400 }
-      );
-    }
-
-    if (!/^\d{6}$/.test(otp)) {
-      return NextResponse.json(
-        { error: "OTP must be exactly 6 digits" },
+        { error: "mobile and widgetToken are required" },
         { status: 400 }
       );
     }
@@ -90,31 +84,24 @@ export async function POST(req: NextRequest) {
       data: { attempts: { increment: 1 } },
     });
 
-    // Verify with Message Central
+    // ── Validate widget token with MSG91 ────────────────────────────────
+    let verifiedMobile: string;
     try {
-      await verifyOtp(otpRow.verificationId, otp);
+      verifiedMobile = await verifyWidgetToken(widgetToken);
     } catch {
-      const updatedAttempts = otpRow.attempts + 1;
-      if (updatedAttempts >= 5) {
-        await prisma.otpVerification.update({
-          where: { id: otpRow.id },
-          data: { consumedAtUtc: new Date() },
-        });
-        return NextResponse.json(
-          {
-            error: "Incorrect OTP. Too many attempts. Please request a new OTP.",
-            code: "OTP_MAX_ATTEMPTS",
-          },
-          { status: 429 }
-        );
-      }
       return NextResponse.json(
-        {
-          error: "Incorrect OTP. Please try again.",
-          code: "OTP_INVALID",
-          attemptsRemaining: 5 - updatedAttempts,
-        },
+        { error: "Invalid or expired OTP. Please request a new code.", code: "OTP_INVALID" },
         { status: 401 }
+      );
+    }
+
+    if (verifiedMobile !== mobile) {
+      console.warn(
+        `[FORGOT-PIN VERIFY-OTP] Mobile mismatch: claimed=${mobile} verified=${verifiedMobile}`
+      );
+      return NextResponse.json(
+        { error: "Mobile number mismatch. Please request a new OTP.", code: "OTP_INVALID" },
+        { status: 400 }
       );
     }
 

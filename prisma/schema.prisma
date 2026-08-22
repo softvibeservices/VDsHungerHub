@@ -346,7 +346,7 @@ model OtpVerification {
   id             String     @id @default(cuid())
   mobile         String
   purpose        OtpPurpose
-  verificationId String              // returned by Message Central "send" call
+  providerRef    String?             // opaque MSG91 send reference, audit-only — NOT required for verification
   userId         String?             // linked once a User draft exists
   attempts       Int        @default(0)
   expiresAtUtc   DateTime
@@ -629,7 +629,7 @@ model StaffOtpAttempt {
   id             String          @id @default(cuid())
   mobile         String
   purpose        StaffOtpPurpose @default(STAFF_LOGIN)
-  verificationId String          // returned by Message Central's send call
+  providerRef    String?         // opaque MSG91 send reference, audit-only — NOT required for verification
   ip             String
   userAgent      String
   attempts       Int             @default(0)

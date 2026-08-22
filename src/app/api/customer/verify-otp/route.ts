@@ -3,30 +3,31 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { signPreAuthToken } from "@/lib/customer-auth";
-import { verifyOtp } from "@/lib/message-central";
+import { verifyWidgetToken, Msg91Error } from "@/lib/msg91";
 
 /**
  * POST /api/customer/verify-otp
  *
- * Step 3 of registration. Also used for login-otp and forgot-pin.
- * Caps at 5 attempts per OtpVerification row; invalidates row on 5th failure.
+ * Step 3 of registration. Also used for forgot-pin.
+ * Accepts the JWT access token returned by the MSG91 OTP Widget (window.verifyOTP)
+ * and validates it with MSG91's verifyAccessToken endpoint.
  *
  * Body:
- *   mobile    string
- *   otp       string (6 digits)
- *   purpose?  "REGISTER" | "LOGIN" | "FORGOT_PIN" (default: REGISTER)
+ *   mobile       string   (10-digit Indian)
+ *   widgetToken  string   (JWT from MSG91 widget success callback)
+ *   purpose?     "REGISTER" | "FORGOT_PIN" (default: REGISTER; LOGIN disabled)
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { mobile, otp, purpose = "REGISTER" } = body;
+    const { mobile, widgetToken, purpose = "REGISTER" } = body;
 
-    if (!mobile || !otp) {
-      return NextResponse.json({ error: "mobile and otp are required" }, { status: 400 });
+    if (!mobile || !widgetToken) {
+      return NextResponse.json({ error: "mobile and widgetToken are required" }, { status: 400 });
     }
 
-    if (!/^\d{6}$/.test(otp)) {
-      return NextResponse.json({ error: "OTP must be exactly 6 digits" }, { status: 400 });
+    if (typeof widgetToken !== "string" || widgetToken.trim() === "") {
+      return NextResponse.json({ error: "widgetToken must be a non-empty string" }, { status: 400 });
     }
 
     // ── Find the active OtpVerification row ───────────────────────────────────
@@ -66,25 +67,27 @@ export async function POST(req: NextRequest) {
       data: { attempts: { increment: 1 } },
     });
 
-    // ── Call Message Central to verify ────────────────────────────────────────
+    // ── Validate widget token with MSG91 ──────────────────────────────────
+    // MSG91 validates the token and returns the verified mobile number.
+    // We cross-check it matches the claimed mobile to prevent token hijacking.
+    let verifiedMobile: string;
     try {
-      await verifyOtp(otpRow.verificationId, otp);
+      verifiedMobile = await verifyWidgetToken(widgetToken);
     } catch (err: any) {
-      // If this was the 5th attempt, invalidate the row
-      const updatedAttempts = otpRow.attempts + 1;
-      if (updatedAttempts >= 5) {
-        await prisma.otpVerification.update({
-          where: { id: otpRow.id },
-          data: { consumedAtUtc: new Date() },
-        });
-        return NextResponse.json(
-          { error: "OTP incorrect. Too many attempts. Please request a new OTP." },
-          { status: 429 }
-        );
-      }
+      console.warn("[CUSTOMER VERIFY-OTP] Widget token validation failed:", err.message);
       return NextResponse.json(
-        { error: "Incorrect OTP. Please try again.", attemptsRemaining: 5 - updatedAttempts },
+        { error: "Invalid or expired OTP. Please request a new code." },
         { status: 401 }
+      );
+    }
+
+    if (verifiedMobile !== mobile) {
+      console.warn(
+        `[CUSTOMER VERIFY-OTP] Mobile mismatch: claimed=${mobile} verified=${verifiedMobile}`
+      );
+      return NextResponse.json(
+        { error: "Mobile number mismatch. Please request a new OTP." },
+        { status: 400 }
       );
     }
 
