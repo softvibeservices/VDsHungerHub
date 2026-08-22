@@ -69,7 +69,18 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    await prisma.user.delete({ where: { id } });
+    await prisma.$transaction([
+      prisma.company.updateMany({ where: { addedByUserId: id }, data: { addedByUserId: null } }),
+      prisma.otpVerification.deleteMany({ where: { userId: id } }),
+      prisma.customerSession.deleteMany({ where: { userId: id } }),
+      prisma.deviceFingerprint.deleteMany({ where: { userId: id } }),
+      prisma.userDevice.deleteMany({ where: { userId: id } }),
+      prisma.address.deleteMany({ where: { userId: id } }),
+      prisma.banHistory.deleteMany({ where: { userId: id } }),
+      prisma.order.deleteMany({ where: { userId: id } }),
+      prisma.payment.deleteMany({ where: { userId: id } }),
+      prisma.user.delete({ where: { id } }),
+    ]);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     if ((error as { code?: string }).code === "P2025") {

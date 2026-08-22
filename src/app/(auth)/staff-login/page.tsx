@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import Navbar from "@/components/public/Navbar";
 import Footer from "@/components/public/Footer";
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
+import { triggerWidgetSendOtp, triggerWidgetVerifyOtp } from "@/lib/msg91-widget-client";
 
 type Method = "password" | "reset-password";
 type Step = "mobile" | "otp" | "set-password";
@@ -74,11 +75,14 @@ export default function StaffLoginPage() {
       if (!res.ok) {
         setError(data.error || "Failed to send reset OTP. Please try again.");
       } else {
+        // Trigger MSG91 Widget SMS delivery directly on the client
+        await triggerWidgetSendOtp(mobile.trim());
+
         toast.success(data.message || "Reset OTP sent successfully.");
         setStep("otp");
       }
-    } catch {
-      setError("Network error. Please check your connection.");
+    } catch (err: any) {
+      setError(err?.message || "Network error. Please check your connection.");
     } finally {
       setIsLoading(false);
     }
@@ -95,10 +99,21 @@ export default function StaffLoginPage() {
 
     setIsLoading(true);
     try {
+      // 1. Verify OTP with MSG91 Widget on client to get JWT access token
+      let widgetToken: string;
+      try {
+        widgetToken = await triggerWidgetVerifyOtp(mobile.trim(), otp.trim());
+      } catch (err: any) {
+        setError(err?.message || "Verification failed. Please check your code.");
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Verify token with backend
       const res = await fetch("/api/staff/otp/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: mobile.trim(), otpCode: otp.trim() }),
+        body: JSON.stringify({ mobile: mobile.trim(), widgetToken }),
       });
 
       const data = await res.json();
@@ -109,8 +124,8 @@ export default function StaffLoginPage() {
         toast.success("OTP verified! Please set your new password below.");
         setStep("set-password");
       }
-    } catch {
-      setError("Network error. Please check your connection.");
+    } catch (err: any) {
+      setError(err?.message || "Network error. Please check your connection.");
     } finally {
       setIsLoading(false);
     }

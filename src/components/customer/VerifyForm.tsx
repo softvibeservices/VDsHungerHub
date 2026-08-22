@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Loader2, Phone, KeyRound, CheckCircle, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
 import toast from "react-hot-toast";
+import { triggerWidgetSendOtp, triggerWidgetVerifyOtp } from "@/lib/msg91-widget-client";
 
 type VerifyStep = "MOBILE_INPUT" | "VERIFY_AND_PIN";
 
@@ -146,14 +147,18 @@ export default function VerifyForm({
         return;
       }
 
+      // 2. Trigger MSG91 Widget SMS delivery directly on the client
+      await triggerWidgetSendOtp(mobile);
+
       toast.success("OTP sent! Enter OTP and set your PIN below.", { id: toastId, duration: 3000 });
       setOtpCooldown(60);
       setVerifiedNoPinBanner(false);
-      setOtp(""); // Bug 3 fix: clear stale OTP so user can't accidentally re-submit old code
+      setOtp(""); // clear stale OTP so user can't accidentally re-submit old code
       setStep("VERIFY_AND_PIN");
-    } catch {
-      toast.error("Connection error. Please check your internet and try again.", { id: toastId });
-      setError("Connection error. Please check your internet and try again.");
+    } catch (err: any) {
+      const msg = err?.message || "Could not send OTP. Please check your connection.";
+      toast.error(msg, { id: toastId });
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -199,11 +204,23 @@ export default function VerifyForm({
       const visitorId = await getDeviceVisitorId();
       const purpose = mode === "FORGOT_PIN" ? "FORGOT_PIN" : "REGISTER";
 
-      // 1. Verify OTP first
+      // 1. Verify OTP with MSG91 Widget on client to get JWT access token
+      let widgetToken: string;
+      try {
+        widgetToken = await triggerWidgetVerifyOtp(mobile, otp);
+      } catch (err: any) {
+        toast.dismiss(toastId);
+        const msg = err?.message || "Incorrect OTP. Please check and try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
+        return;
+      }
+
+      // 2. Verify token with backend
       const verifyRes = await fetch("/api/customer/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile, otp, purpose }),
+        body: JSON.stringify({ mobile, widgetToken, purpose }),
       });
 
       const verifyData = await verifyRes.json();

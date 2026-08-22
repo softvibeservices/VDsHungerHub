@@ -17,15 +17,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Permission checks
+    let auth;
     if (action === "DELETE" || action === "BAN" || action === "UNBAN") {
-      const auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
-      if (auth.error) return auth.error;
+      auth = await requireStaffAuth(req, { roles: ["ADMIN"] });
     } else {
-      const auth = await requireStaffAuth(req, { permission: "users:moderate" });
-      if (auth.error) return auth.error;
+      auth = await requireStaffAuth(req, { permission: "users:moderate" });
     }
-
-    const auth = await requireStaffAuth(req, { permission: "users:moderate" });
     if (auth.error) return auth.error;
     const session = auth.session;
 
@@ -33,10 +30,18 @@ export async function POST(req: NextRequest) {
 
     if (action === "DELETE") {
       await prisma.$transaction([
+        prisma.company.updateMany({
+          where: { addedByUserId: { in: userIds } },
+          data: { addedByUserId: null },
+        }),
         prisma.otpVerification.deleteMany({ where: { userId: { in: userIds } } }),
         prisma.customerSession.deleteMany({ where: { userId: { in: userIds } } }),
         prisma.deviceFingerprint.deleteMany({ where: { userId: { in: userIds } } }),
+        prisma.userDevice.deleteMany({ where: { userId: { in: userIds } } }),
         prisma.address.deleteMany({ where: { userId: { in: userIds } } }),
+        prisma.banHistory.deleteMany({ where: { userId: { in: userIds } } }),
+        prisma.order.deleteMany({ where: { userId: { in: userIds } } }),
+        prisma.payment.deleteMany({ where: { userId: { in: userIds } } }),
         prisma.user.deleteMany({ where: { id: { in: userIds } } }),
       ]);
       count = userIds.length;

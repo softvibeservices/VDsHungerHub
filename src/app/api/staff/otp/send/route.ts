@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendOtp, MessageCentralError } from "@/lib/message-central";
+// No MSG91 import needed — Widget JS on the frontend sends the OTP directly.
 import {
   checkRateLimit,
   checkResendCooldown,
@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
       await prisma.staffOtpAttempt.create({
         data: {
           mobile,
-          verificationId: "no-account",
+          providerRef: "no-account",
           ip,
           userAgent,
           expiresAtUtc: new Date(Date.now() + OTP_TTL_MS),
@@ -102,13 +102,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "If this number is registered, an OTP has been sent." });
     }
 
-    // 4. Send actual OTP via Message Central
-    const verificationId = await sendOtp(mobile, 6);
-
+    // 4. Create staff OTP attempt row (Widget sends OTP from frontend)
     await prisma.staffOtpAttempt.create({
       data: {
         mobile,
-        verificationId,
+        providerRef: null, // Widget sends OTP from frontend
         ip,
         userAgent,
         expiresAtUtc: new Date(Date.now() + OTP_TTL_MS),
@@ -123,10 +121,6 @@ export async function POST(req: NextRequest) {
         { error: `Too many OTP requests. Please try again after ${waitTime}.` },
         { status: 429 }
       );
-    }
-    if (error instanceof MessageCentralError) {
-      console.error("[STAFF OTP SEND] Message Central error:", error.message, error.responseBody);
-      return NextResponse.json({ error: "Could not send OTP right now. Please try again." }, { status: 502 });
     }
     console.error("[STAFF OTP SEND]", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

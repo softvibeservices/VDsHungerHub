@@ -3,9 +3,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronRight, Loader2, Building2, Plus, Phone, KeyRound, Eye, EyeOff, Home, Lock, MapPin, CheckCircle, ShieldCheck, RefreshCw } from "lucide-react";
+import { Loader2, Building2, Phone, KeyRound, Eye, EyeOff, Home, Lock, CheckCircle, RefreshCw } from "lucide-react";
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
 import toast from "react-hot-toast";
+import { triggerWidgetSendOtp, triggerWidgetVerifyOtp } from "@/lib/msg91-widget-client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
 
   // Step 2 state (OTP + PIN combined)
   const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
+  const [, setOtpSent] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
@@ -245,6 +246,18 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
         return;
       }
 
+      // Backend only rate-limited and created the OtpVerification row — the SMS
+      // itself is sent by the MSG91 Widget JS running on this page.
+      try {
+        await triggerWidgetSendOtp(mobile);
+      } catch (err: any) {
+        toast.dismiss(toastId);
+        const msg = err?.message || "Could not send OTP. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
+        return;
+      }
+
       toast.success("OTP sent to your mobile! Enter OTP & set your PIN below.", { id: toastId, duration: 4000 });
       setOtpSent(true);
       setOtpCooldown(60);
@@ -293,6 +306,16 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
           return;
         }
         const msg = data.error ?? "Could not send OTP. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
+        return;
+      }
+
+      try {
+        await triggerWidgetSendOtp(mobile);
+      } catch (err: any) {
+        toast.dismiss(toastId);
+        const msg = err?.message || "Could not resend OTP. Please try again.";
         setError(msg);
         toast.error(msg, { duration: 4000 });
         return;
@@ -348,11 +371,24 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
     try {
       const visitorId = await getDeviceVisitorId();
 
-      // 1. Verify OTP first
+      // 1. Verify the typed OTP with the MSG91 Widget to get a JWT access token.
+      let widgetToken: string;
+      try {
+        widgetToken = await triggerWidgetVerifyOtp(mobile, otp);
+      } catch (err: any) {
+        toast.dismiss(toastId);
+        const msg = err?.message || "Incorrect OTP. Please check and try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
+        return;
+      }
+
+      // 2. Send that token (not the raw code) to our backend, which validates it
+      // with MSG91's verifyAccessToken endpoint.
       const verifyRes = await fetch("/api/customer/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile, otp, purpose: "REGISTER" }),
+        body: JSON.stringify({ mobile, widgetToken, purpose: "REGISTER" }),
       });
 
       const verifyData = await verifyRes.json();

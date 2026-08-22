@@ -9,7 +9,7 @@ import {
   computeFingerprintHash,
   getClientIp,
 } from "@/lib/customer-auth";
-import { sendOtp } from "@/lib/message-central";
+// No MSG91 import needed — Widget JS on the frontend sends the OTP directly.
 
 /**
  * POST /api/customer/forgot-pin/send-otp
@@ -71,23 +71,22 @@ export async function POST(req: NextRequest) {
       select: { id: true },
     });
 
-    // Only actually dispatch OTP if user exists and is active
+    // Only create OtpVerification row if user exists (widget sends SMS from frontend after this)
     if (user) {
       try {
-        const verificationId = await sendOtp(mobile);
         const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
         await prisma.otpVerification.create({
           data: {
             mobile,
             purpose: "FORGOT_PIN",
-            verificationId,
+            providerRef: null, // Widget sends OTP from frontend; no server-side send reference
             userId: user.id,
             expiresAtUtc: expiresAt,
           },
         });
       } catch (err) {
-        console.error("[FORGOT-PIN SEND-OTP] Failed to send OTP:", err);
+        console.error("[FORGOT-PIN SEND-OTP] Failed to create OtpVerification row:", err);
         // Don't surface the error — return generic message
       }
     }

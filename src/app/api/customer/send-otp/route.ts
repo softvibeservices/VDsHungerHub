@@ -10,13 +10,18 @@ import {
   getClientIp,
   formatRateLimitWaitTime,
 } from "@/lib/customer-auth";
-import { sendOtp } from "@/lib/message-central";
+// No MSG91 import needed here — the Widget JS on the frontend sends the OTP directly.
+// This route is a rate-limiter / preflight validator only.
 
 /**
  * POST /api/customer/send-otp
  *
- * Step 2 of registration (also shared by forgot-pin flows).
- * Validates mobile, rate-limits on 3 axes, calls Message Central, stores OtpVerification row.
+ * Preflight step for OTP flows (REGISTER / FORGOT_PIN). Does NOT call MSG91 —
+ * the MSG91 Widget JS on the frontend triggers the SMS via window.sendOTP().
+ *
+ * Responsibilities: validate mobile, enforce 3-axis rate limits, check registration
+ * state, create OtpVerification row. Returns { otpSent: true } on success so the
+ * frontend knows it can proceed to call window.sendOTP().
  *
  * Body:
  *   draftId?        string   (optional — auto-resolved by mobile if omitted for REGISTER)
@@ -213,10 +218,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Call Message Central ──────────────────────────────────────────────────
-    const verificationId = await sendOtp(mobile);
-
-    // ── Store OtpVerification row ─────────────────────────────────────────────
+    // ── Store OtpVerification row (Widget sends SMS from frontend) ───────────────
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
     // Link to userId if known.
@@ -239,7 +241,7 @@ export async function POST(req: NextRequest) {
       data: {
         mobile,
         purpose: purpose as "REGISTER" | "LOGIN" | "FORGOT_PIN",
-        verificationId,
+        providerRef: null, // Widget sends OTP from frontend; no server-side send reference
         userId: linkedUserId ?? null,
         expiresAtUtc: expiresAt,
       },
@@ -261,13 +263,7 @@ export async function POST(req: NextRequest) {
         { status: 429 }
       );
     }
-    if (error?.name === "MessageCentralError") {
-      console.error("[SEND-OTP] Message Central error:", error.message);
-      return NextResponse.json(
-        { error: "Failed to send OTP. Please try again in a moment." },
-        { status: 502 }
-      );
-    }
+    // No MSG91 error to catch here — widget sends OTP from frontend.
     console.error("[CUSTOMER SEND-OTP]", error);
     return NextResponse.json({ error: "Something went wrong. Please try again." }, { status: 500 });
   }

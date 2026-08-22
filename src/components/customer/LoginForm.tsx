@@ -7,6 +7,7 @@ import { Loader2, Eye, EyeOff, RefreshCw, AlertCircle, ShieldCheck } from "lucid
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import { triggerWidgetSendOtp, triggerWidgetVerifyOtp } from "@/lib/msg91-widget-client";
 
 interface Props {
   onSuccess: () => void;
@@ -176,12 +177,16 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
         return;
       }
 
+      // Step 2: Trigger MSG91 Widget SMS delivery directly on the client
+      await triggerWidgetSendOtp(fpMobile);
+
       toast.success("OTP sent to your mobile!", { id: toastId, duration: 3000 });
       setFpOtpCooldown(60);
       setFpStep("otp");
-    } catch {
-      toast.error("Connection error. Please try again.", { id: toastId });
-      setError("Connection error. Please try again.");
+    } catch (err: any) {
+      const msg = err?.message || "Connection error. Please try again.";
+      toast.error(msg, { id: toastId });
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -196,10 +201,23 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
     const toastId = toast.loading("Verifying OTP…");
 
     try {
+      // 1. Verify OTP with MSG91 Widget on client to get JWT access token
+      let widgetToken: string;
+      try {
+        widgetToken = await triggerWidgetVerifyOtp(fpMobile, fpOtp);
+      } catch (err: any) {
+        toast.dismiss(toastId);
+        const msg = err?.message || "Incorrect OTP. Please try again.";
+        setError(msg);
+        toast.error(msg, { duration: 4000 });
+        return;
+      }
+
+      // 2. Verify token with backend
       const res = await fetch("/api/customer/verify-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile: fpMobile, otp: fpOtp, purpose: "FORGOT_PIN" }),
+        body: JSON.stringify({ mobile: fpMobile, widgetToken, purpose: "FORGOT_PIN" }),
       });
       const data = await res.json();
 
@@ -217,9 +235,10 @@ export default function LoginForm({ onSuccess, onSwitchToRegister, onSwitchToVer
       toast.success("OTP verified! Now set your new PIN.", { id: toastId, duration: 3000 });
       setFpPreAuth(data.preAuthToken);
       setFpStep("pin");
-    } catch {
-      toast.error("Connection error. Please try again.", { id: toastId });
-      setError("Connection error. Please try again.");
+    } catch (err: any) {
+      const msg = err?.message || "Connection error. Please try again.";
+      toast.error(msg, { id: toastId });
+      setError(msg);
     } finally {
       setLoading(false);
     }
