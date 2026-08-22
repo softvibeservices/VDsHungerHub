@@ -7,6 +7,7 @@ import { Loader2, Building2, Phone, KeyRound, Eye, EyeOff, Home, Lock, CheckCirc
 import { getDeviceVisitorId } from "@/lib/fingerprint-client";
 import toast from "react-hot-toast";
 import { triggerWidgetSendOtp, triggerWidgetVerifyOtp } from "@/lib/msg91-widget-client";
+import CompanySearchCombobox from "@/components/customer/CompanySearchCombobox";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -573,29 +574,15 @@ export default function RegisterForm({ onSuccess, onSwitchToLogin }: Props) {
                 </label>
 
                 {!newCompany ? (
-                  <div className="space-y-2">
-                    <select
-                      id="register-company-select"
-                      value={companyId}
-                      onChange={(e) => {
-                        if (e.target.value === "ADD_NEW") {
-                          setNewCompany(true);
-                          setCompanyId("");
-                        } else {
-                          setCompanyId(e.target.value);
-                        }
-                      }}
-                      className={inputCls}
-                    >
-                      <option value="">Select your company…</option>
-                      {companies.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} {c.location ? `(${c.location})` : ""}
-                        </option>
-                      ))}
-                      <option value="ADD_NEW">+ My company is not listed</option>
-                    </select>
-                  </div>
+                  <CompanySearchCombobox
+                    companies={companies}
+                    selectedCompanyId={companyId}
+                    onSelectCompany={(id) => setCompanyId(id)}
+                    onAddNewCompany={() => {
+                      setNewCompany(true);
+                      setCompanyId("");
+                    }}
+                  />
                 ) : (
                   <div className="space-y-2">
                     <div className="flex gap-2">
