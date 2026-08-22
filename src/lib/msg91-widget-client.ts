@@ -51,6 +51,20 @@ function buildBaseConfig(
   return config;
 }
 
+function buildVerifyConfig(
+  success: (data: unknown) => void,
+  failure: (error: unknown) => void
+): Msg91WidgetConfig {
+  const config: Msg91WidgetConfig = {
+    widgetId: WIDGET_ID,
+    tokenAuth: TOKEN_AUTH,
+    exposeMethods: true,
+    success,
+    failure,
+  };
+  return config;
+}
+
 /**
  * Waits up to SCRIPT_LOAD_TIMEOUT_MS for MSG91's otp-provider.js to load and
  * define window.initSendOTP.
@@ -151,26 +165,38 @@ export async function triggerWidgetSendOtp(mobile: string): Promise<void> {
       }
     );
 
-    log("Calling initSendOTP for send, widgetId:", WIDGET_ID, "identifier:", intlMobile);
+    // If sendOTP / sendOtp is already exposed on window (e.g. Resend button click),
+    // call existingSendFn directly without re-running initSendOTP.
+    const existingSendFn = window.sendOTP || window.sendOtp;
+    if (typeof existingSendFn === "function") {
+      log("sendOtp already present on window — calling existingSendFn directly.");
+      try {
+        existingSendFn(intlMobile);
+      } catch (err) {
+        if (!settled) {
+          settled = true;
+          reject(err instanceof Error ? err : new Error("MSG91 sendOTP call failed."));
+        }
+        return;
+      }
+      setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          log("No success/failure callback within timeout — proceeding optimistically.");
+          resolve();
+        }
+      }, SEND_CALLBACK_TIMEOUT_MS);
+      return;
+    }
+
+    // Initial send: initSendOTP sends the OTP automatically when identifier is supplied in config.
+    // Do NOT call sendFn() again after initSendOTP, as that causes duplicate send calls.
+    log("Calling initSendOTP for initial send, widgetId:", WIDGET_ID, "identifier:", intlMobile);
     window.initSendOTP(config);
 
     waitForExposedMethod(() => window.sendOTP || window.sendOtp, "sendOtp")
-      .then((sendFn) => {
-        if (settled) return;
-        try {
-          sendFn(intlMobile);
-        } catch (err) {
-          if (!settled) {
-            settled = true;
-            reject(err instanceof Error ? err : new Error("MSG91 sendOTP call failed."));
-          }
-          return;
-        }
-
-        // Some MSG91 widget configs never fire success/failure for the send step
-        // (only for verify). Don't block the UI forever — resolve after a timeout
-        // and let the OTP entry screen show; verify() will surface a real error if
-        // the SMS genuinely never went out.
+      .then(() => {
+        // initSendOTP already initiated sending. Set timeout fallback for callbacks.
         setTimeout(() => {
           if (!settled) {
             settled = true;
@@ -205,8 +231,7 @@ export async function triggerWidgetVerifyOtp(mobile: string, otp: string): Promi
   return new Promise<string>((resolve, reject) => {
     let settled = false;
 
-    const config = buildBaseConfig(
-      intlMobile,
+    const config = buildVerifyConfig(
       (data) => {
         if (settled) return;
         settled = true;
@@ -230,8 +255,22 @@ export async function triggerWidgetVerifyOtp(mobile: string, otp: string): Promi
       }
     );
 
-    log("Calling initSendOTP for verify, widgetId:", WIDGET_ID, "identifier:", intlMobile);
+    log("Calling initSendOTP to bind verification callbacks, widgetId:", WIDGET_ID);
     window.initSendOTP(config);
+
+    const existingVerifyFn = window.verifyOTP || window.verifyOtp;
+    if (typeof existingVerifyFn === "function") {
+      log("verifyOtp present on window — executing verifyFn directly.");
+      try {
+        existingVerifyFn(otp);
+      } catch (err) {
+        if (!settled) {
+          settled = true;
+          reject(err instanceof Error ? err : new Error("OTP verification call failed."));
+        }
+      }
+      return;
+    }
 
     waitForExposedMethod(() => window.verifyOTP || window.verifyOtp, "verifyOtp")
       .then((verifyFn) => {
