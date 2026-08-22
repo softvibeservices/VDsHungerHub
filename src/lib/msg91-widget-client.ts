@@ -1,4 +1,5 @@
 // src/lib/msg91-widget-client.ts
+// Trigger Vercel build deployment
 
 /**
  * Client-side helper for MSG91 OTP Widget (No-DLT path).
